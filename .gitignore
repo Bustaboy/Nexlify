@@ -1,0 +1,144 @@
+# Nexlify - Git Ignore Configuration
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual Environment
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+nexlify-env/
+
+# Configuration and Sensitive Data
+config/neural_config.json
+config/*.json
+!config/neural_config.example.json
+.env
+.env.*
+*.key
+*.pem
+*.crt
+secrets/
+credentials/
+
+# Logs and Data
+logs/
+*.log
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Models and ML
+models/
+*.pkl
+*.h5
+*.joblib
+*.model
+*.weights
+checkpoints/
+
+# Backups and Reports
+backups/
+reports/
+*.backup
+*.bak
+*.old
+
+# IDE and Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Emergency Files
+EMERGENCY_STOP_ACTIVE
+KILL_SWITCH_ACTIVE
+
+# Temporary Files
+*.tmp
+*.temp
+*.cache
+tmp/
+temp/
+cache/
+
+# Testing
+.tox/
+.nox/
+.hypothesis/
+pytest_cache/
+test_results/
+
+# Documentation Build
+docs/_build/
+docs/_static/
+docs/_templates/
+site/
+
+# Package Files
+*.tar.gz
+*.zip
+*.rar
+*.7z
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+*.ipynb
+
+# Custom Excludes for Nexlify
+sandbox/
+experiments/
+old_versions/
+legacy/
+*.test.py
+*_test.py
+test_*.py
+
+# API Keys and Wallets (extra safety)
+*api_key*
+*secret*
+*wallet*
+*private*
+!*example*
