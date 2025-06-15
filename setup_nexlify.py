@@ -13,7 +13,7 @@ from pathlib import Path
 
 class NexlifySetup:
     def __init__(self):
-        self.project_root = Path("C:/Nexlify")
+        self.project_root = Path(os.path.dirname(os.path.abspath(__file__)))
         self.python_version = sys.version_info
         
         # Required packages
@@ -62,9 +62,9 @@ class NexlifySetup:
         print("\n📁 Creating directory structure...")
         
         directories = [
-            self.project_root,
             self.project_root / "config",
             self.project_root / "logs",
+            self.project_root / "logs" / "crash_reports",
             self.project_root / "data",
             self.project_root / "models",
             self.project_root / "backups",
@@ -158,76 +158,12 @@ class NexlifySetup:
             f.write(env_content)
         print(f"✅ Created: {env_file} (managed by GUI)")
     
-    def create_launcher_scripts(self):
-        """Create launch scripts"""
-        print("\n🚀 Creating launcher scripts...")
-        
-        # Windows batch file
-        bat_content = """@echo off
-cd /d C:\\Night-City-Trader
-echo Starting Arasaka Neural-Net Trading Matrix...
-echo.
-echo Step 1: Starting API Server...
-start "Neural-Net API" cmd /k python arasaka_neural_net.py
-timeout /t 5
-echo.
-echo Step 2: Starting GUI Interface...
-start "Neural-Net GUI" cmd /k python cyber_gui.py
-echo.
-echo ✅ Night City Trader is running!
-echo.
-echo To stop: Close both windows or use the KILL SWITCH in the GUI
-pause
-"""
-        
-        bat_file = self.project_root / "start_night_city.bat"
-        with open(bat_file, 'w') as f:
-            f.write(bat_content)
-        print(f"✅ Created: {bat_file}")
-        
-        # Python launcher
-        py_launcher = '''#!/usr/bin/env python3
-"""Quick launcher for Night City Trader"""
-import subprocess
-import time
-import os
-
-os.chdir(r"C:\\Night-City-Trader")
-
-print("🌃 Starting Night City Trader...")
-print("=" * 50)
-
-# Start API
-print("Starting Neural-Net API...")
-api_process = subprocess.Popen(["python", "arasaka_neural_net.py"])
-time.sleep(3)
-
-# Start GUI
-print("Starting Cyberpunk GUI...")
-gui_process = subprocess.Popen(["python", "cyber_gui.py"])
-
-print("\\n✅ Night City Trader is running!")
-print("\\nPress Ctrl+C to stop all processes")
-
-try:
-    gui_process.wait()
-except KeyboardInterrupt:
-    print("\\nShutting down...")
-    api_process.terminate()
-    gui_process.terminate()
-'''
-        
-        py_file = self.project_root / "launch.py"
-        with open(py_file, 'w') as f:
-            f.write(py_launcher)
-        print(f"✅ Created: {py_file}")
-    
     def create_github_files(self):
         """Create GitHub-specific files"""
         print("\n📝 Creating GitHub files...")
         
         # README.md
-        readme_content = """# 🌃 Night City Trader - Arasaka Neural-Net Trading Matrix
+        readme_content = """# 🌃 Nexlify - Arasaka Neural-Net Trading Matrix
 
 ![Python](https://img.shields.io/badge/python-v3.9+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
@@ -252,18 +188,18 @@ except KeyboardInterrupt:
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/night-city-trader.git
-cd night-city-trader
+git clone https://github.com/yourusername/nexlify.git
+cd nexlify
 ```
 
 2. Run the setup script:
 ```bash
-python setup_night_city.py
+python setup_nexlify.py
 ```
 
 3. Launch the trader:
 ```bash
-python night_city_launcher.py
+python nexlify_launcher.py
 ```
 
 4. **First Launch**:
@@ -283,7 +219,7 @@ pip install -r requirements.txt
 mkdir config logs data models backups reports
 
 # Run the smart launcher
-python night_city_launcher.py
+python nexlify_launcher.py
 ```
 
 ## 📋 Configuration
@@ -299,7 +235,7 @@ No manual file editing required!
 
 ## 🎮 Usage
 
-1. **Start the System**: Run `night_city_launcher.py`
+1. **Start the System**: Run `nexlify_launcher.py`
 2. **Enter PIN**: Default is `2077`
 3. **Monitor**: Watch the AI work in real-time
 4. **Adjust**: All settings accessible through GUI tabs
@@ -342,62 +278,13 @@ MIT License - see LICENSE file
         with open(readme_file, 'w') as f:
             f.write(readme_content)
         print(f"✅ Created: {readme_file}")
-        
-        # .gitignore
-        gitignore_content = """# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-.env
-
-# Config and sensitive data
-config/config.json
-*.key
-*.pem
-
-# Logs and data
-logs/
-data/
-backups/
-reports/
-*.log
-*.db
-
-# Models
-models/
-*.pkl
-*.h5
-*.joblib
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Emergency stop file
-EMERGENCY_STOP_ACTIVE
-"""
-        
-        gitignore_file = self.project_root / ".gitignore"
-        with open(gitignore_file, 'w') as f:
-            f.write(gitignore_content)
-        print(f"✅ Created: {gitignore_file}")
     
     def final_instructions(self):
         """Print final setup instructions"""
         print("\n" + "="*70)
         print("\033[92m✅ SETUP COMPLETE!\033[0m")
         print("\n📋 Next Steps:")
-        print("1. Run: python launch.py (or start_night_city.bat)")
+        print("1. Run: python nexlify_launcher.py (or start_nexlify.bat)")
         print("2. The GUI will guide you through initial setup")
         print("3. Enter your exchange API keys in the onboarding screen")
         print("4. Set your BTC wallet address")
@@ -409,10 +296,10 @@ EMERGENCY_STOP_ACTIVE
         print("- Test thoroughly before using real funds")
         print("- Monitor logs/neural_net.log for issues")
         print("\n🚀 To upload to GitHub:")
-        print("1. Create new repo on GitHub")
+        print("1. Create new repo on GitHub called 'nexlify'")
         print("2. Run: git init")
         print("3. Run: git add .")
-        print("4. Run: git commit -m 'Initial commit'")
+        print("4. Run: git commit -m 'Initial commit - Nexlify v2.0.7.7'")
         print("5. Run: git remote add origin YOUR_GITHUB_URL")
         print("6. Run: git push -u origin main")
         print("\n" + "="*70)
@@ -431,18 +318,18 @@ EMERGENCY_STOP_ACTIVE
             print("Try: pip install -r requirements.txt manually")
         
         self.create_config_files()
-        self.create_launcher_scripts()
         self.create_github_files()
         
-        # Copy the main files to project directory
-        print("\n📂 Copying main files...")
-        print("✅ Copy arasaka_neural_net.py to C:\\Night-City-Trader\\")
-        print("✅ Copy cyber_gui.py to C:\\Night-City-Trader\\")
+        print("\n📂 Don't forget to copy:")
+        print("✅ arasaka_neural_net.py (main trading engine)")
+        print("✅ cyber_gui.py (GUI interface)")
+        print("✅ error_handler.py (error management)")
+        print("✅ utils.py (utility functions)")
         
         self.final_instructions()
         return True
 
 if __name__ == "__main__":
-    setup = NightCitySetup()
+    setup = NexlifySetup()
     setup.run()
     input("\nPress Enter to exit...")
