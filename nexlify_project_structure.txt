@@ -1,0 +1,195 @@
+nexlify/
+│
+├── 📁 src/                              # Main source code
+│   ├── 📁 core/                         # Core trading engine
+│   │   ├── __init__.py
+│   │   ├── engine.py                    # Main trading engine (formerly arasaka_neural_net.py)
+│   │   ├── arbitrage.py                 # Feature 2: Advanced arbitrage detection
+│   │   ├── order_router.py              # Feature 4: Smart order routing
+│   │   └── portfolio.py                 # Feature 12: Portfolio rebalancing
+│   │
+│   ├── 📁 strategies/                   # Trading strategies
+│   │   ├── __init__.py
+│   │   ├── base_strategy.py             # Abstract base class
+│   │   ├── multi_strategy.py            # Feature 1: Multi-strategy optimizer
+│   │   ├── arbitrage_strategies.py      # Triangular, cross-exchange
+│   │   ├── defi_strategies.py           # Feature 5: DeFi integration
+│   │   └── presets.py                   # Feature 10: One-click presets
+│   │
+│   ├── 📁 ml/                           # Machine Learning
+│   │   ├── __init__.py
+│   │   ├── models/
+│   │   │   ├── transformer.py           # Feature 20: Advanced neural networks
+│   │   │   ├── ensemble.py              # Ensemble voting
+│   │   │   └── reinforcement.py         # RL optimization
+│   │   ├── sentiment.py                 # Feature 3: AI sentiment analysis
+│   │   ├── pattern_recognition.py       # Feature 21: Pattern recognition
+│   │   └── predictive.py                # Feature 22: Predictive features
+│   │
+│   ├── 📁 risk/                         # Risk management
+│   │   ├── __init__.py
+│   │   ├── stop_loss.py                 # Feature 11: Advanced stop-loss
+│   │   ├── drawdown.py                  # Feature 13: Drawdown protection
+│   │   ├── position_sizing.py           # Position management
+│   │   └── risk_monitor.py              # Real-time risk monitoring
+│   │
+│   ├── 📁 analytics/                    # Analytics & reporting
+│   │   ├── __init__.py
+│   │   ├── performance.py               # Feature 14: Performance analytics
+│   │   ├── tax_optimizer.py             # Feature 15: Tax optimization
+│   │   ├── backtesting.py               # Feature 16: Advanced backtesting
+│   │   └── audit_trail.py               # Feature 30: Audit trail
+│   │
+│   ├── 📁 exchanges/                    # Exchange connections
+│   │   ├── __init__.py
+│   │   ├── base_exchange.py             # Base exchange interface
+│   │   ├── cex/                         # Centralized exchanges
+│   │   │   ├── binance.py
+│   │   │   ├── coinbase.py
+│   │   │   └── kraken.py
+│   │   └── dex/                         # Feature 17: DEX integrations
+│   │       ├── uniswap.py
+│   │       └── pancakeswap.py
+│   │
+│   ├── 📁 optimization/                 # Feature 23: Speed optimizations
+│   │   ├── __init__.py
+│   │   ├── cython_modules/              # Compiled modules
+│   │   ├── gpu_acceleration.py          # GPU support
+│   │   └── memory_mapping.py            # Memory optimization
+│   │
+│   ├── 📁 security/                     # Feature 29: Advanced security
+│   │   ├── __init__.py
+│   │   ├── two_factor.py                # 2FA implementation
+│   │   ├── encryption.py                # Local encryption
+│   │   ├── api_rotation.py              # API key rotation
+│   │   └── access_control.py            # IP whitelisting
+│   │
+│   └── 📁 utils/                        # Utilities
+│       ├── __init__.py
+│       ├── error_handler.py             # Enhanced error handling
+│       ├── logger.py                    # Advanced logging
+│       ├── config.py                    # Configuration management
+│       └── helpers.py                   # General utilities
+│
+├── 📁 gui/                              # GUI Application
+│   ├── __init__.py
+│   ├── main.py                          # Main GUI (enhanced cyber_gui.py)
+│   ├── 📁 components/                   # GUI components
+│   │   ├── dashboard.py                 # Feature 7: Advanced dashboard
+│   │   ├── gamification.py              # Feature 25: Gamification
+│   │   ├── ai_companion.py              # Feature 26: AI trading companion
+│   │   └── cyberpunk_effects.py         # Feature 27: Cyberpunk immersion
+│   ├── 📁 themes/                       # Visual themes
+│   │   ├── neon_city.py
+│   │   ├── corpo_dark.py
+│   │   └── netrunner_green.py
+│   └── 📁 assets/                       # Images, sounds, fonts
+│       ├── sounds/
+│       ├── images/
+│       └── fonts/
+│
+├── 📁 api/                              # API Server
+│   ├── __init__.py
+│   ├── server.py                        # FastAPI server
+│   ├── 📁 endpoints/                    # API endpoints
+│   │   ├── trading.py
+│   │   ├── analytics.py
+│   │   ├── mobile.py                    # Feature 6: Mobile companion
+│   │   └── websocket.py                 # Real-time updates
+│   └── 📁 middleware/                   # API middleware
+│       ├── auth.py
+│       ├── rate_limit.py
+│       └── cors.py
+│
+├── 📁 mobile/                           # Feature 6: Mobile companion app
+│   ├── 📁 nexlify_mobile/               # React Native app
+│   │   ├── src/
+│   │   ├── components/
+│   │   └── package.json
+│   └── README.md
+│
+├── 📁 config/                           # Configuration files
+│   ├── default_config.yaml              # Default settings
+│   ├── strategies.yaml                  # Strategy configurations
+│   ├── exchanges.yaml                   # Exchange settings
+│   └── neural_config.json               # Neural network config
+│
+├── 📁 data/                             # Data storage
+│   ├── 📁 market/                       # Market data
+│   ├── 📁 models/                       # Saved ML models
+│   ├── 📁 backtests/                    # Backtest results
+│   └── nexlify.db                       # Main database
+│
+├── 📁 logs/                             # Logging
+│   ├── 📁 trading/                      # Trade logs
+│   ├── 📁 errors/                       # Error logs
+│   ├── 📁 audit/                        # Audit trail
+│   └── 📁 performance/                  # Performance logs
+│
+├── 📁 tests/                            # Test suite
+│   ├── 📁 unit/                         # Unit tests
+│   ├── 📁 integration/                  # Integration tests
+│   ├── 📁 performance/                  # Performance tests
+│   └── conftest.py                      # Test configuration
+│
+├── 📁 scripts/                          # Utility scripts
+│   ├── setup_database.py                # Database initialization
+│   ├── migrate.py                       # Database migrations
+│   ├── compile_cython.py                # Compile optimizations
+│   └── deploy.py                        # Deployment script
+│
+├── 📁 docs/                             # Documentation
+│   ├── README.md                        # Main documentation
+│   ├── IMPLEMENTATION_GUIDE.md          # Setup guide
+│   ├── QUICK_REFERENCE.md               # Quick reference
+│   ├── ENVIRONMENT_SETTINGS.md          # Environment config
+│   ├── API_DOCUMENTATION.md             # API docs
+│   ├── FEATURE_GUIDE.md                 # Feature documentation
+│   └── 📁 images/                       # Documentation images
+│
+├── 📁 deployment/                       # Deployment configurations
+│   ├── docker/
+│   │   ├── Dockerfile                   # Docker configuration
+│   │   └── docker-compose.yml           # Multi-container setup
+│   ├── kubernetes/                      # K8s configurations
+│   │   ├── deployment.yaml
+│   │   └── service.yaml
+│   └── nginx/                           # Web server config
+│       └── nginx.conf
+│
+├── 📁 launchers/                        # Application launchers
+│   ├── nexlify_launcher.py              # Smart launcher
+│   ├── launch.py                        # Simple launcher
+│   └── start_nexlify.bat                # Windows batch
+│
+├── 📄 Root Files
+├── .gitignore                           # Git ignore rules
+├── .env.example                         # Environment example
+├── LICENSE                              # MIT License
+├── requirements.txt                     # Python dependencies
+├── setup.py                             # Package setup
+├── setup_nexlify.py                     # Initial setup script
+├── pyproject.toml                       # Modern Python config
+└── MIGRATION_CHECKLIST.md               # Migration guide
+
+## 📁 Directory Purposes:
+
+### Core Directories:
+- **src/**: All source code, organized by functionality
+- **gui/**: Desktop GUI application with components
+- **api/**: REST API and WebSocket server
+- **mobile/**: React Native mobile companion app
+
+### Data & Config:
+- **config/**: YAML/JSON configuration files
+- **data/**: Database, models, and market data
+- **logs/**: Organized logging by category
+
+### Development:
+- **tests/**: Comprehensive test suite
+- **scripts/**: Utility and maintenance scripts
+- **docs/**: All documentation
+
+### Deployment:
+- **deployment/**: Docker, K8s, and server configs
+- **launchers/**: Various ways to start the app
