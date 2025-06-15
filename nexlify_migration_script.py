@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Nexlify Enhanced Migration Script
-Migrates existing Nexlify to the enhanced structure with all new features
+Migrates existing Night-City-Trader to enhanced Nexlify structure
 """
 
 import os
@@ -19,7 +19,7 @@ class NexlifyMigration:
         self.directories = [
             # Source directories
             "src/core",
-            "src/strategies",
+            "src/strategies", 
             "src/ml/models",
             "src/risk",
             "src/analytics",
@@ -42,7 +42,7 @@ class NexlifyMigration:
             
             # Mobile app
             "mobile/nexlify_mobile/src/screens",
-            "mobile/nexlify_mobile/src/components",
+            "mobile/nexlify_mobile/src/components", 
             "mobile/nexlify_mobile/src/services",
             
             # Configuration
@@ -114,7 +114,7 @@ class NexlifyMigration:
         # Backup important files
         files_to_backup = [
             "*.py",
-            "*.json",
+            "*.json", 
             "*.yaml",
             "*.txt",
             "*.md",
@@ -149,358 +149,249 @@ class NexlifyMigration:
             if not directory.startswith(("data", "logs", "docs", "deployment", "config")):
                 init_file = dir_path / "__init__.py"
                 if not init_file.exists():
-                    init_file.write_text('"""Nexlify Enhanced - {}"""\n'.format(directory))
+                    init_file.write_text('"""Nexlify Enhanced - {}"""\n'.format(directory.replace("/", ".")))
         
         print(f"✅ Created {len(self.directories)} directories")
     
     def migrate_existing_files(self):
         """Migrate existing files to new structure"""
-        print("\n📂 Migrating existing files...")
+        print("\n📄 Migrating existing files...")
         
         migrated = 0
         for old_file, new_location in self.file_mappings.items():
             old_path = self.root / old_file
-            new_path = self.root / new_location
-            
             if old_path.exists():
-                # Ensure target directory exists
+                new_path = self.root / new_location
                 new_path.parent.mkdir(parents=True, exist_ok=True)
                 
-                # Copy file to new location
-                shutil.copy2(old_path, new_path)
-                migrated += 1
+                # Read content
+                content = old_path.read_text()
+                
+                # Update imports and branding
+                content = self._update_content(content)
+                
+                # Write to new location
+                new_path.write_text(content)
                 print(f"  ✓ {old_file} → {new_location}")
+                migrated += 1
         
         print(f"✅ Migrated {migrated} files")
     
+    def _update_content(self, content: str) -> str:
+        """Update content for Nexlify branding"""
+        replacements = {
+            "Night-City-Trader": "Nexlify",
+            "Night City Trader": "Nexlify",
+            "NIGHT CITY": "NEXLIFY",
+            "night_city": "nexlify",
+            "Arasaka Neural-Net Trading Matrix": "Nexlify Trading Matrix - Arasaka Neural Net",
+            "v2.0.7.7": "v3.0.0"
+        }
+        
+        for old, new in replacements.items():
+            content = content.replace(old, new)
+        
+        return content
+    
     def create_base_files(self):
         """Create base files for new features"""
-        print("\n📝 Creating base files for new features...")
-        
-        # Base strategy class
-        base_strategy = '''"""Base Strategy Class"""
-from abc import ABC, abstractmethod
-
-class BaseStrategy(ABC):
-    """Abstract base class for all trading strategies"""
-    
-    def __init__(self, name: str):
-        self.name = name
-        self.active = True
-        
-    @abstractmethod
-    def analyze(self, market_data):
-        """Analyze market data and return signals"""
-        pass
-        
-    @abstractmethod
-    def execute(self, signal):
-        """Execute trading signal"""
-        pass
-'''
+        print("\n✨ Creating new feature files...")
         
         # Multi-strategy optimizer
-        multi_strategy = '''"""Multi-Strategy Optimizer"""
+        strategy_file = self.root / "src/strategies/multi_strategy.py"
+        strategy_file.write_text('''"""
+Nexlify Enhanced - Multi-Strategy Optimizer
+Feature 1: Run multiple trading strategies simultaneously
+"""
+
 from .base_strategy import BaseStrategy
-from typing import Dict, List
 import asyncio
 
 class MultiStrategyOptimizer:
-    """Manages multiple strategies with dynamic allocation"""
-    
     def __init__(self):
-        self.strategies: Dict[str, BaseStrategy] = {}
-        self.allocations: Dict[str, float] = {}
-        
-    def add_strategy(self, name: str, strategy: BaseStrategy, allocation: float = 0.0):
-        """Add a new strategy to the optimizer"""
-        self.strategies[name] = strategy
-        self.allocations[name] = allocation
-        
-    async def run_all_strategies(self, market_data):
+        self.strategies = {}
+        self.performance_data = {}
+    
+    async def execute_all(self, market_data):
         """Execute all strategies in parallel"""
         tasks = []
         for name, strategy in self.strategies.items():
-            if strategy.active:
-                tasks.append(self._run_strategy(name, strategy, market_data))
+            task = asyncio.create_task(strategy.execute(market_data))
+            tasks.append(task)
         
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        return dict(zip(self.strategies.keys(), results))
-    
-    async def _run_strategy(self, name: str, strategy: BaseStrategy, market_data):
-        """Run a single strategy"""
-        try:
-            signal = await strategy.analyze(market_data)
-            if signal:
-                return await strategy.execute(signal)
-        except Exception as e:
-            print(f"Strategy {name} error: {e}")
-            return None
-'''
+        results = await asyncio.gather(*tasks)
+        return results
+''')
         
-        # Advanced dashboard component
-        dashboard = '''"""Advanced Dashboard Component"""
-import tkinter as tk
-from tkinter import ttk
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+        # AI Sentiment Analysis
+        sentiment_file = self.root / "src/ml/sentiment.py"
+        sentiment_file.write_text('''"""
+Nexlify Enhanced - AI Sentiment Analysis
+Feature 3: Monitor crypto Twitter/Reddit sentiment
+"""
 
-class AdvancedDashboard:
-    """3D visualization and real-time updates"""
-    
-    def __init__(self, parent):
-        self.parent = parent
-        self.setup_ui()
-        
-    def setup_ui(self):
-        """Create dashboard UI"""
-        self.frame = ttk.Frame(self.parent)
-        self.frame.pack(fill=tk.BOTH, expand=True)
-        
-        # Placeholder for 3D chart
-        self.chart_frame = ttk.LabelFrame(self.frame, text="3D Profit Visualization")
-        self.chart_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-    def render_3d_profit_chart(self, data):
-        """Render 3D profit visualization"""
-        fig = go.Figure(data=[
-            go.Scatter3d(
-                x=data['time'],
-                y=data['profit'],
-                z=data['volume'],
-                mode='markers+lines',
-                marker=dict(
-                    size=5,
-                    color=data['profit'],
-                    colorscale='Viridis',
-                    showscale=True
-                )
-            )
-        ])
-        
-        fig.update_layout(
-            title="3D Profit Analysis",
-            scene=dict(
-                xaxis_title="Time",
-                yaxis_title="Profit ($)",
-                zaxis_title="Volume"
-            )
-        )
-        
-        return fig
-'''
-        
-        # Gamification engine
-        gamification = '''"""Gamification Engine"""
-import json
-from datetime import datetime
-from typing import Dict, List
-
-class GamificationEngine:
-    """Trading achievements and rewards system"""
-    
+class SentimentAnalyzer:
     def __init__(self):
-        self.achievements = {
-            "first_profit": {
-                "name": "First Eddie",
-                "description": "Make your first $1 profit",
-                "xp": 10,
-                "badge": "🥉",
-                "condition": lambda stats: stats.get('total_profit', 0) >= 1
-            },
-            "century_club": {
-                "name": "Century Club",
-                "description": "Earn $100 in a day",
-                "xp": 100,
-                "badge": "🥈",
-                "condition": lambda stats: stats.get('daily_profit', 0) >= 100
-            },
-            "whale_watcher": {
-                "name": "Whale Watcher",
-                "description": "Successfully follow a whale trade",
-                "xp": 200,
-                "badge": "🐋",
-                "condition": lambda stats: stats.get('whale_trades_followed', 0) >= 1
-            },
-            "diamond_hands": {
-                "name": "Diamond Hands", 
-                "description": "Hold a winning position for 24h",
-                "xp": 150,
-                "badge": "💎",
-                "condition": lambda stats: stats.get('longest_hold_hours', 0) >= 24
-            }
-        }
-        
-        self.user_achievements = {}
-        self.user_stats = {}
-        self.load_progress()
-        
-    def check_achievements(self, user_id: str, stats: Dict):
-        """Check if user earned any new achievements"""
-        new_achievements = []
-        
-        for achievement_id, achievement in self.achievements.items():
-            if achievement_id not in self.user_achievements.get(user_id, []):
-                if achievement['condition'](stats):
-                    self.unlock_achievement(user_id, achievement_id)
-                    new_achievements.append(achievement)
-        
-        return new_achievements
+        self.sources = ['twitter', 'reddit', 'news']
     
-    def unlock_achievement(self, user_id: str, achievement_id: str):
-        """Unlock an achievement for user"""
-        if user_id not in self.user_achievements:
-            self.user_achievements[user_id] = []
+    async def analyze_sentiment(self, symbol: str):
+        """Analyze sentiment for a specific crypto"""
+        # Implementation placeholder
+        return {"sentiment": 0.75, "confidence": 0.85}
+''')
         
-        self.user_achievements[user_id].append({
-            'id': achievement_id,
-            'unlocked_at': datetime.now().isoformat()
-        })
-        
-        self.save_progress()
-        
-    def get_user_xp(self, user_id: str) -> int:
-        """Calculate total XP for user"""
-        total_xp = 0
-        for achievement in self.user_achievements.get(user_id, []):
-            total_xp += self.achievements[achievement['id']]['xp']
-        return total_xp
-    
-    def get_user_level(self, user_id: str) -> tuple:
-        """Get user level and title"""
-        xp = self.get_user_xp(user_id)
-        
-        levels = [
-            (0, "Street Kid"),
-            (100, "Rookie Trader"),
-            (500, "Market Runner"),
-            (1000, "Corpo Trader"),
-            (5000, "Elite Netrunner"),
-            (10000, "Night City Legend"),
-            (50000, "Arasaka Executive"),
-            (100000, "Trading Mastermind")
+        # More feature files...
+        features_created = [
+            ("src/core/arbitrage.py", "Advanced Arbitrage Engine"),
+            ("src/core/order_router.py", "Smart Order Router"),
+            ("src/strategies/defi_strategies.py", "DeFi Integration"),
+            ("gui/components/dashboard.py", "3D Dashboard"),
+            ("gui/components/gamification.py", "Gamification System"),
+            ("gui/components/ai_companion.py", "AI Trading Companion"),
+            ("src/risk/stop_loss.py", "Advanced Stop Loss"),
+            ("src/risk/drawdown.py", "Drawdown Protection"),
+            ("src/analytics/performance.py", "Performance Analytics"),
+            ("src/analytics/tax_optimizer.py", "Tax Optimization"),
+            ("src/security/two_factor.py", "2FA Implementation"),
+            ("api/endpoints/mobile.py", "Mobile API")
         ]
         
-        for i, (req_xp, title) in enumerate(levels):
-            if xp < req_xp:
-                return i, levels[i-1][1] if i > 0 else levels[0][1]
+        for file_path, description in features_created:
+            full_path = self.root / file_path
+            if not full_path.exists():
+                full_path.write_text(f'''"""
+Nexlify Enhanced - {description}
+Auto-generated placeholder - implement feature
+"""
+
+class {description.replace(" ", "")}:
+    def __init__(self):
+        pass
+''')
         
-        return len(levels), levels[-1][1]
-    
-    def save_progress(self):
-        """Save user progress to file"""
-        data = {
-            'achievements': self.user_achievements,
-            'stats': self.user_stats
-        }
-        
-        with open('data/gamification_progress.json', 'w') as f:
-            json.dump(data, f, indent=2)
-    
-    def load_progress(self):
-        """Load user progress from file"""
-        try:
-            with open('data/gamification_progress.json', 'r') as f:
-                data = json.load(f)
-                self.user_achievements = data.get('achievements', {})
-                self.user_stats = data.get('stats', {})
-        except FileNotFoundError:
-            pass
-'''
-        
-        # Create files
-        files_to_create = [
-            ("src/strategies/base_strategy.py", base_strategy),
-            ("src/strategies/multi_strategy.py", multi_strategy),
-            ("gui/components/dashboard.py", dashboard),
-            ("gui/components/gamification.py", gamification),
-        ]
-        
-        for file_path, content in files_to_create:
-            path = self.root / file_path
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(content)
-            print(f"  ✓ Created {file_path}")
-        
-        print(f"✅ Created {len(files_to_create)} base files")
+        print(f"✅ Created {len(features_created)} feature files")
     
     def create_enhanced_config(self):
         """Create enhanced configuration"""
         print("\n⚙️ Creating enhanced configuration...")
         
-        enhanced_config = {
+        config = {
             "version": "3.0.0",
+            "theme": "cyberpunk",
             "features": {
                 "multi_strategy": True,
                 "advanced_arbitrage": True,
                 "ai_sentiment": True,
                 "smart_routing": True,
                 "defi_integration": True,
-                "gamification": True,
                 "mobile_companion": True,
-                "advanced_ml": True
+                "advanced_dashboard": True,
+                "one_click_presets": True,
+                "advanced_stop_loss": True,
+                "portfolio_rebalancing": True,
+                "drawdown_protection": True,
+                "performance_analytics": True,
+                "tax_optimization": True,
+                "advanced_backtesting": True,
+                "dex_integration": True,
+                "advanced_neural_networks": True,
+                "pattern_recognition": True,
+                "predictive_features": True,
+                "speed_optimizations": True,
+                "gamification": True,
+                "ai_companion": True,
+                "cyberpunk_immersion": True,
+                "advanced_security": True,
+                "audit_trail": True
             },
-            "strategies": {
-                "arbitrage": {
-                    "enabled": True,
-                    "min_profit": 0.005,
-                    "include_triangular": True,
-                    "include_flash_loans": False
-                },
-                "market_making": {
-                    "enabled": True,
-                    "spread": 0.002,
-                    "inventory_limit": 1000
-                },
-                "momentum": {
-                    "enabled": False,
-                    "lookback_period": 24,
-                    "threshold": 0.05
-                }
+            "neural_config": {
+                "model_type": "transformer",
+                "ensemble_enabled": True,
+                "gpu_acceleration": True
             },
-            "risk_management": {
-                "global_stop_loss": 0.10,
-                "daily_loss_limit": 0.05,
-                "position_sizing": "kelly",
-                "max_correlation": 0.7
-            },
-            "performance": {
-                "use_cython": True,
-                "enable_gpu": False,
-                "cache_size_mb": 1024,
-                "parallel_strategies": True
-            },
-            "gamification": {
-                "enabled": True,
-                "show_achievements": True,
-                "sound_effects": True,
-                "leaderboard": "friends_only"
+            "exchanges": {
+                "cex": ["binance", "coinbase", "kraken"],
+                "dex": ["uniswap", "pancakeswap"]
             }
         }
         
-        config_path = self.root / "config" / "enhanced_config.json"
-        with open(config_path, 'w') as f:
-            json.dump(enhanced_config, f, indent=2)
+        config_file = self.root / "config/enhanced_config.json"
+        with open(config_file, 'w') as f:
+            json.dump(config, f, indent=2)
         
         print("✅ Created enhanced configuration")
     
     def update_requirements(self):
-        """Update requirements.txt"""
+        """Update requirements for new features"""
         print("\n📦 Updating requirements...")
         
-        # Copy enhanced requirements
-        enhanced_req = self.root / "requirements_enhanced.txt"
-        if enhanced_req.exists():
-            shutil.copy2(enhanced_req, self.root / "requirements.txt")
-            print("✅ Updated requirements.txt with enhanced dependencies")
-        else:
-            print("⚠️  requirements_enhanced.txt not found - create it manually")
+        requirements = """# Nexlify Enhanced Requirements
+# Core dependencies
+ccxt>=4.0.0
+pandas>=2.0.0
+numpy>=1.24.0
+scikit-learn>=1.3.0
+tensorflow>=2.13.0
+torch>=2.0.0
+transformers>=4.30.0
+
+# Async operations
+aiohttp>=3.8.0
+websockets>=11.0
+asyncio-throttle>=1.0.0
+
+# GUI
+tkinter  # Usually comes with Python
+Pillow>=10.0.0
+matplotlib>=3.7.0
+plotly>=5.0.0
+
+# API
+fastapi>=0.100.0
+uvicorn>=0.23.0
+pydantic>=2.0.0
+python-jose[cryptography]>=3.3.0
+
+# Security
+cryptography>=41.0.0
+pyotp>=2.8.0
+python-multipart>=0.0.6
+
+# Performance
+cython>=3.0.0
+numba>=0.57.0
+cupy-cuda11x>=12.0.0  # For GPU acceleration
+
+# Analytics
+ta>=0.10.0
+pandas-ta>=0.3.0
+yfinance>=0.2.0
+
+# Mobile backend
+firebase-admin>=6.0.0
+pusher>=3.0.0
+
+# Development
+pytest>=7.0.0
+black>=23.0.0
+mypy>=1.0.0
+pylint>=2.17.0
+
+# Documentation
+mkdocs>=1.5.0
+mkdocs-material>=9.0.0
+"""
+        
+        req_file = self.root / "requirements_enhanced.txt"
+        req_file.write_text(requirements)
+        
+        print("✅ Updated requirements file")
     
     def create_docker_files(self):
         """Create Docker configuration"""
         print("\n🐳 Creating Docker configuration...")
         
-        dockerfile = '''FROM python:3.11-slim
+        dockerfile = """FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -512,28 +403,30 @@ RUN apt-get update && apt-get install -y \\
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements_enhanced.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements_enhanced.txt
 
 # Copy application
 COPY . .
 
-# Compile Cython modules
-RUN python scripts/compile_cython.py
-
 # Expose ports
 EXPOSE 8000 8080
 
-# Run application
-CMD ["python", "launchers/nexlify_launcher.py", "--production"]
-'''
+# Run the application
+CMD ["python", "launchers/nexlify_launcher.py"]
+"""
         
-        docker_compose = '''version: '3.8'
+        docker_file = self.root / "deployment/docker/Dockerfile"
+        docker_file.write_text(dockerfile)
+        
+        # Docker compose
+        compose = """version: '3.8'
 
 services:
   nexlify:
     build: .
-    container_name: nexlify_trading
     ports:
       - "8000:8000"
       - "8080:8080"
@@ -543,62 +436,39 @@ services:
       - ./config:/app/config
     environment:
       - NEXLIFY_ENV=production
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - redis
-      - postgres
+      - PYTHONUNBUFFERED=1
     restart: unless-stopped
-
+    
   redis:
-    image: redis:7-alpine
-    container_name: nexlify_redis
+    image: redis:alpine
     ports:
       - "6379:6379"
-    volumes:
-      - redis_data:/data
-
+    
   postgres:
-    image: postgres:15-alpine
-    container_name: nexlify_db
+    image: postgres:15
     environment:
-      - POSTGRES_DB=nexlify
-      - POSTGRES_USER=nexlify
-      - POSTGRES_PASSWORD=secure_password_here
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: nexlify
+      POSTGRES_USER: nexlify
+      POSTGRES_PASSWORD: nexlify_secure_pass
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
-  grafana:
-    image: grafana/grafana:latest
-    container_name: nexlify_grafana
     ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - grafana_data:/var/lib/grafana
+      - "5432:5432"
 
 volumes:
-  redis_data:
   postgres_data:
-  grafana_data:
-'''
+"""
         
-        # Create Docker files
-        docker_dir = self.root / "deployment" / "docker"
-        docker_dir.mkdir(parents=True, exist_ok=True)
-        
-        (docker_dir / "Dockerfile").write_text(dockerfile)
-        (docker_dir / "docker-compose.yml").write_text(docker_compose)
+        compose_file = self.root / "deployment/docker/docker-compose.yml"
+        compose_file.write_text(compose)
         
         print("✅ Created Docker configuration")
     
     def create_readme(self):
-        """Create updated README"""
-        print("\n📄 Creating enhanced README...")
+        """Create enhanced README"""
+        print("\n📝 Creating enhanced README...")
         
-        readme = '''# 🌃 Nexlify Enhanced - Next-Generation Trading Platform
+        readme = '''# 🌃 Nexlify Enhanced - Next-Generation Algorithmic Trading
 
 ![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-v3.11+-green.svg)
@@ -616,7 +486,7 @@ volumes:
 - **Smart Order Routing**: Split orders, iceberg orders, MEV protection
 - **DeFi Integration**: Yield farming, liquidity pools, automated staking
 
-### User Experience
+### User Experience  
 - **3D Dashboard**: Real-time 3D profit visualization
 - **Mobile Companion**: iOS/Android app for monitoring and control
 - **Gamification**: Achievements, leaderboards, and rewards
@@ -739,7 +609,7 @@ MIT License - see [LICENSE](LICENSE)
         print("\n📋 Next Steps:")
         print("1. Review the new structure in your file explorer")
         print("2. Update any import statements in Python files")
-        print("3. Install new dependencies: pip install -r requirements.txt")
+        print("3. Install new dependencies: pip install -r requirements_enhanced.txt")
         print("4. Test the enhanced launcher: python launchers/nexlify_launcher.py")
         print("5. Explore new features in the GUI")
         
