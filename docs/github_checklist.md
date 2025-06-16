@@ -2,7 +2,7 @@
 
 ## 📁 Complete File Structure
 
-Ensure your `C:\Night-City-Trader` directory contains ALL these files:
+Ensure your `C:\Nexlify` directory contains ALL these files:
 
 ```
 C:\Night-City-Trader\
