@@ -1,96 +1,197 @@
 // frontend/src/hooks/useWebSocket.ts
+/**
+ * High-Performance WebSocket Hook - The Neural Link to Market Data
+ * Sub-second latency optimized for algorithmic trading
+ * 
+ * This isn't just a connection - it's your lifeline to the market.
+ * Every millisecond counts when algos are hunting the same opportunities.
+ * Been through enough market crashes to know: lag kills profit.
+ */
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '@stores/authStore';
 import { useTradingStore } from '@stores/tradingStore';
 import { playSound } from '@lib/sounds';
-import { createWebSocketConnection } from '@lib/api';
 import toast from 'react-hot-toast';
 
-// The neural link to the backend - where data flows like memories through a braindance
-// Sometimes it's smooth, sometimes it glitches, but it's always there, pulsing with life
-
+// Types - the data structures that define our reality
 interface WebSocketState {
   isConnected: boolean;
   isReconnecting: boolean;
   latency: number;
   reconnectAttempts: number;
   lastHeartbeat: Date | null;
+  messageQueue: number;
+  bytesPerSecond: number;
+}
+
+interface PerformanceMetrics {
+  avgLatency: number;
+  maxLatency: number;
+  minLatency: number;
+  messagesPerSecond: number;
+  reconnectionCount: number;
+  uptime: number;
 }
 
 interface UseWebSocketOptions {
   autoConnect?: boolean;
   heartbeatInterval?: number;
   reconnectOnFocus?: boolean;
+  maxReconnectAttempts?: number;
+  performanceMode?: boolean; // Ultra-low latency mode
+  binaryProtocol?: boolean;  // For maximum speed
 }
 
+// Performance constants - tuned for speed demons
+const PERF_CONSTANTS = {
+  HEARTBEAT_INTERVAL: 15000,        // 15s - frequent enough to catch issues
+  MAX_RECONNECT_ATTEMPTS: 10,       // Never give up, that's money on the line
+  RECONNECT_BASE_DELAY: 100,        // Start fast
+  RECONNECT_MAX_DELAY: 5000,        // But don't spam the server
+  LATENCY_BUFFER_SIZE: 100,         // Track latency history
+  PERF_SAMPLE_RATE: 1000,          // Sample every second
+  HIGH_LATENCY_THRESHOLD: 50,       // Warn above 50ms
+  CRITICAL_LATENCY_THRESHOLD: 100   // Panic above 100ms
+} as const;
+
+/**
+ * The main hook - your gateway to real-time market data
+ * Built for speed, designed for profit
+ */
 export function useWebSocket(
   enabled: boolean = true,
   options: UseWebSocketOptions = {}
 ) {
   const {
     autoConnect = true,
-    heartbeatInterval = 30000, // 30 seconds - gotta keep that pulse going
-    reconnectOnFocus = true
+    heartbeatInterval = PERF_CONSTANTS.HEARTBEAT_INTERVAL,
+    reconnectOnFocus = true,
+    maxReconnectAttempts = PERF_CONSTANTS.MAX_RECONNECT_ATTEMPTS,
+    performanceMode = true,
+    binaryProtocol = false
   } = options;
 
-  const { token } = useAuthStore();
+  // Store connections
+  const { token, userId } = useAuthStore();
   const { 
-    connectWebSocket, 
-    disconnectWebSocket,
-    subscribeToSymbol,
-    activeSymbols 
+    updateMarketData,
+    updatePositions,
+    addSignal,
+    setConnectionStatus 
   } = useTradingStore();
 
+  // Refs for persistent state
   const socketRef = useRef<Socket | null>(null);
   const heartbeatTimerRef = useRef<NodeJS.Timeout>();
   const reconnectTimerRef = useRef<NodeJS.Timeout>();
+  const latencyBufferRef = useRef<number[]>([]);
+  const messageCountRef = useRef(0);
+  const bytesCountRef = useRef(0);
+  const startTimeRef = useRef<number>(Date.now());
+  const lastMessageTimeRef = useRef<number>(Date.now());
 
-  // Connection state - the vital signs of our neural link
+  // State management
   const [state, setState] = useState<WebSocketState>({
     isConnected: false,
     isReconnecting: false,
     latency: 0,
     reconnectAttempts: 0,
-    lastHeartbeat: null
+    lastHeartbeat: null,
+    messageQueue: 0,
+    bytesPerSecond: 0
   });
 
-  // Heartbeat - checking if the connection's still breathing
+  // Performance metrics calculation
+  const performanceMetrics = useMemo<PerformanceMetrics>(() => {
+    const latencies = latencyBufferRef.current;
+    const now = Date.now();
+    const uptime = now - startTimeRef.current;
+    
+    return {
+      avgLatency: latencies.length > 0 
+        ? latencies.reduce((a, b) => a + b, 0) / latencies.length 
+        : 0,
+      maxLatency: latencies.length > 0 ? Math.max(...latencies) : 0,
+      minLatency: latencies.length > 0 ? Math.min(...latencies) : 0,
+      messagesPerSecond: messageCountRef.current / (uptime / 1000),
+      reconnectionCount: state.reconnectAttempts,
+      uptime: uptime / 1000
+    };
+  }, [state.latency, state.reconnectAttempts]);
+
+  // Latency tracking - every millisecond matters
+  const trackLatency = useCallback((latency: number) => {
+    const buffer = latencyBufferRef.current;
+    buffer.push(latency);
+    
+    // Keep buffer size manageable
+    if (buffer.length > PERF_CONSTANTS.LATENCY_BUFFER_SIZE) {
+      buffer.shift();
+    }
+
+    // Alert on high latency - this is where profits die
+    if (latency > PERF_CONSTANTS.CRITICAL_LATENCY_THRESHOLD) {
+      console.error(`🚨 CRITICAL LATENCY: ${latency}ms - Market opportunities slipping away!`);
+      toast.error(`High latency detected: ${latency}ms`, {
+        id: 'high-latency',
+        duration: 2000
+      });
+    } else if (latency > PERF_CONSTANTS.HIGH_LATENCY_THRESHOLD) {
+      console.warn(`⚠️ High latency: ${latency}ms - Connection getting sluggish`);
+    }
+  }, []);
+
+  // Heartbeat - the pulse that keeps us alive
   const sendHeartbeat = useCallback(() => {
     if (socketRef.current?.connected) {
-      const startTime = Date.now();
+      const startTime = performance.now();
       
-      socketRef.current.emit('ping', {}, (response: any) => {
-        const latency = Date.now() - startTime;
+      socketRef.current.emit('ping', { timestamp: startTime }, (response: any) => {
+        const latency = performance.now() - startTime;
+        
+        trackLatency(latency);
         setState(prev => ({
           ...prev,
           latency,
           lastHeartbeat: new Date()
         }));
-        
-        // If latency's getting bad, warn the user
-        if (latency > 1000) {
-          console.warn(`High latency detected: ${latency}ms - Night City's net is choppy tonight`);
-        }
       });
     }
-  }, []);
+  }, [trackLatency]);
 
-  // Connect to the matrix - jack in and ride the data streams
+  // Connection logic - jack into the matrix
   const connect = useCallback(() => {
     if (!token || !enabled || socketRef.current?.connected) return;
 
-    console.log('🔌 Jacking into the trading matrix...');
+    console.log('🔌 Jacking into the trading matrix... Latency is life, choom.');
     
-    const { url, options } = createWebSocketConnection(token);
-    const socket = io(url, options);
-    
+    setState(prev => ({ ...prev, isReconnecting: true }));
+
+    // Performance-optimized socket configuration
+    const socketOptions = {
+      auth: { token },
+      timeout: 5000,
+      forceNew: true,
+      transports: performanceMode ? ['websocket'] : ['websocket', 'polling'],
+      upgrade: false, // Stick to websocket for consistency
+      rememberUpgrade: false,
+      ...(binaryProtocol && { parser: require('socket.io-msgpack-parser') })
+    };
+
+    const socket = io(
+      process.env.NODE_ENV === 'development' 
+        ? 'http://localhost:8000'
+        : window.location.origin,
+      socketOptions
+    );
+
     socketRef.current = socket;
 
-    // Connection established - we're in
+    // Connection events - the moments that define success or failure
     socket.on('connect', () => {
-      console.log('⚡ Neural link established - ID:', socket.id);
+      console.log('✅ Neural link established - We\'re in the matrix');
       
       setState(prev => ({
         ...prev,
@@ -98,165 +199,120 @@ export function useWebSocket(
         isReconnecting: false,
         reconnectAttempts: 0
       }));
+
+      setConnectionStatus(true);
       
-      // Clear any reconnect timers
-      if (reconnectTimerRef.current) {
-        clearTimeout(reconnectTimerRef.current);
+      // Start the heartbeat - keep that pulse strong
+      if (heartbeatTimerRef.current) {
+        clearInterval(heartbeatTimerRef.current);
       }
-      
-      // Start heartbeat monitoring
       heartbeatTimerRef.current = setInterval(sendHeartbeat, heartbeatInterval);
+
+      playSound('connected');
+      toast.success('Trading matrix online', { id: 'connection' });
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.warn(`🔌 Neural link severed: ${reason}`);
       
-      // Resubscribe to active symbols - can't miss those price movements
-      activeSymbols.forEach(symbol => {
-        socket.emit('subscribe_market', { symbols: [symbol] });
+      setState(prev => ({
+        ...prev,
+        isConnected: false,
+        isReconnecting: reason !== 'io client disconnect'
+      }));
+
+      setConnectionStatus(false);
+      
+      if (heartbeatTimerRef.current) {
+        clearInterval(heartbeatTimerRef.current);
+      }
+
+      if (reason !== 'io client disconnect') {
+        scheduleReconnect();
+      }
+    });
+
+    // Market data handlers - where the money flows
+    socket.on('market_update', (data: any) => {
+      messageCountRef.current++;
+      bytesCountRef.current += JSON.stringify(data).length;
+      lastMessageTimeRef.current = Date.now();
+      
+      updateMarketData(data.symbol, {
+        price: data.price,
+        change: data.change,
+        volume: data.volume,
+        timestamp: new Date(data.timestamp)
       });
+    });
+
+    // Position updates - track every eddy
+    socket.on('position_update', (data: any) => {
+      updatePositions(data);
+      playSound('position_update');
+    });
+
+    // Trading signals - the AI's whispers
+    socket.on('trading_signal', (signal: any) => {
+      addSignal(signal);
       
-      // Let the trading store know we're connected
-      connectWebSocket(token);
-      
-      // A little audio feedback never hurt
-      playSound('startup', { volume: 0.3 });
-      
-      // Only show toast on reconnect, not initial connect
-      if (state.reconnectAttempts > 0) {
-        toast.success('Neural link restored', {
-          icon: '🔗',
-          duration: 2000
+      // High priority signals get special treatment
+      if (signal.confidence > 0.8) {
+        playSound('high_confidence_signal');
+        toast.success(`High confidence signal: ${signal.action} ${signal.symbol}`, {
+          duration: 5000
         });
       }
     });
 
-    // Connection lost - we've flatlined
-    socket.on('disconnect', (reason) => {
-      console.warn('💔 Neural link severed:', reason);
-      
+    // Error handling - when the matrix glitches
+    socket.on('connect_error', (error) => {
+      console.error('🚨 Connection error:', error.message);
       setState(prev => ({
         ...prev,
         isConnected: false,
         isReconnecting: true
       }));
-      
-      // Clear heartbeat
-      if (heartbeatTimerRef.current) {
-        clearInterval(heartbeatTimerRef.current);
-      }
-      
-      playSound('error', { volume: 0.2 });
-      
-      // Different messages for different disconnection reasons
-      // Because context matters when you're drowning in the data stream
-      switch (reason) {
-        case 'io server disconnect':
-          toast.error('Server terminated connection - check your creds', {
-            icon: '🚫',
-            duration: 5000
-          });
-          break;
-        case 'ping timeout':
-          toast.error('Connection timeout - Night City\'s net is glitching', {
-            icon: '⏱️'
-          });
-          break;
-        case 'transport close':
-          toast.error('Transport failure - switching to backup routes', {
-            icon: '🔌'
-          });
-          break;
-        default:
-          if (reason !== 'io client disconnect') {
-            toast.error(`Connection lost: ${reason}`, {
-              icon: '📡'
-            });
-          }
-      }
-      
-      disconnectWebSocket();
     });
 
-    // Reconnection attempts - never give up, never surrender
-    socket.on('reconnect_attempt', (attemptNumber) => {
-      setState(prev => ({
-        ...prev,
-        reconnectAttempts: attemptNumber
-      }));
-      
-      // Give user feedback on reconnection attempts
-      if (attemptNumber % 3 === 0) {
-        console.log(`🔄 Reconnection attempt ${attemptNumber} - still fighting for that link...`);
-      }
-    });
-
-    // Reconnection failed - time to check your chrome
-    socket.on('reconnect_failed', () => {
-      toast.error('Failed to restore neural link - check your connection', {
-        icon: '❌',
-        duration: 0 // Keep it visible until dismissed
-      });
-      
-      setState(prev => ({
-        ...prev,
-        isReconnecting: false
-      }));
-    });
-
-    // Handle errors with grace - or at least with style
     socket.on('error', (error) => {
-      console.error('Socket error:', error);
-      
-      // Parse error for user-friendly message
-      let message = 'Neural link error';
-      
-      if (error.type === 'TransportError') {
-        message = 'Transport protocol failure - trying alternate routes';
-      } else if (error.type === 'AuthError') {
-        message = 'Authentication failed - your creds expired';
+      console.error('🚨 Socket error:', error);
+      toast.error(`Connection error: ${error.message}`);
+    });
+
+  }, [token, enabled, performanceMode, binaryProtocol, sendHeartbeat, heartbeatInterval]);
+
+  // Reconnection logic - never give up, that's money on the line
+  const scheduleReconnect = useCallback(() => {
+    if (state.reconnectAttempts >= maxReconnectAttempts) {
+      console.error('🚨 Max reconnection attempts reached. Manual intervention required.');
+      toast.error('Connection failed. Check your network and restart the application.');
+      return;
+    }
+
+    const delay = Math.min(
+      PERF_CONSTANTS.RECONNECT_BASE_DELAY * Math.pow(2, state.reconnectAttempts),
+      PERF_CONSTANTS.RECONNECT_MAX_DELAY
+    );
+
+    console.log(`🔄 Reconnecting in ${delay}ms... Attempt ${state.reconnectAttempts + 1}/${maxReconnectAttempts}`);
+    
+    setState(prev => ({
+      ...prev,
+      reconnectAttempts: prev.reconnectAttempts + 1
+    }));
+
+    reconnectTimerRef.current = setTimeout(() => {
+      if (!state.isConnected) {
+        connect();
       }
-      
-      toast.error(message, {
-        icon: '⚠️',
-        duration: 4000
-      });
-    });
+    }, delay);
 
-    // Custom events from our backend
-    socket.on('rate_limited', (data) => {
-      const waitTime = data.retry_after || 60;
-      toast.error(`Rate limited - cooldown ${waitTime}s`, {
-        icon: '🛑',
-        duration: 5000
-      });
-    });
+  }, [state.reconnectAttempts, state.isConnected, maxReconnectAttempts, connect]);
 
-    socket.on('market_halted', (data) => {
-      toast.error(`Market halted: ${data.symbol} - ${data.reason}`, {
-        icon: '🚨',
-        duration: 10000
-      });
-      playSound('alert_high');
-    });
-
-    socket.on('system_maintenance', (data) => {
-      const maintenanceTime = new Date(data.scheduled_time);
-      toast.error(
-        `System maintenance scheduled: ${maintenanceTime.toLocaleTimeString()}`,
-        {
-          icon: '🔧',
-          duration: 0 // Keep visible
-        }
-      );
-    });
-
-  }, [token, enabled, activeSymbols, state.reconnectAttempts, heartbeatInterval, sendHeartbeat, connectWebSocket, disconnectWebSocket]);
-
-  // Disconnect - unplug from the matrix
+  // Disconnect - clean shutdown
   const disconnect = useCallback(() => {
     console.log('🔌 Disconnecting from trading matrix...');
-    
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-      socketRef.current = null;
-    }
     
     if (heartbeatTimerRef.current) {
       clearInterval(heartbeatTimerRef.current);
@@ -265,160 +321,117 @@ export function useWebSocket(
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current);
     }
-    
-    setState({
+
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+
+    setState(prev => ({
+      ...prev,
       isConnected: false,
-      isReconnecting: false,
-      latency: 0,
-      reconnectAttempts: 0,
-      lastHeartbeat: null
-    });
-    
-    disconnectWebSocket();
-  }, [disconnectWebSocket]);
+      isReconnecting: false
+    }));
 
-  // Auto-connect when token changes or component mounts
-  useEffect(() => {
-    if (enabled && token && autoConnect) {
-      connect();
-    }
-    
-    return () => {
-      disconnect();
-    };
-  }, [enabled, token, autoConnect]); // Intentionally not including connect/disconnect to avoid loops
+    setConnectionStatus(false);
+  }, []);
 
-  // Reconnect on window focus - because coming back from AFK should be seamless
-  useEffect(() => {
-    if (!reconnectOnFocus) return;
-    
-    const handleFocus = () => {
-      if (enabled && token && !socketRef.current?.connected) {
-        console.log('🔄 Window focused - attempting reconnection...');
-        connect();
-      }
-    };
-    
-    window.addEventListener('focus', handleFocus);
-    
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, [enabled, token, reconnectOnFocus, connect]);
-
-  // Monitor connection health
-  useEffect(() => {
-    if (!state.isConnected || !state.lastHeartbeat) return;
-    
-    const checkHealthTimer = setInterval(() => {
-      const now = Date.now();
-      const lastBeat = state.lastHeartbeat?.getTime() || 0;
-      const timeSinceLastBeat = now - lastBeat;
-      
-      // If we haven't heard a heartbeat in 2 intervals, something's wrong
-      if (timeSinceLastBeat > heartbeatInterval * 2) {
-        console.warn('❤️‍🩹 Heartbeat missed - connection might be dead');
-        
-        // Force reconnect
-        if (socketRef.current) {
-          socketRef.current.disconnect();
-          setTimeout(() => connect(), 1000);
-        }
-      }
-    }, heartbeatInterval);
-    
-    return () => clearInterval(checkHealthTimer);
-  }, [state.isConnected, state.lastHeartbeat, heartbeatInterval, connect]);
-
-  // Expose methods for manual control
-  const manualReconnect = useCallback(() => {
-    disconnect();
-    setTimeout(() => connect(), 500);
-  }, [connect, disconnect]);
-
-  // Subscribe to new symbol
-  const subscribe = useCallback((symbol: string) => {
+  // Subscription management - tell the matrix what we want to hear
+  const subscribe = useCallback((symbols: string[]) => {
     if (socketRef.current?.connected) {
-      socketRef.current.emit('subscribe_market', { symbols: [symbol] });
-      subscribeToSymbol(symbol);
-    }
-  }, [subscribeToSymbol]);
-
-  // Send custom event
-  const emit = useCallback((event: string, data: any, callback?: Function) => {
-    if (socketRef.current?.connected) {
-      if (callback) {
-        socketRef.current.emit(event, data, callback);
-      } else {
-        socketRef.current.emit(event, data);
-      }
-    } else {
-      console.warn(`Cannot emit ${event} - not connected`);
+      socketRef.current.emit('subscribe_market', { symbols });
+      console.log(`📡 Subscribed to market data: ${symbols.join(', ')}`);
     }
   }, []);
 
+  const unsubscribe = useCallback((symbols: string[]) => {
+    if (socketRef.current?.connected) {
+      socketRef.current.emit('unsubscribe_market', { symbols });
+      console.log(`📡 Unsubscribed from market data: ${symbols.join(', ')}`);
+    }
+  }, []);
+
+  // Manual reconnect - when you need to force the connection
+  const forceReconnect = useCallback(() => {
+    console.log('🔄 Forcing reconnection...');
+    disconnect();
+    setTimeout(connect, 1000);
+  }, [disconnect, connect]);
+
+  // Effects
+  useEffect(() => {
+    if (enabled && autoConnect && token) {
+      connect();
+    }
+
+    return () => {
+      disconnect();
+    };
+  }, [enabled, autoConnect, token]);
+
+  // Reconnect on window focus - catch missed opportunities
+  useEffect(() => {
+    if (!reconnectOnFocus) return;
+
+    const handleFocus = () => {
+      if (!state.isConnected && enabled) {
+        console.log('🔄 Window focused - attempting reconnection');
+        connect();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [reconnectOnFocus, state.isConnected, enabled, connect]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (heartbeatTimerRef.current) {
+        clearInterval(heartbeatTimerRef.current);
+      }
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+      }
+    };
+  }, []);
+
   return {
-    // State
-    isConnected: state.isConnected,
-    isReconnecting: state.isReconnecting,
-    latency: state.latency,
-    reconnectAttempts: state.reconnectAttempts,
+    // Connection state
+    ...state,
     
-    // Actions
-    connect: manualReconnect,
+    // Performance metrics
+    performanceMetrics,
+    
+    // Connection methods
+    connect,
     disconnect,
-    subscribe,
-    emit,
+    forceReconnect,
     
-    // Raw socket for advanced usage
+    // Subscription methods
+    subscribe,
+    unsubscribe,
+    
+    // Health check
+    isHealthy: state.isConnected && state.latency < PERF_CONSTANTS.HIGH_LATENCY_THRESHOLD,
+    
+    // Direct socket access for advanced use cases
     socket: socketRef.current
   };
 }
 
-// Specialized hook for market data subscriptions
-export function useMarketData(symbols: string[]) {
-  const { subscribe } = useWebSocket();
-  const { marketData } = useTradingStore();
-  
-  useEffect(() => {
-    // Subscribe to all requested symbols
-    symbols.forEach(symbol => subscribe(symbol));
-  }, [symbols, subscribe]);
-  
-  // Return market data for requested symbols
-  return symbols.reduce((acc, symbol) => {
-    acc[symbol] = marketData.get(symbol) || null;
-    return acc;
-  }, {} as Record<string, any>);
-}
-
-// Hook for connection status in components
+/**
+ * Connection status hook - lightweight version for status displays
+ */
 export function useConnectionStatus() {
-  const { isConnected, latency, isReconnecting } = useWebSocket();
+  const { isConnected, latency, performanceMetrics } = useWebSocket(true, { 
+    performanceMode: true 
+  });
   
-  const status = isConnected 
-    ? 'connected' 
-    : isReconnecting 
-    ? 'reconnecting' 
-    : 'disconnected';
-    
-  const color = isConnected
-    ? 'text-neon-green'
-    : isReconnecting
-    ? 'text-neon-yellow'
-    : 'text-neon-red';
-    
-  const icon = isConnected
-    ? '🟢'
-    : isReconnecting
-    ? '🟡'
-    : '🔴';
-    
   return {
-    status,
-    color,
-    icon,
+    isConnected,
     latency,
-    isHealthy: isConnected && latency < 500
+    isHealthy: isConnected && latency < PERF_CONSTANTS.HIGH_LATENCY_THRESHOLD,
+    performanceMetrics
   };
 }
