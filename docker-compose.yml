@@ -1,159 +1,246 @@
+# docker-compose.yml
+# Nexlify Trading Platform - Docker Orchestration
+# Deploy the entire platform with one command like a pro netrunner
+
 version: '3.8'
 
-# Nexlify Trading Platform - Secure Docker Configuration
-# Addresses all V3 security improvements
-
 services:
-  nexlify:
-    build: .
-    container_name: nexlify_trading
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:8000:8000"  # API - localhost only
-      - "127.0.0.1:8001:8001"  # Mobile API - localhost only
-      - "127.0.0.1:8080:8080"  # WebSocket - localhost only
-    environment:
-      - PYTHONUNBUFFERED=1
-      - NODE_ENV=production
-    env_file:
-      - .env
-    volumes:
-      - ./data:/app/data:rw
-      - ./logs:/app/logs:rw
-      - ./backups:/app/backups:rw
-      - ./models:/app/models:ro
-      - ./enhanced_config.json:/app/enhanced_config.json:ro
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    networks:
-      - nexlify_network
-    healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health', timeout=10).raise_for_status()"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    security_opt:
-      - no-new-privileges:true
-    user: "1000:1000"  # Run as non-root user
-    read_only: true    # Read-only root filesystem
-    tmpfs:
-      - /tmp
-      - /var/tmp
-    
-  redis:
-    image: redis:7-alpine
-    container_name: nexlify_redis
-    restart: unless-stopped
-    command: >
-      redis-server
-      --requirepass ${REDIS_PASSWORD}
-      --maxmemory 512mb
-      --maxmemory-policy allkeys-lru
-      --appendonly yes
-      --appendfsync everysec
-    volumes:
-      - redis_data:/data:rw
-    networks:
-      - nexlify_network
-    ports:
-      - "127.0.0.1:6379:6379"  # localhost only
-    healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    security_opt:
-      - no-new-privileges:true
-    user: "999:999"  # Redis user
-    
+  # PostgreSQL Database - The data vault
   postgres:
     image: postgres:15-alpine
-    container_name: nexlify_postgres
+    container_name: nexlify-postgres
     restart: unless-stopped
     environment:
-      - POSTGRES_DB=nexlify
-      - POSTGRES_USER=nexlify
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
-      - PGDATA=/var/lib/postgresql/data/pgdata
+      POSTGRES_DB: nexlify_trading
+      POSTGRES_USER: nexlify_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-n3xl1fy_s3cr3t_2077}
+      PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
-      - postgres_data:/var/lib/postgresql/data:rw
-      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    networks:
-      - nexlify_network
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
-      - "127.0.0.1:5432:5432"  # localhost only
+      - "5432:5432"
+    networks:
+      - nexlify-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nexlify -d nexlify"]
+      test: ["CMD-SHELL", "pg_isready -U nexlify_user -d nexlify_trading"]
       interval: 10s
       timeout: 5s
       retries: 5
-    security_opt:
-      - no-new-privileges:true
-    shm_size: 256mb
-    
-  # Optional: Nginx reverse proxy for production
-  nginx:
-    image: nginx:alpine
-    container_name: nexlify_nginx
+
+  # Redis Cache - The neural cache
+  redis:
+    image: redis:7-alpine
+    container_name: nexlify-redis
     restart: unless-stopped
-    ports:
-      - "443:443"  # HTTPS only
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-r3d1s_n3ur0_c4ch3}
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-      - nginx_cache:/var/cache/nginx
-    depends_on:
-      - nexlify
+      - redis_data:/data
+    ports:
+      - "6379:6379"
     networks:
-      - nexlify_network
+      - nexlify-network
     healthcheck:
-      test: ["CMD", "nginx", "-t"]
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Nexlify API Backend - The trading brain
+  nexlify-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: nexlify-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Database
+      NEXLIFY_DB_HOST: postgres
+      NEXLIFY_DB_PORT: 5432
+      NEXLIFY_DB_DATABASE: nexlify_trading
+      NEXLIFY_DB_USERNAME: nexlify_user
+      NEXLIFY_DB_PASSWORD: ${POSTGRES_PASSWORD:-n3xl1fy_s3cr3t_2077}
+      
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-r3d1s_n3ur0_c4ch3}
+      
+      # Security
+      NEXLIFY_SECURITY_MASTER_KEY: ${MASTER_KEY:-$(openssl rand -base64 32)}
+      NEXLIFY_SECURITY_ENABLE_2FA: "true"
+      
+      # API Settings
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      API_WORKERS: 4
+      
+      # ML Settings
+      NEXLIFY_ML_USE_GPU: ${USE_GPU:-false}
+      CUDA_VISIBLE_DEVICES: ${CUDA_DEVICES:-0}
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+      - ./models:/app/models
+      - ./data:/app/data
+    ports:
+      - "8000:8000"
+    networks:
+      - nexlify-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-    security_opt:
-      - no-new-privileges:true
-    profiles:
-      - production  # Only run in production
 
-volumes:
-  redis_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ./docker/volumes/redis
-  postgres_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ./docker/volumes/postgres
-  nginx_cache:
-    driver: local
+  # Nexlify Frontend - The chrome UI
+  nexlify-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: nexlify-frontend
+    restart: unless-stopped
+    depends_on:
+      - nexlify-api
+    environment:
+      REACT_APP_API_URL: http://nexlify-api:8000
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    networks:
+      - nexlify-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Prometheus - Monitoring metrics
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: nexlify-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - nexlify-network
+
+  # Grafana - Monitoring dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: nexlify-grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-n3xl1fy_gr4f4n4}
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource,natel-discrete-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    ports:
+      - "3001:3000"
+    networks:
+      - nexlify-network
+
+  # Jaeger - Distributed tracing
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: nexlify-jaeger
+    restart: unless-stopped
+    environment:
+      COLLECTOR_ZIPKIN_HOST_PORT: ":9411"
+    ports:
+      - "5775:5775/udp"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+      - "16686:16686"  # Jaeger UI
+      - "14268:14268"
+      - "14250:14250"
+      - "9411:9411"
+    networks:
+      - nexlify-network
+
+  # Nginx Reverse Proxy - The gatekeeper
+  nginx:
+    image: nginx:alpine
+    container_name: nexlify-nginx
+    restart: unless-stopped
+    depends_on:
+      - nexlify-api
+      - nexlify-frontend
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - nexlify-network
+
+  # ML Training Worker - Optional GPU-enabled container
+  ml-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.ml
+    container_name: nexlify-ml-worker
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      NEXLIFY_DB_HOST: postgres
+      NEXLIFY_DB_PORT: 5432
+      NEXLIFY_DB_DATABASE: nexlify_trading
+      NEXLIFY_DB_USERNAME: nexlify_user
+      NEXLIFY_DB_PASSWORD: ${POSTGRES_PASSWORD:-n3xl1fy_s3cr3t_2077}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CUDA_VISIBLE_DEVICES: ${CUDA_DEVICES:-0}
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+    networks:
+      - nexlify-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    profiles:
+      - ml
 
 networks:
-  nexlify_network:
+  nexlify-network:
     driver: bridge
     ipam:
       config:
         - subnet: 172.20.0.0/16
-    driver_opts:
-      com.docker.network.bridge.name: br-nexlify
 
-# Security configurations
-x-security: &default-security
-  # Drop all capabilities by default
-  cap_drop:
-    - ALL
-  # Only add what's needed
-  cap_add:
-    - CHOWN
-    - DAC_OVERRIDE
-    - SETGID
-    - SETUID
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+# Health check and startup order ensures proper initialization
+# Use 'docker-compose up -d' to start the entire platform
+# Use 'docker-compose --profile ml up -d' to include ML worker with GPU
