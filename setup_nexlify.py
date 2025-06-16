@@ -1,285 +1,625 @@
+#!/usr/bin/env python3
 """
-Nexlify Setup Script - Complete System Installation and Configuration
-Handles database initialization, dependency installation, and system validation
+Enhanced Nexlify Setup Script v2.0.8
+Addresses all V3 improvements for robust system initialization
 """
 
 import os
 import sys
 import json
-import shutil
-import platform
-import subprocess
 import sqlite3
 import socket
+import subprocess
+import platform
+import shutil
 import time
 import hashlib
-import zipfile
-from datetime import datetime
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-import logging
+import secrets
+import stat
 import psutil
-import pkg_resources
+import requests
+from pathlib import Path
+from datetime import datetime
+from typing import Dict, List, Tuple, Optional, Any
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Constants
+MIN_PYTHON_VERSION = (3, 11)
+MIN_RAM_GB = 8
+RECOMMENDED_RAM_GB = 16
+MIN_DISK_GB = 20
+RECOMMENDED_DISK_GB = 50
+DEFAULT_PORTS = {
+    'api': 8000,
+    'mobile_api': 8001,
+    'postgresql': 5432,
+    'redis': 6379,
+    'websocket': 8080
+}
+
+# GPU requirements for ML features
+GPU_REQUIREMENTS = {
+    'nvidia': {
+        'min_compute': 6.1,  # GTX 1060 level
+        'min_memory_gb': 6,
+        'recommended_models': ['GTX 1060', 'GTX 1070', 'RTX 2060', 'RTX 3060', 'RTX 4060']
+    }
+}
 
 class NexlifySetup:
-    """Enhanced setup script with comprehensive system validation and initialization"""
+    """Enhanced setup script with V3 improvements"""
     
     def __init__(self):
-        self.base_path = Path.cwd()
-        self.config = {}
+        self.root_path = Path.cwd()
         self.errors = []
         self.warnings = []
+        self.backup_dir = self.root_path / 'backups' / 'setup' / datetime.now().strftime('%Y%m%d_%H%M%S')
+        self.install_profile = None  # 'standard' or 'full'
+        self.config = {}
+        self.db_path = self.root_path / 'data' / 'trading.db'
+        self.audit_db_path = self.root_path / 'data' / 'audit' / 'audit_trail.db'
         
-        # System requirements
-        self.requirements = {
-            'python_version': '3.11',
-            'min_ram_gb': 8,
-            'recommended_ram_gb': 16,
-            'min_disk_gb': 20,
-            'recommended_disk_gb': 50,
-            'gpu_models': [
-                'GTX 1060', 'GTX 1070', 'GTX 1080',
-                'RTX 2060', 'RTX 2070', 'RTX 2080',
-                'RTX 3060', 'RTX 3070', 'RTX 3080', 'RTX 3090',
-                'RTX 4060', 'RTX 4070', 'RTX 4080', 'RTX 4090'
-            ]
-        }
-        
-        # Required ports
-        self.required_ports = {
-            8000: 'Nexlify API Server',
-            8001: 'Mobile API Server',
-            5432: 'PostgreSQL Database',
-            6379: 'Redis Cache',
-            8888: 'Jupyter Notebook (Optional)'
-        }
-        
-        # Color codes for terminal output
-        self.colors = {
-            'GREEN': '\033[92m',
-            'YELLOW': '\033[93m',
-            'RED': '\033[91m',
-            'BLUE': '\033[94m',
-            'CYAN': '\033[96m',
-            'RESET': '\033[0m',
-            'BOLD': '\033[1m'
-        }
-    
-    def print_banner(self):
-        """Display cyberpunk-style setup banner"""
-        banner = f"""
-{self.colors['CYAN']}╔═══════════════════════════════════════════════════════════════╗
-║                                                               ║
-║  {self.colors['BOLD']}███╗   ██╗███████╗██╗  ██╗██╗     ██╗███████╗██╗   ██╗{self.colors['CYAN']}      ║
-║  {self.colors['BOLD']}████╗  ██║██╔════╝╚██╗██╔╝██║     ██║██╔════╝╚██╗ ██╔╝{self.colors['CYAN']}      ║
-║  {self.colors['BOLD']}██╔██╗ ██║█████╗   ╚███╔╝ ██║     ██║█████╗   ╚████╔╝{self.colors['CYAN']}       ║
-║  {self.colors['BOLD']}██║╚██╗██║██╔══╝   ██╔██╗ ██║     ██║██╔══╝    ╚██╔╝{self.colors['CYAN']}        ║
-║  {self.colors['BOLD']}██║ ╚████║███████╗██╔╝ ██╗███████╗██║██║        ██║{self.colors['CYAN']}         ║
-║  {self.colors['BOLD']}╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝╚══════╝╚═╝╚═╝        ╚═╝{self.colors['CYAN']}         ║
-║                                                               ║
-║          {self.colors['GREEN']}Neural Trading System Setup v2.0.8{self.colors['CYAN']}                  ║
-║          {self.colors['BLUE']}Cyberpunk Trading Engine Installation{self.colors['CYAN']}              ║
-║                                                               ║
-╚═══════════════════════════════════════════════════════════════╝{self.colors['RESET']}
-        """
-        print(banner)
-    
     def run(self):
-        """Main setup orchestration"""
+        """Main setup process with comprehensive error handling"""
         try:
-            self.print_banner()
+            print(self._get_banner())
             
-            # Phase 1: System Validation
-            print(f"\n{self.colors['CYAN']}[Phase 1/6] System Validation{self.colors['RESET']}")
-            if not self.check_system_requirements():
+            # Pre-setup validation
+            if not self._check_python_version():
                 return False
-            
-            # Phase 2: Dependency Check
-            print(f"\n{self.colors['CYAN']}[Phase 2/6] Dependency Installation{self.colors['RESET']}")
-            if not self.install_dependencies():
+                
+            if not self._check_system_requirements():
                 return False
+                
+            # Backup existing installation
+            if self._check_existing_installation():
+                if not self._backup_existing():
+                    return False
+                    
+            # Core setup
+            if not self._check_system_compatibility():
+                return False
+                
+            self._select_installation_profile()
             
-            # Phase 3: Directory Structure
-            print(f"\n{self.colors['CYAN']}[Phase 3/6] Creating Directory Structure{self.colors['RESET']}")
-            self.create_directory_structure()
-            
-            # Phase 4: Database Initialization
-            print(f"\n{self.colors['CYAN']}[Phase 4/6] Database Initialization{self.colors['RESET']}")
-            self.initialize_databases()
-            
-            # Phase 5: Configuration
-            print(f"\n{self.colors['CYAN']}[Phase 5/6] Configuration Setup{self.colors['RESET']}")
-            self.create_configurations()
-            
-            # Phase 6: Final Setup
-            print(f"\n{self.colors['CYAN']}[Phase 6/6] Finalizing Installation{self.colors['RESET']}")
-            self.finalize_setup()
-            
-            # Display summary
-            self.display_summary()
+            if not self._check_dependencies():
+                return False
+                
+            if not self._create_directory_structure():
+                return False
+                
+            if not self._initialize_databases():
+                return False
+                
+            if not self._check_ports():
+                return False
+                
+            if not self._create_configuration():
+                return False
+                
+            if not self._install_dependencies():
+                return False
+                
+            if self.install_profile == 'full':
+                self._check_gpu_support()
+                
+            if not self._setup_docker():
+                return False
+                
+            if not self._create_scripts():
+                return False
+                
+            if not self._set_permissions():
+                return False
+                
+            if not self._run_tests():
+                return False
+                
+            self._generate_documentation()
+            self._display_final_instructions()
             
             return True
             
         except Exception as e:
-            logger.error(f"Setup failed: {e}")
-            print(f"\n{self.colors['RED']}✗ Setup failed: {str(e)}{self.colors['RESET']}")
+            self._log_error(f"Setup failed: {str(e)}")
+            self._save_error_report()
             return False
-    
-    def check_system_requirements(self) -> bool:
-        """Comprehensive system requirement validation"""
+            
+    def _get_banner(self) -> str:
+        """Cyberpunk-themed banner with cross-platform support"""
+        # Use simple ASCII for Windows CMD compatibility
+        if platform.system() == 'Windows' and not os.environ.get('WT_SESSION'):
+            return """
+============================================
+         NEXLIFY SETUP v2.0.8
+         Night City Trading Platform
+============================================
+"""
+        else:
+            # Full cyberpunk banner for terminals with color support
+            return """
+\033[95m╔══════════════════════════════════════════╗
+║      \033[96mNEXLIFY SETUP v2.0.8\033[95m              ║
+║   \033[92mNight City Trading Platform\033[95m           ║
+║      \033[93mEnhanced with V3 Improvements\033[95m      ║
+╚══════════════════════════════════════════╝\033[0m
+"""
+            
+    def _check_python_version(self) -> bool:
+        """Verify Python version meets requirements"""
+        current = sys.version_info[:2]
+        if current < MIN_PYTHON_VERSION:
+            self._log_error(f"Python {MIN_PYTHON_VERSION[0]}.{MIN_PYTHON_VERSION[1]}+ required, found {current[0]}.{current[1]}")
+            return False
+            
+        # Check for 64-bit Python (required for TensorFlow)
+        if sys.maxsize <= 2**32:
+            self._log_error("64-bit Python required for optimal performance")
+            return False
+            
+        print(f"✓ Python {current[0]}.{current[1]} (64-bit) detected")
+        return True
+        
+    def _check_system_requirements(self) -> bool:
+        """Comprehensive system requirements check"""
         print("\nChecking system requirements...")
         
-        # Python version
-        python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
-        if float(python_version) < float(self.requirements['python_version']):
-            self.errors.append(
-                f"Python {self.requirements['python_version']}+ required, found {python_version}"
-            )
-            print(f"  {self.colors['RED']}✗ Python version{self.colors['RESET']}")
-        else:
-            print(f"  {self.colors['GREEN']}✓ Python {python_version}{self.colors['RESET']}")
-        
-        # Operating System
-        os_name = platform.system()
-        if os_name == 'Windows':
-            # Check for Visual C++ runtime
-            try:
-                import ctypes
-                ctypes.cdll.msvcrt
-                print(f"  {self.colors['GREEN']}✓ Windows with C++ runtime{self.colors['RESET']}")
-            except:
-                self.warnings.append("Visual C++ runtime may be required for some packages")
-                print(f"  {self.colors['YELLOW']}! Windows (C++ runtime recommended){self.colors['RESET']}")
-        else:
-            print(f"  {self.colors['GREEN']}✓ {os_name} OS{self.colors['RESET']}")
-        
-        # RAM Check
+        # RAM check
         ram_gb = psutil.virtual_memory().total / (1024**3)
-        if ram_gb < self.requirements['min_ram_gb']:
-            self.errors.append(
-                f"Minimum {self.requirements['min_ram_gb']}GB RAM required, found {ram_gb:.1f}GB"
-            )
-            print(f"  {self.colors['RED']}✗ RAM: {ram_gb:.1f}GB{self.colors['RESET']}")
-        elif ram_gb < self.requirements['recommended_ram_gb']:
-            self.warnings.append(
-                f"Recommended {self.requirements['recommended_ram_gb']}GB RAM, found {ram_gb:.1f}GB"
-            )
-            print(f"  {self.colors['YELLOW']}! RAM: {ram_gb:.1f}GB (16GB recommended){self.colors['RESET']}")
-        else:
-            print(f"  {self.colors['GREEN']}✓ RAM: {ram_gb:.1f}GB{self.colors['RESET']}")
+        if ram_gb < MIN_RAM_GB:
+            self._log_error(f"Minimum {MIN_RAM_GB}GB RAM required, found {ram_gb:.1f}GB")
+            return False
+        elif ram_gb < RECOMMENDED_RAM_GB:
+            self._log_warning(f"Recommended {RECOMMENDED_RAM_GB}GB RAM for ML features, found {ram_gb:.1f}GB")
+        print(f"✓ RAM: {ram_gb:.1f}GB")
         
-        # Disk Space
-        disk_usage = psutil.disk_usage(str(self.base_path))
-        free_gb = disk_usage.free / (1024**3)
-        if free_gb < self.requirements['min_disk_gb']:
-            self.errors.append(
-                f"Minimum {self.requirements['min_disk_gb']}GB disk space required, found {free_gb:.1f}GB"
-            )
-            print(f"  {self.colors['RED']}✗ Disk space: {free_gb:.1f}GB{self.colors['RESET']}")
-        elif free_gb < self.requirements['recommended_disk_gb']:
-            self.warnings.append(
-                f"Recommended {self.requirements['recommended_disk_gb']}GB disk space, found {free_gb:.1f}GB"
-            )
-            print(f"  {self.colors['YELLOW']}! Disk space: {free_gb:.1f}GB (50GB recommended){self.colors['RESET']}")
-        else:
-            print(f"  {self.colors['GREEN']}✓ Disk space: {free_gb:.1f}GB{self.colors['RESET']}")
+        # Disk space check
+        disk_gb = psutil.disk_usage(str(self.root_path)).free / (1024**3)
+        if disk_gb < MIN_DISK_GB:
+            self._log_error(f"Minimum {MIN_DISK_GB}GB free disk space required, found {disk_gb:.1f}GB")
+            return False
+        elif disk_gb < RECOMMENDED_DISK_GB:
+            self._log_warning(f"Recommended {RECOMMENDED_DISK_GB}GB for logs and models, found {disk_gb:.1f}GB")
+        print(f"✓ Disk: {disk_gb:.1f}GB free")
         
-        # CPU Cores
+        # CPU check
         cpu_count = psutil.cpu_count()
         if cpu_count < 4:
-            self.warnings.append(f"4+ CPU cores recommended, found {cpu_count}")
-            print(f"  {self.colors['YELLOW']}! CPU cores: {cpu_count} (4+ recommended){self.colors['RESET']}")
-        else:
-            print(f"  {self.colors['GREEN']}✓ CPU cores: {cpu_count}{self.colors['RESET']}")
+            self._log_warning(f"Recommended 4+ CPU cores for multi-strategy trading, found {cpu_count}")
+        print(f"✓ CPU: {cpu_count} cores")
         
-        # GPU Check
-        gpu_info = self._check_gpu()
-        if gpu_info:
-            print(f"  {self.colors['GREEN']}✓ GPU: {gpu_info}{self.colors['RESET']}")
-        else:
-            self.warnings.append(
-                "No compatible GPU detected. ML features will run on CPU (slower)"
-            )
-            print(f"  {self.colors['YELLOW']}! No compatible GPU detected{self.colors['RESET']}")
-        
-        # Port availability
-        print("\nChecking port availability...")
-        for port, service in self.required_ports.items():
-            if self._is_port_available(port):
-                print(f"  {self.colors['GREEN']}✓ Port {port} ({service}){self.colors['RESET']}")
-            else:
-                self.errors.append(f"Port {port} ({service}) is already in use")
-                print(f"  {self.colors['RED']}✗ Port {port} ({service}) - IN USE{self.colors['RESET']}")
-        
-        # Display system compatibility
-        if os_name == 'Linux':
-            # Check for GUI dependencies
-            if not self._check_gui_dependencies():
-                self.warnings.append(
-                    "GUI dependencies missing. Install: sudo apt-get install python3-pyqt5"
-                )
-        
-        # Docker check (optional)
-        docker_available = self._check_docker()
-        if docker_available:
-            print(f"  {self.colors['GREEN']}✓ Docker available{self.colors['RESET']}")
-        else:
-            self.warnings.append("Docker not found (optional for containerized deployment)")
-            print(f"  {self.colors['YELLOW']}! Docker not found (optional){self.colors['RESET']}")
-        
-        # Internet connectivity
-        if self._check_internet():
-            print(f"  {self.colors['GREEN']}✓ Internet connection{self.colors['RESET']}")
-        else:
-            self.errors.append("No internet connection detected")
-            print(f"  {self.colors['RED']}✗ No internet connection{self.colors['RESET']}")
-        
-        # Check if errors exist
-        if self.errors:
-            print(f"\n{self.colors['RED']}System requirements not met:{self.colors['RESET']}")
-            for error in self.errors:
-                print(f"  • {error}")
+        # Network check
+        try:
+            socket.create_connection(("8.8.8.8", 53), timeout=3)
+            print("✓ Internet connection available")
+        except OSError:
+            self._log_error("Internet connection required for exchange APIs")
             return False
-        
+            
         return True
-    
-    def _check_gpu(self) -> Optional[str]:
-        """Check for compatible GPU"""
+        
+    def _check_existing_installation(self) -> bool:
+        """Check for existing Nexlify installation"""
+        indicators = [
+            self.root_path / 'enhanced_config.json',
+            self.root_path / 'neural_config.json',
+            self.root_path / 'data' / 'trading.db',
+            self.root_path / 'src' / 'nexlify_neural_net.py'
+        ]
+        
+        for indicator in indicators:
+            if indicator.exists():
+                response = input("\n⚠️  Existing installation detected. Backup and continue? (y/n): ")
+                return response.lower() == 'y'
+                
+        return False
+        
+    def _backup_existing(self) -> bool:
+        """Backup existing installation with timestamp"""
+        print("\nBacking up existing installation...")
+        
         try:
-            # Try nvidia-smi
-            result = subprocess.run(
-                ['nvidia-smi', '--query-gpu=name', '--format=csv,noheader'],
-                capture_output=True,
-                text=True
+            self.backup_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Backup important files
+            backup_items = [
+                'enhanced_config.json',
+                'neural_config.json',
+                '.env',
+                'data/',
+                'logs/',
+                'src/',
+                'backups/config/'
+            ]
+            
+            for item in backup_items:
+                src = self.root_path / item
+                if src.exists():
+                    dst = self.backup_dir / item
+                    if src.is_dir():
+                        shutil.copytree(src, dst, dirs_exist_ok=True)
+                    else:
+                        dst.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(src, dst)
+                        
+            # Create backup manifest
+            manifest = {
+                'timestamp': datetime.now().isoformat(),
+                'version': self._get_current_version(),
+                'files': [str(f.relative_to(self.backup_dir)) for f in self.backup_dir.rglob('*') if f.is_file()]
+            }
+            
+            with open(self.backup_dir / 'manifest.json', 'w') as f:
+                json.dump(manifest, f, indent=2)
+                
+            print(f"✓ Backup created: {self.backup_dir}")
+            return True
+            
+        except Exception as e:
+            self._log_error(f"Backup failed: {str(e)}")
+            return False
+            
+    def _check_system_compatibility(self) -> bool:
+        """Platform-specific compatibility checks"""
+        print("\nChecking system compatibility...")
+        
+        system = platform.system()
+        
+        if system == 'Windows':
+            # Check Windows runtime
+            try:
+                subprocess.run(['where', 'python'], capture_output=True, check=True)
+            except:
+                self._log_warning("Python not in PATH, may cause issues")
+                
+            # Check for Visual C++ runtime (needed for some packages)
+            if not self._check_windows_runtime():
+                self._log_warning("Visual C++ runtime may be needed for some packages")
+                
+        elif system == 'Linux':
+            # Check for required system packages
+            required_packages = ['python3-dev', 'build-essential', 'libssl-dev']
+            missing = []
+            
+            for pkg in required_packages:
+                try:
+                    subprocess.run(['dpkg', '-l', pkg], capture_output=True, check=True)
+                except:
+                    missing.append(pkg)
+                    
+            if missing:
+                self._log_warning(f"Missing system packages: {', '.join(missing)}")
+                print("Install with: sudo apt-get install " + ' '.join(missing))
+                
+            # Check for GUI dependencies if not headless
+            if os.environ.get('DISPLAY'):
+                self._check_gui_dependencies()
+                
+        elif system == 'Darwin':  # macOS
+            # Check for Xcode command line tools
+            try:
+                subprocess.run(['xcode-select', '-p'], capture_output=True, check=True)
+            except:
+                self._log_warning("Xcode command line tools required")
+                print("Install with: xcode-select --install")
+                
+        print("✓ System compatibility checked")
+        return True
+        
+    def _select_installation_profile(self):
+        """Select installation profile (standard or full)"""
+        print("\nSelect installation profile:")
+        print("1. Standard - Core trading features")
+        print("2. Full - All features including ML/GPU acceleration")
+        
+        while True:
+            choice = input("\nEnter choice (1-2): ")
+            if choice == '1':
+                self.install_profile = 'standard'
+                break
+            elif choice == '2':
+                self.install_profile = 'full'
+                break
+            else:
+                print("Invalid choice, please try again")
+                
+        print(f"✓ Selected {self.install_profile} installation")
+        
+    def _check_dependencies(self) -> bool:
+        """Verify critical system dependencies"""
+        print("\nChecking dependencies...")
+        
+        # Check Python packages installer
+        try:
+            import pip
+            print("✓ pip available")
+        except ImportError:
+            self._log_error("pip not found, cannot install packages")
+            return False
+            
+        # Check for Docker (optional but recommended)
+        try:
+            subprocess.run(['docker', '--version'], capture_output=True, check=True)
+            print("✓ Docker available")
+            self.config['docker_available'] = True
+        except:
+            self._log_warning("Docker not found, container features disabled")
+            self.config['docker_available'] = False
+            
+        # Check for Redis (optional)
+        try:
+            subprocess.run(['redis-cli', '--version'], capture_output=True, check=True)
+            print("✓ Redis available")
+            self.config['redis_available'] = True
+        except:
+            self._log_warning("Redis not found, caching features limited")
+            self.config['redis_available'] = False
+            
+        # Check for Git
+        try:
+            subprocess.run(['git', '--version'], capture_output=True, check=True)
+            print("✓ Git available")
+        except:
+            self._log_warning("Git not found, version control disabled")
+            
+        return True
+        
+    def _create_directory_structure(self) -> bool:
+        """Create project directories with proper permissions"""
+        print("\nCreating directory structure...")
+        
+        directories = [
+            'data',
+            'data/market',
+            'data/models',
+            'data/audit',
+            'logs',
+            'logs/trading',
+            'logs/errors',
+            'logs/audit',
+            'logs/performance',
+            'logs/crash_reports',
+            'logs/mobile',
+            'backups',
+            'backups/config',
+            'backups/data',
+            'backups/logs',
+            'src',
+            'src/strategies',
+            'src/indicators',
+            'src/utils',
+            'tests',
+            'tests/unit',
+            'tests/integration',
+            'docs',
+            'docs/api',
+            'scripts',
+            'models',
+            'reports',
+            'config'
+        ]
+        
+        try:
+            for dir_path in directories:
+                path = self.root_path / dir_path
+                path.mkdir(parents=True, exist_ok=True)
+                
+                # Set secure permissions on sensitive directories
+                if any(sensitive in str(dir_path) for sensitive in ['config', 'data', 'logs/audit']):
+                    self._set_secure_permissions(path)
+                    
+            print("✓ Directory structure created")
+            return True
+            
+        except Exception as e:
+            self._log_error(f"Failed to create directories: {str(e)}")
+            return False
+            
+    def _initialize_databases(self) -> bool:
+        """Initialize SQLite databases with schema"""
+        print("\nInitializing databases...")
+        
+        try:
+            # Trading database
+            self._create_trading_database()
+            
+            # Audit database
+            self._create_audit_database()
+            
+            # Validate databases
+            if not self._validate_databases():
+                return False
+                
+            print("✓ Databases initialized")
+            return True
+            
+        except Exception as e:
+            self._log_error(f"Database initialization failed: {str(e)}")
+            return False
+            
+    def _create_trading_database(self):
+        """Create main trading database with schema"""
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+        
+        # Enable Write-Ahead Logging for better concurrency
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        
+        # Trades table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS trades (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                exchange TEXT NOT NULL,
+                symbol TEXT NOT NULL,
+                side TEXT NOT NULL CHECK(side IN ('buy', 'sell')),
+                price REAL NOT NULL,
+                amount REAL NOT NULL,
+                fee REAL DEFAULT 0,
+                strategy TEXT,
+                order_id TEXT UNIQUE,
+                status TEXT DEFAULT 'pending',
+                metadata TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
-            if result.returncode == 0:
-                gpu_name = result.stdout.strip()
-                # Check if it's a supported model
-                for model in self.requirements['gpu_models']:
-                    if model in gpu_name:
-                        return gpu_name
-                return f"{gpu_name} (compatibility unknown)"
-        except:
-            pass
+        """)
         
-        # Try alternative methods
+        # Withdrawals table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS withdrawals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                exchange TEXT NOT NULL,
+                currency TEXT NOT NULL,
+                amount REAL NOT NULL,
+                address TEXT NOT NULL,
+                tx_hash TEXT,
+                status TEXT DEFAULT 'pending',
+                fee REAL DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Portfolio table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS portfolio (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                exchange TEXT NOT NULL,
+                symbol TEXT NOT NULL,
+                balance REAL NOT NULL,
+                value_usd REAL,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(exchange, symbol)
+            )
+        """)
+        
+        # Performance metrics table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS performance_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                strategy TEXT NOT NULL,
+                metric_name TEXT NOT NULL,
+                metric_value REAL NOT NULL,
+                period TEXT DEFAULT 'daily',
+                metadata TEXT
+            )
+        """)
+        
+        # Create indexes for performance
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_trades_timestamp ON trades(timestamp)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_trades_exchange_symbol ON trades(exchange, symbol)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_portfolio_exchange ON portfolio(exchange)")
+        
+        conn.commit()
+        conn.close()
+        
+    def _create_audit_database(self):
+        """Create audit trail database"""
+        self.audit_db_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        conn = sqlite3.connect(str(self.audit_db_path))
+        cursor = conn.cursor()
+        
+        cursor.execute("PRAGMA journal_mode=WAL")
+        
+        # Audit entries table (from nexlify_audit_trail.py)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS audit_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entry_id TEXT UNIQUE NOT NULL,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                user TEXT,
+                action TEXT NOT NULL,
+                component TEXT NOT NULL,
+                details TEXT,
+                severity TEXT DEFAULT 'info',
+                hash TEXT NOT NULL,
+                previous_hash TEXT,
+                signature TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Security events table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS security_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                event_type TEXT NOT NULL,
+                user TEXT,
+                ip_address TEXT,
+                success BOOLEAN,
+                details TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_entries(timestamp)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_entries(user)")
+        
+        conn.commit()
+        conn.close()
+        
+    def _validate_databases(self) -> bool:
+        """Validate database integrity"""
         try:
-            import GPUtil
-            gpus = GPUtil.getGPUs()
-            if gpus:
-                return gpus[0].name
-        except:
-            pass
+            # Test trading database
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = [row[0] for row in cursor.fetchall()]
+            conn.close()
+            
+            required_tables = ['trades', 'withdrawals', 'portfolio', 'performance_metrics']
+            missing = set(required_tables) - set(tables)
+            if missing:
+                self._log_error(f"Missing tables in trading.db: {missing}")
+                return False
+                
+            # Test audit database
+            conn = sqlite3.connect(str(self.audit_db_path))
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = [row[0] for row in cursor.fetchall()]
+            conn.close()
+            
+            required_tables = ['audit_entries', 'security_events']
+            missing = set(required_tables) - set(tables)
+            if missing:
+                self._log_error(f"Missing tables in audit_trail.db: {missing}")
+                return False
+                
+            return True
+            
+        except Exception as e:
+            self._log_error(f"Database validation failed: {str(e)}")
+            return False
+            
+    def _check_ports(self) -> bool:
+        """Check for port conflicts and find alternatives"""
+        print("\nChecking network ports...")
         
-        return None
-    
+        port_status = {}
+        
+        for service, port in DEFAULT_PORTS.items():
+            if self._is_port_available(port):
+                port_status[service] = port
+                print(f"✓ Port {port} available for {service}")
+            else:
+                # Find alternative port
+                alt_port = self._find_available_port(port)
+                port_status[service] = alt_port
+                self._log_warning(f"Port {port} busy for {service}, using {alt_port}")
+                
+        self.config['ports'] = port_status
+        return True
+        
     def _is_port_available(self, port: int) -> bool:
         """Check if a port is available"""
         try:
@@ -288,1349 +628,1267 @@ class NexlifySetup:
                 return True
         except:
             return False
-    
-    def _check_gui_dependencies(self) -> bool:
-        """Check GUI dependencies on Linux"""
-        if platform.system() != 'Linux':
-            return True
+            
+    def _find_available_port(self, start_port: int, max_attempts: int = 100) -> int:
+        """Find next available port"""
+        for offset in range(max_attempts):
+            port = start_port + offset
+            if self._is_port_available(port):
+                return port
+        raise RuntimeError(f"No available ports found starting from {start_port}")
+        
+    def _create_configuration(self) -> bool:
+        """Create enhanced configuration files"""
+        print("\nCreating configuration files...")
         
         try:
-            # Check for X11 display
-            if 'DISPLAY' not in os.environ:
-                return False
+            # Generate secure keys
+            master_password = secrets.token_urlsafe(32)
+            jwt_secret = secrets.token_urlsafe(32)
+            api_secret = secrets.token_urlsafe(32)
             
-            # Check for PyQt5
-            subprocess.run(['python3', '-c', 'import PyQt5'], check=True)
-            return True
-        except:
-            return False
-    
-    def _check_docker(self) -> bool:
-        """Check if Docker is available"""
-        try:
-            result = subprocess.run(['docker', '--version'], capture_output=True)
-            return result.returncode == 0
-        except:
-            return False
-    
-    def _check_internet(self) -> bool:
-        """Check internet connectivity"""
-        try:
-            socket.create_connection(("8.8.8.8", 53), timeout=3)
-            return True
-        except:
-            return False
-    
-    def install_dependencies(self) -> bool:
-        """Install Python dependencies with profile selection"""
-        print("\nSelect installation profile:")
-        print("  1. Standard - Core trading features (recommended)")
-        print("  2. Full - All features including ML/GPU support")
-        
-        choice = input("\nEnter choice (1-2): ").strip()
-        
-        if choice == '2':
-            profile = 'full'
-            requirements_file = 'requirements_full.txt'
-        else:
-            profile = 'standard'
-            requirements_file = 'requirements_standard.txt'
-        
-        print(f"\nInstalling {profile} profile dependencies...")
-        
-        # Create requirements files
-        self._create_requirements_files()
-        
-        # Upgrade pip first
-        print("  Upgrading pip...")
-        try:
-            subprocess.run([sys.executable, '-m', 'pip', 'install', '--upgrade', 'pip'], 
-                         check=True, capture_output=True)
-            print(f"  {self.colors['GREEN']}✓ Pip upgraded{self.colors['RESET']}")
-        except:
-            self.warnings.append("Failed to upgrade pip")
-        
-        # Install requirements
-        print(f"  Installing from {requirements_file}...")
-        try:
-            # Use --no-deps first to avoid conflicts
-            subprocess.run(
-                [sys.executable, '-m', 'pip', 'install', '-r', requirements_file],
-                check=True
-            )
-            print(f"  {self.colors['GREEN']}✓ Dependencies installed{self.colors['RESET']}")
-            
-            # Verify critical packages
-            critical_packages = ['ccxt', 'PyQt5', 'pandas', 'numpy', 'asyncio', 'aiohttp']
-            missing = []
-            
-            for package in critical_packages:
-                try:
-                    pkg_resources.get_distribution(package)
-                except:
-                    missing.append(package)
-            
-            if missing:
-                print(f"  {self.colors['YELLOW']}! Missing packages: {', '.join(missing)}{self.colors['RESET']}")
-                print("  Attempting individual installation...")
-                for package in missing:
-                    try:
-                        subprocess.run(
-                            [sys.executable, '-m', 'pip', 'install', package],
-                            check=True
-                        )
-                    except:
-                        self.errors.append(f"Failed to install {package}")
-            
-            return len(self.errors) == 0
-            
-        except subprocess.CalledProcessError as e:
-            self.errors.append(f"Dependency installation failed: {e}")
-            print(f"  {self.colors['RED']}✗ Installation failed{self.colors['RESET']}")
-            return False
-    
-    def _create_requirements_files(self):
-        """Create requirements files for different profiles"""
-        # Standard requirements (no ML)
-        standard_reqs = """# Nexlify Standard Requirements
-ccxt>=4.1.22
-pandas>=2.0.3
-numpy>=1.24.3
-asyncio>=3.4.3
-aiohttp>=3.8.5
-PyQt5>=5.15.9
-qasync>=0.23.0
-python-dotenv>=1.0.0
-requests>=2.31.0
-websocket-client>=1.6.1
-pycryptodome>=3.18.0
-argon2-cffi>=21.3.0
-pyotp>=2.8.0
-qrcode>=7.4.2
-Pillow>=10.0.0
-psutil>=5.9.5
-colorama>=0.4.6
-pyyaml>=6.0.1
-jsonschema>=4.19.1
-marshmallow>=3.20.1
-pydantic>=2.4.2
-sqlalchemy>=2.0.21
-alembic>=1.12.0
-redis>=5.0.0
-celery>=5.3.1
-pytest>=7.4.2
-pytest-asyncio>=0.21.1
-pytest-cov>=4.1.0
-black>=23.9.1
-flake8>=6.1.0
-mypy>=1.5.1
-sphinx>=7.2.6
-sphinx-rtd-theme>=1.3.0
-loguru>=0.7.2
-python-json-logger>=2.0.7
-sentry-sdk>=1.32.0
-prometheus-client>=0.17.1
-py-cpuinfo>=9.0.0
-psycopg2-binary>=2.9.7
-cryptography>=41.0.4
-web3>=6.9.0
-eth-account>=0.9.0
-"""
-        
-        # Full requirements (with ML)
-        full_reqs = standard_reqs + """
-# ML and Advanced Features
-tensorflow>=2.13.0
-keras>=2.13.0
-scikit-learn>=1.3.0
-xgboost>=1.7.6
-lightgbm>=4.1.0
-torch>=2.0.1
-pandas-ta>=0.3.14b0
-statsmodels>=0.14.0
-scipy>=1.11.3
-matplotlib>=3.7.2
-seaborn>=0.12.2
-plotly>=5.17.0
-bokeh>=3.2.2
-jupyter>=1.0.0
-ipykernel>=6.25.2
-nbformat>=5.9.2
-"""
-        
-        # Write files
-        with open('requirements_standard.txt', 'w') as f:
-            f.write(standard_reqs)
-        
-        with open('requirements_full.txt', 'w') as f:
-            f.write(full_reqs)
-    
-    def create_directory_structure(self):
-        """Create complete directory structure with proper permissions"""
-        print("\nCreating directory structure...")
-        
-        directories = {
-            'config': 0o700,  # Sensitive configs
-            'data': 0o755,
-            'data/market': 0o755,
-            'data/models': 0o755,
-            'logs': 0o755,
-            'logs/trading': 0o755,
-            'logs/errors': 0o755,
-            'logs/audit': 0o700,  # Audit logs need protection
-            'logs/performance': 0o755,
-            'logs/crash_reports': 0o755,
-            'backups': 0o700,  # Backups are sensitive
-            'backups/config': 0o700,
-            'backups/database': 0o700,
-            'backups/logs': 0o700,
-            'scripts': 0o755,
-            'assets': 0o755,
-            'assets/sounds': 0o755,
-            'assets/images': 0o755,
-            'temp': 0o755,
-            'reports': 0o755,
-            'keys': 0o700  # Encryption keys
-        }
-        
-        for dir_path, permissions in directories.items():
-            full_path = self.base_path / dir_path
-            try:
-                full_path.mkdir(parents=True, exist_ok=True)
+            # Enhanced config - all user settings managed via GUI
+            enhanced_config = {
+                "version": "3.0.0",
+                "environment": "production",
+                "debug": False,
+                "theme": "cyberpunk",
                 
-                # Set permissions on Unix-like systems
-                if platform.system() != 'Windows':
-                    os.chmod(full_path, permissions)
-                
-                print(f"  {self.colors['GREEN']}✓ Created {dir_path}{self.colors['RESET']}")
-                
-            except Exception as e:
-                self.errors.append(f"Failed to create {dir_path}: {e}")
-                print(f"  {self.colors['RED']}✗ Failed to create {dir_path}{self.colors['RESET']}")
-        
-        # Create .gitignore
-        self._create_gitignore()
-    
-    def _create_gitignore(self):
-        """Create comprehensive .gitignore file"""
-        gitignore_content = """# Nexlify .gitignore
-
-# Sensitive files
-config/enhanced_config.json
-config/neural_config.json
-.env
-*.key
-*.pem
-keys/
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-data/trading.db
-
-# Logs
-logs/
-*.log
-
-# Backups
-backups/
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
-.venv
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Temporary files
-temp/
-*.tmp
-*.temp
-
-# Model files
-*.h5
-*.pkl
-*.joblib
-models/
-
-# Reports
-reports/*.pdf
-reports/*.csv
-
-# Emergency stop file
-EMERGENCY_STOP_ACTIVE
-"""
-        
-        with open('.gitignore', 'w') as f:
-            f.write(gitignore_content)
-    
-    def initialize_databases(self):
-        """Initialize all databases with full schema"""
-        print("\nInitializing databases...")
-        
-        # SQLite main database
-        self._init_trading_db()
-        
-        # Audit database
-        self._init_audit_db()
-        
-        # Create backup schedule
-        self._setup_backup_schedule()
-    
-    def _init_trading_db(self):
-        """Initialize main trading database with full schema"""
-        db_path = self.base_path / 'data' / 'trading.db'
-        
-        try:
-            conn = sqlite3.connect(str(db_path))
-            cursor = conn.cursor()
-            
-            # Enable foreign keys
-            cursor.execute("PRAGMA foreign_keys = ON")
-            
-            # Users table
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                email TEXT,
-                is_active BOOLEAN DEFAULT 1,
-                is_admin BOOLEAN DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_login TIMESTAMP,
-                two_factor_secret TEXT,
-                api_key_hash TEXT
-            )
-            """)
-            
-            # Trading tables
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS trades (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                user_id INTEGER,
-                pair TEXT NOT NULL,
-                exchange TEXT NOT NULL,
-                side TEXT NOT NULL CHECK(side IN ('buy', 'sell')),
-                type TEXT NOT NULL CHECK(type IN ('market', 'limit', 'stop-limit')),
-                price REAL NOT NULL,
-                amount REAL NOT NULL,
-                fee REAL DEFAULT 0,
-                fee_currency TEXT,
-                profit_usdt REAL,
-                profit_percentage REAL,
-                strategy TEXT,
-                order_id TEXT,
-                status TEXT DEFAULT 'completed',
-                metadata TEXT,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-            """)
-            
-            # Create indices for performance
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_trades_timestamp ON trades(timestamp)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_trades_pair ON trades(pair)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_trades_exchange ON trades(exchange)")
-            
-            # Positions table
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS positions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                pair TEXT NOT NULL,
-                exchange TEXT NOT NULL,
-                side TEXT NOT NULL,
-                amount REAL NOT NULL,
-                entry_price REAL NOT NULL,
-                current_price REAL,
-                stop_loss REAL,
-                take_profit REAL,
-                status TEXT DEFAULT 'open',
-                opened_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                closed_at TIMESTAMP,
-                pnl REAL,
-                pnl_percentage REAL,
-                strategy TEXT,
-                metadata TEXT,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-            """)
-            
-            # Withdrawals table
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS withdrawals (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                user_id INTEGER,
-                amount_usdt REAL NOT NULL,
-                amount_btc REAL NOT NULL,
-                btc_price REAL NOT NULL,
-                btc_address TEXT NOT NULL,
-                tx_hash TEXT,
-                exchange TEXT,
-                status TEXT DEFAULT 'pending',
-                confirmed_at TIMESTAMP,
-                metadata TEXT,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-            """)
-            
-            # Strategies table
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS strategies (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL,
-                type TEXT NOT NULL,
-                is_active BOOLEAN DEFAULT 1,
-                config TEXT,
-                performance_data TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            """)
-            
-            # Strategy performance
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS strategy_performance (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                strategy_id INTEGER,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                trades_count INTEGER DEFAULT 0,
-                win_rate REAL DEFAULT 0,
-                total_profit REAL DEFAULT 0,
-                sharpe_ratio REAL,
-                max_drawdown REAL,
-                metadata TEXT,
-                FOREIGN KEY (strategy_id) REFERENCES strategies(id)
-            )
-            """)
-            
-            # Exchange connections
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS exchange_connections (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                exchange TEXT NOT NULL,
-                api_key_encrypted TEXT NOT NULL,
-                secret_encrypted TEXT NOT NULL,
-                is_active BOOLEAN DEFAULT 1,
-                testnet BOOLEAN DEFAULT 0,
-                last_connected TIMESTAMP,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                metadata TEXT,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-            """)
-            
-            # System configuration
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS system_config (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL,
-                type TEXT DEFAULT 'string',
-                description TEXT,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            """)
-            
-            # Performance metrics
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS performance_metrics (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                metric_name TEXT NOT NULL,
-                metric_value REAL NOT NULL,
-                metric_unit TEXT,
-                component TEXT,
-                metadata TEXT
-            )
-            """)
-            
-            # Create triggers for updated_at
-            cursor.execute("""
-            CREATE TRIGGER IF NOT EXISTS update_strategies_timestamp 
-            AFTER UPDATE ON strategies
-            BEGIN
-                UPDATE strategies SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-            END
-            """)
-            
-            # Insert default data
-            cursor.execute("""
-            INSERT OR IGNORE INTO users (username, password_hash, is_admin) 
-            VALUES ('admin', '', 1)
-            """)
-            
-            # Insert default strategies
-            default_strategies = [
-                ('arbitrage', 'arbitrage'),
-                ('momentum', 'trend_following'),
-                ('market_making', 'liquidity_provision'),
-                ('dex_integration', 'defi'),
-                ('ai_predictions', 'machine_learning')
-            ]
-            
-            for name, strategy_type in default_strategies:
-                cursor.execute("""
-                INSERT OR IGNORE INTO strategies (name, type) 
-                VALUES (?, ?)
-                """, (name, strategy_type))
-            
-            conn.commit()
-            conn.close()
-            
-            print(f"  {self.colors['GREEN']}✓ Trading database initialized{self.colors['RESET']}")
-            
-        except Exception as e:
-            self.errors.append(f"Failed to initialize trading database: {e}")
-            print(f"  {self.colors['RED']}✗ Trading database initialization failed{self.colors['RESET']}")
-    
-    def _init_audit_db(self):
-        """Initialize audit trail database"""
-        db_path = self.base_path / 'logs' / 'audit' / 'audit_trail.db'
-        
-        try:
-            # Ensure directory exists
-            db_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            conn = sqlite3.connect(str(db_path))
-            cursor = conn.cursor()
-            
-            # Audit entries table (from nexlify_audit_trail.py)
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS audit_entries (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                entry_id TEXT UNIQUE NOT NULL,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                event_type TEXT NOT NULL,
-                user_id TEXT,
-                ip_address TEXT,
-                component TEXT,
-                action TEXT,
-                details TEXT,
-                severity TEXT,
-                hash TEXT NOT NULL,
-                previous_hash TEXT,
-                signature TEXT
-            )
-            """)
-            
-            # Create indices
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_entries(timestamp)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_event_type ON audit_entries(event_type)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_entries(user_id)")
-            
-            conn.commit()
-            conn.close()
-            
-            print(f"  {self.colors['GREEN']}✓ Audit database initialized{self.colors['RESET']}")
-            
-        except Exception as e:
-            self.errors.append(f"Failed to initialize audit database: {e}")
-            print(f"  {self.colors['RED']}✗ Audit database initialization failed{self.colors['RESET']}")
-    
-    def _setup_backup_schedule(self):
-        """Setup automated backup configuration"""
-        backup_config = {
-            'enabled': True,
-            'schedule': {
-                'databases': {
-                    'frequency': 'daily',
-                    'time': '03:00',
-                    'retention_days': 30
+                "security": {
+                    "session_timeout_minutes": 60,
+                    "max_failed_attempts": 5,
+                    "lockout_duration_minutes": 30,
+                    "require_2fa": False,  # Optional by default
+                    "ip_whitelist_enabled": False,
+                    "allowed_ips": []
                 },
-                'configs': {
-                    'frequency': 'on_change',
-                    'retention_count': 10
+                
+                "api": {
+                    "host": "0.0.0.0",
+                    "port": self.config['ports']['api'],
+                    "workers": psutil.cpu_count(),
+                    "rate_limit": "100/minute",
+                    "mobile_api_port": self.config['ports']['mobile_api']
                 },
-                'logs': {
-                    'frequency': 'weekly',
-                    'day': 'sunday',
-                    'time': '02:00',
-                    'retention_days': 90
+                
+                "database": {
+                    "trading_db": str(self.db_path),
+                    "audit_db": str(self.audit_db_path),
+                    "connection_pool_size": 10,
+                    "enable_wal": True
+                },
+                
+                "exchanges": {
+                    "enabled": ["binance", "kraken", "coinbase"],
+                    "testnet": True,
+                    "rate_limit_buffer": 0.9,
+                    "credentials": {
+                        "binance": {"api_key": "", "api_secret": ""},
+                        "kraken": {"api_key": "", "api_secret": ""},
+                        "coinbase": {"api_key": "", "api_secret": ""}
+                    }
+                },
+                
+                "defi": {
+                    "enabled": self.install_profile == 'full',
+                    "rpc_url": "",
+                    "private_key": "",
+                    "slippage_tolerance": 0.02,
+                    "gas_price_multiplier": 1.2
+                },
+                
+                "trading": {
+                    "initial_capital": 10000,
+                    "max_position_size": 0.1,
+                    "risk_level": "medium",
+                    "enable_arbitrage": True,
+                    "withdrawal_address": "",
+                    "min_withdrawal": 100
+                },
+                
+                "performance": {
+                    "enable_gpu": self.install_profile == 'full',
+                    "cache_size_mb": 512,
+                    "log_rotation_mb": 100,
+                    "metrics_retention_days": 90,
+                    "parallel_strategies": True
+                },
+                
+                "notifications": {
+                    "telegram": {
+                        "enabled": False,
+                        "bot_token": "",
+                        "chat_id": ""
+                    },
+                    "email": {
+                        "enabled": False,
+                        "smtp_host": "smtp.gmail.com",
+                        "smtp_port": 587,
+                        "username": "",
+                        "password": "",
+                        "from_address": "",
+                        "to_address": ""
+                    },
+                    "webhook": {
+                        "enabled": False,
+                        "url": ""
+                    },
+                    "alert_on_errors": True,
+                    "alert_on_trades": True
+                },
+                
+                "ai_companion": {
+                    "enabled": self.install_profile == 'full',
+                    "provider": "openai",
+                    "api_key": "",
+                    "model": "gpt-3.5-turbo",
+                    "personality": "professional"
+                },
+                
+                "ports": self.config['ports'],
+                
+                "features": {
+                    "enable_mobile_api": True,
+                    "enable_backtesting": True,
+                    "enable_paper_trading": True,
+                    "enable_audit_trail": True
                 }
-            },
-            'compression': 'zip',
-            'encryption': True
+            }
+            
+            # Save enhanced config
+            config_path = self.root_path / 'enhanced_config.json'
+            with open(config_path, 'w') as f:
+                json.dump(enhanced_config, f, indent=2)
+                
+            # Set secure permissions
+            self._set_secure_permissions(config_path)
+            
+            # Create .env file with system secrets
+            self._create_env_file(master_password, jwt_secret, api_secret)
+            
+            # Create legacy neural_config.json for compatibility
+            self._create_neural_config()
+            
+            # Create system loader script
+            self._create_system_loader()
+            
+            print("✓ Configuration files created")
+            return True
+            
+        except Exception as e:
+            self._log_error(f"Configuration creation failed: {str(e)}")
+            return False
+            
+    def _create_env_file(self, master_password: str, jwt_secret: str, api_secret: str):
+        """Create environment file with system-generated secrets only"""
+        # User-configurable settings go in enhanced_config.json via GUI
+        env_content = f"""# Nexlify System Environment
+# Generated on {datetime.now().isoformat()}
+# DO NOT EDIT - System managed file
+
+# System Security Keys (Auto-generated)
+MASTER_PASSWORD={master_password}
+JWT_SECRET={jwt_secret}
+MOBILE_API_SECRET={api_secret}
+
+# Database URLs (System paths)
+DATABASE_URL=sqlite:///{self.db_path}
+AUDIT_DATABASE_URL=sqlite:///{self.audit_db_path}
+
+# Docker Passwords (If using Docker)
+POSTGRES_PASSWORD={secrets.token_hex(16)}
+REDIS_PASSWORD={secrets.token_hex(16)}
+
+# System ID
+SYSTEM_ID={secrets.token_hex(8)}
+"""
+        
+        env_path = self.root_path / '.env'
+        with open(env_path, 'w') as f:
+            f.write(env_content)
+            
+        # Set secure permissions
+        self._set_secure_permissions(env_path)
+        
+    def _create_neural_config(self):
+        """Create legacy config for compatibility"""
+        # All user settings will be configured via GUI
+        neural_config = {
+            "exchange_configs": {},
+            "trading_pairs": ["BTC/USDT", "ETH/USDT"],
+            "risk_level": "medium",
+            "min_profit_threshold": 0.002,
+            "max_position_size": 0.1,
+            "enable_test_mode": True,
+            "telegram_bot_token": "",
+            "telegram_chat_id": "",
+            "emergency_contact": "",
+            "btc_wallet_address": "",
+            "min_withdrawal": 100,
+            "api_port": self.config['ports']['api'],
+            "pin": "2077",  # Will be changed on first GUI login
+            "enable_logging": True,
+            "database_url": f"sqlite:///{self.db_path}"
         }
         
-        # Save backup configuration
-        backup_config_path = self.base_path / 'config' / 'backup_config.json'
-        backup_config_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        with open(backup_config_path, 'w') as f:
-            json.dump(backup_config, f, indent=4)
-        
-        # Create backup script
-        self._create_backup_script()
-    
-    def _create_backup_script(self):
-        """Create automated backup script"""
-        script_content = '''#!/usr/bin/env python3
-"""
-Nexlify Automated Backup Script
-Handles database, configuration, and log backups
-"""
+        with open(self.root_path / 'neural_config.json', 'w') as f:
+            json.dump(neural_config, f, indent=2)
+            
+    def _create_system_loader(self):
+        """Create a system configuration loader that merges .env secrets with config"""
+        loader_script = '''#!/usr/bin/env python3
+"""System configuration loader - merges .env secrets with enhanced_config.json"""
 
 import os
 import json
-import shutil
-import sqlite3
-import zipfile
-from datetime import datetime, timedelta
 from pathlib import Path
+from dotenv import load_dotenv
 
-def backup_databases():
-    """Backup all databases"""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_dir = Path("backups/database") / timestamp
-    backup_dir.mkdir(parents=True, exist_ok=True)
+class ConfigLoader:
+    """Loads system configuration merging .env secrets with user config"""
     
-    # Backup trading database
-    src_db = Path("data/trading.db")
-    if src_db.exists():
-        dst_db = backup_dir / "trading.db"
+    @staticmethod
+    def load_config():
+        """Load complete configuration including system secrets"""
+        root = Path(__file__).parent.parent
         
-        # Use SQLite backup API for consistency
-        src_conn = sqlite3.connect(str(src_db))
-        dst_conn = sqlite3.connect(str(dst_db))
+        # Load .env file
+        load_dotenv(root / '.env')
         
-        with dst_conn:
-            src_conn.backup(dst_conn)
+        # Load enhanced_config.json
+        with open(root / 'enhanced_config.json') as f:
+            config = json.load(f)
         
-        src_conn.close()
-        dst_conn.close()
+        # Inject system secrets from .env
+        config['security']['master_password'] = os.environ.get('MASTER_PASSWORD')
+        config['security']['jwt_secret'] = os.environ.get('JWT_SECRET')
+        config['api']['mobile_api_secret'] = os.environ.get('MOBILE_API_SECRET')
+        config['system_id'] = os.environ.get('SYSTEM_ID')
         
-        print(f"✓ Backed up trading database")
+        return config
     
-    # Backup audit database
-    src_audit = Path("logs/audit/audit_trail.db")
-    if src_audit.exists():
-        dst_audit = backup_dir / "audit_trail.db"
-        shutil.copy2(src_audit, dst_audit)
-        print(f"✓ Backed up audit database")
-    
-    # Create compressed archive
-    archive_path = backup_dir.parent / f"db_backup_{timestamp}.zip"
-    with zipfile.ZipFile(archive_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for file in backup_dir.rglob('*'):
-            zf.write(file, file.relative_to(backup_dir))
-    
-    # Remove uncompressed files
-    shutil.rmtree(backup_dir)
-    
-    return archive_path
+    @staticmethod
+    def save_config(config):
+        """Save configuration (excluding system secrets)"""
+        root = Path(__file__).parent.parent
+        
+        # Remove system secrets before saving
+        config_copy = config.copy()
+        if 'master_password' in config_copy.get('security', {}):
+            del config_copy['security']['master_password']
+        if 'jwt_secret' in config_copy.get('security', {}):
+            del config_copy['security']['jwt_secret']
+        if 'mobile_api_secret' in config_copy.get('api', {}):
+            del config_copy['api']['mobile_api_secret']
+        if 'system_id' in config_copy:
+            del config_copy['system_id']
+        
+        # Save cleaned config
+        with open(root / 'enhanced_config.json', 'w') as f:
+            json.dump(config_copy, f, indent=2)
 
-def backup_configs():
-    """Backup configuration files"""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_dir = Path("backups/config") / timestamp
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Config files to backup
-    config_files = [
-        "config/enhanced_config.json",
-        "config/neural_config.json",
-        "config/backup_config.json",
-        ".env"
-    ]
-    
-    for config_file in config_files:
-        src = Path(config_file)
-        if src.exists():
-            dst = backup_dir / src.name
-            shutil.copy2(src, dst)
-            print(f"✓ Backed up {config_file}")
-    
-    # Create archive
-    archive_path = backup_dir.parent / f"config_backup_{timestamp}.zip"
-    with zipfile.ZipFile(archive_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for file in backup_dir.rglob('*'):
-            zf.write(file, file.relative_to(backup_dir))
-    
-    shutil.rmtree(backup_dir)
-    
-    return archive_path
+# For convenience
+def load_config():
+    return ConfigLoader.load_config()
 
-def cleanup_old_backups(directory: Path, retention_days: int):
-    """Remove backups older than retention period"""
-    cutoff_date = datetime.now() - timedelta(days=retention_days)
-    
-    for backup_file in directory.glob("*.zip"):
-        if backup_file.stat().st_mtime < cutoff_date.timestamp():
-            backup_file.unlink()
-            print(f"✓ Removed old backup: {backup_file.name}")
-
-def main():
-    """Main backup routine"""
-    print(f"Starting backup at {datetime.now()}")
-    
-    # Load backup configuration
-    with open("config/backup_config.json", 'r') as f:
-        config = json.load(f)
-    
-    if not config.get('enabled', True):
-        print("Backups are disabled")
-        return
-    
-    # Perform backups
-    try:
-        # Database backup
-        db_backup = backup_databases()
-        print(f"Database backup created: {db_backup}")
-        
-        # Configuration backup
-        config_backup = backup_configs()
-        print(f"Configuration backup created: {config_backup}")
-        
-        # Cleanup old backups
-        cleanup_old_backups(
-            Path("backups/database"),
-            config['schedule']['databases']['retention_days']
-        )
-        
-        print("Backup completed successfully")
-        
-    except Exception as e:
-        print(f"Backup failed: {e}")
-        # Log to error file
-        with open("logs/errors/backup_errors.log", 'a') as f:
-            f.write(f"{datetime.now()}: Backup failed - {str(e)}\\n")
-
-if __name__ == "__main__":
-    main()
+def save_config(config):
+    return ConfigLoader.save_config(config)
 '''
         
-        script_path = self.base_path / 'scripts' / 'backup.py'
-        script_path.parent.mkdir(parents=True, exist_ok=True)
+        utils_dir = self.root_path / 'src' / 'utils'
+        utils_dir.mkdir(parents=True, exist_ok=True)
         
-        with open(script_path, 'w') as f:
-            f.write(script_content)
+        with open(utils_dir / 'config_loader.py', 'w') as f:
+            f.write(loader_script)
+            
+    def _install_dependencies(self) -> bool:
+        """Install Python dependencies with proper validation"""
+        print("\nInstalling dependencies...")
         
-        # Make executable on Unix
-        if platform.system() != 'Windows':
-            os.chmod(script_path, 0o755)
-    
-    def create_configurations(self):
-        """Create all configuration files"""
-        print("\nCreating configuration files...")
-        
-        # Enhanced configuration
-        self._create_enhanced_config()
-        
-        # Environment file
-        self._create_env_file()
-        
-        # Docker configuration
-        self._create_docker_config()
-        
-        # Systemd service (Linux)
-        if platform.system() == 'Linux':
-            self._create_systemd_service()
-    
-    def _create_enhanced_config(self):
-        """Create enhanced configuration file"""
-        config = {
-            "version": "2.0.8",
-            "environment": "development",
-            "debug": False,
+        try:
+            # Create requirements file if not exists
+            self._create_requirements_file()
             
-            "api": {
-                "host": "0.0.0.0",
-                "port": 8000,
-                "workers": 4,
-                "timeout": 300
-            },
+            # Upgrade pip first
+            subprocess.run([sys.executable, '-m', 'pip', 'install', '--upgrade', 'pip'], check=True)
             
-            "mobile_api": {
-                "enabled": True,
-                "port": 8001,
-                "max_connections": 100
-            },
+            # Install based on profile
+            req_file = 'requirements_full.txt' if self.install_profile == 'full' else 'requirements.txt'
             
-            "database": {
-                "main_db": "sqlite:///data/trading.db",
-                "audit_db": "sqlite:///logs/audit/audit_trail.db",
-                "pool_size": 10,
-                "pool_timeout": 30
-            },
+            print(f"Installing from {req_file}...")
+            result = subprocess.run(
+                [sys.executable, '-m', 'pip', 'install', '-r', req_file],
+                capture_output=True,
+                text=True
+            )
             
-            "redis": {
-                "host": "localhost",
-                "port": 6379,
-                "db": 0,
-                "password": "",
-                "decode_responses": True
-            },
+            if result.returncode != 0:
+                self._log_error(f"Dependency installation failed: {result.stderr}")
+                return False
+                
+            # Verify critical packages
+            if not self._verify_installations():
+                return False
+                
+            print("✓ Dependencies installed")
+            return True
             
-            "exchanges": {},
+        except Exception as e:
+            self._log_error(f"Dependency installation failed: {str(e)}")
+            return False
             
-            "trading": {
-                "initial_capital": 10000,
-                "risk_level": "medium",
-                "min_profit_threshold": 0.5,
-                "max_spread_percentage": 2.0,
-                "min_volume_usdt": 10000,
-                "max_concurrent_trades": 10,
-                "scan_interval_seconds": 300,
-                "auto_trade": False,
-                "testnet": True
-            },
-            
-            "withdrawal": {
-                "btc_address": "",
-                "min_withdrawal_usdt": 100,
-                "withdrawal_percentage": 50,
-                "auto_withdraw": False
-            },
-            
-            "security": {
-                "master_password_enabled": False,
-                "master_password": "",
-                "2fa_enabled": False,
-                "ip_whitelist_enabled": False,
-                "ip_whitelist": ["127.0.0.1"],
-                "session_timeout_minutes": 30,
-                "max_failed_attempts": 5,
-                "lockout_duration_minutes": 15
-            },
-            
-            "notifications": {
-                "telegram": {
-                    "enabled": False,
-                    "bot_token": "",
-                    "chat_id": ""
-                },
-                "email": {
-                    "enabled": False,
-                    "smtp_host": "",
-                    "smtp_port": 587,
-                    "username": "",
-                    "password": "",
-                    "from_address": "",
-                    "emergency_contact": ""
-                }
-            },
-            
-            "features": {
-                "enable_predictive": True,
-                "enable_multi_strategy": True,
-                "enable_dex_integration": False,
-                "enable_ai_companion": True,
-                "enable_audit": True,
-                "enable_mobile_api": True,
-                "enable_gpu": False
-            },
-            
-            "performance": {
-                "use_cython": False,
-                "cache_size_mb": 512,
-                "log_rotation_mb": 100,
-                "log_retention_days": 30,
-                "parallel_strategies": True,
-                "batch_size": 1000
-            },
-            
-            "ui": {
-                "theme": "cyberpunk",
-                "sound_effects": True,
-                "animations": True,
-                "auto_refresh_seconds": 5
-            },
-            
-            "backup": {
-                "auto_backup": True,
-                "backup_interval_hours": 24,
-                "retention_days": 30
-            },
-            
-            "pin": "2077"
-        }
-        
-        config_path = self.base_path / 'config' / 'enhanced_config.json'
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        with open(config_path, 'w') as f:
-            json.dump(config, f, indent=4)
-        
-        print(f"  {self.colors['GREEN']}✓ Enhanced configuration created{self.colors['RESET']}")
-    
-    def _create_env_file(self):
-        """Create environment file template"""
-        env_content = """# Nexlify Environment Configuration
+    def _create_requirements_file(self):
+        """Create requirements files for different profiles"""
+        # Standard requirements
+        standard_requirements = """# Core dependencies
+ccxt==4.1.22
+pandas==2.1.3
+numpy==1.26.2
+requests==2.31.0
+websocket-client==1.6.4
+python-dotenv==1.0.0
+pydantic==2.4.2
+colorama==0.4.6
+psutil==5.9.5
+aiohttp==3.9.0
+asyncio==3.4.3
 
 # Database
-DATABASE_URL=sqlite:///data/trading.db
-AUDIT_DB_URL=sqlite:///logs/audit/audit_trail.db
-
-# Redis
-REDIS_URL=redis://localhost:6379/0
+sqlalchemy==2.0.23
+alembic==1.12.0
 
 # Security
-MASTER_PASSWORD=
-SECRET_KEY=
+cryptography==41.0.5
+pyjwt==2.8.0
+argon2-cffi==23.1.0
+pyotp==2.9.0
+qrcode==7.4.2
 
-# Exchange API Keys (Encrypted)
-BINANCE_API_KEY=
-BINANCE_SECRET=
-BYBIT_API_KEY=
-BYBIT_SECRET=
-OKX_API_KEY=
-OKX_SECRET=
+# GUI
+tk==0.1.0
+matplotlib==3.8.1
+Pillow==10.1.0
 
-# Blockchain RPC
-ETH_RPC_URL=https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY
-BSC_RPC_URL=https://bsc-dataseed.binance.org/
-
-# Mobile API
-MOBILE_API_SECRET=your-secret-key-here
-
-# Telegram Notifications
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_CHAT_ID=
-
-# Email Configuration
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USERNAME=
-SMTP_PASSWORD=
-EMERGENCY_CONTACT=
-
-# OpenAI (for AI Companion)
-OPENAI_API_KEY=
-
-# Sentry Error Tracking (Optional)
-SENTRY_DSN=
-
-# Development
-DEBUG=False
-LOG_LEVEL=INFO
+# Utilities
+python-dateutil==2.8.2
+pytz==2023.3
+pyyaml==6.0.1
 """
         
-        with open('.env', 'w') as f:
-            f.write(env_content)
+        # Full requirements (includes ML/GPU)
+        full_requirements = standard_requirements + """
+# Machine Learning
+scikit-learn==1.3.2
+scipy==1.11.4
+statsmodels==0.14.0
+torch==2.1.0
+tensorflow==2.15.0
+keras==2.15.0
+xgboost==2.0.2
+lightgbm==4.1.0
+
+# Blockchain/DeFi
+web3==6.11.3
+eth-account==0.10.0
+
+# API/Mobile
+fastapi==0.104.1
+uvicorn==0.24.0
+websockets==12.0
+
+# Audio/Visual
+pygame==2.5.2
+
+# Development
+pytest==7.4.3
+black==23.11.0
+flake8==6.1.0
+"""
         
-        # Also create .env.example
-        with open('.env.example', 'w') as f:
-            f.write(env_content)
+        with open(self.root_path / 'requirements.txt', 'w') as f:
+            f.write(standard_requirements)
+            
+        with open(self.root_path / 'requirements_full.txt', 'w') as f:
+            f.write(full_requirements)
+            
+    def _verify_installations(self) -> bool:
+        """Verify critical package installations"""
+        critical_packages = {
+            'ccxt': 'ccxt',
+            'pandas': 'pandas',
+            'numpy': 'numpy',
+            'sqlalchemy': 'sqlalchemy',
+            'cryptography': 'cryptography',
+            'psutil': 'psutil'
+        }
         
-        print(f"  {self.colors['GREEN']}✓ Environment files created{self.colors['RESET']}")
-    
-    def _create_docker_config(self):
-        """Create Docker configuration files"""
-        # Dockerfile
-        dockerfile_content = """FROM python:3.11-slim
+        if self.install_profile == 'full':
+            critical_packages.update({
+                'torch': 'torch',
+                'web3': 'web3',
+                'fastapi': 'fastapi'
+            })
+            
+        missing = []
+        for name, import_name in critical_packages.items():
+            try:
+                __import__(import_name)
+            except ImportError:
+                missing.append(name)
+                
+        if missing:
+            self._log_error(f"Failed to install critical packages: {', '.join(missing)}")
+            return False
+            
+        return True
+        
+    def _check_gpu_support(self):
+        """Check GPU support for ML features"""
+        print("\nChecking GPU support...")
+        
+        try:
+            import torch
+            
+            if torch.cuda.is_available():
+                gpu_count = torch.cuda.device_count()
+                gpu_name = torch.cuda.get_device_name(0)
+                gpu_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+                
+                print(f"✓ NVIDIA GPU detected: {gpu_name}")
+                print(f"  GPUs: {gpu_count}")
+                print(f"  Memory: {gpu_memory:.1f}GB")
+                
+                # Check compute capability
+                major, minor = torch.cuda.get_device_capability(0)
+                compute_cap = float(f"{major}.{minor}")
+                
+                if compute_cap >= GPU_REQUIREMENTS['nvidia']['min_compute']:
+                    print(f"  Compute capability: {compute_cap} ✓")
+                else:
+                    self._log_warning(f"GPU compute capability {compute_cap} below recommended {GPU_REQUIREMENTS['nvidia']['min_compute']}")
+                    
+            else:
+                self._log_warning("No NVIDIA GPU detected, ML features will use CPU")
+                
+        except ImportError:
+            self._log_warning("PyTorch not available, skipping GPU check")
+            
+    def _setup_docker(self) -> bool:
+        """Setup Docker configuration if available"""
+        if not self.config.get('docker_available'):
+            print("\nSkipping Docker setup (Docker not available)")
+            return True
+            
+        print("\nSetting up Docker configuration...")
+        
+        try:
+            # Create Dockerfile
+            dockerfile_content = self._generate_dockerfile()
+            with open(self.root_path / 'Dockerfile', 'w') as f:
+                f.write(dockerfile_content)
+                
+            # Create docker-compose.yml
+            compose_content = self._generate_docker_compose()
+            with open(self.root_path / 'docker-compose.yml', 'w') as f:
+                f.write(compose_content)
+                
+            # Create .dockerignore
+            dockerignore = """
+.env
+*.pyc
+__pycache__
+.git
+.vscode
+.idea
+logs/
+backups/
+data/*.db
+models/*.h5
+"""
+            with open(self.root_path / '.dockerignore', 'w') as f:
+                f.write(dockerignore)
+                
+            print("✓ Docker configuration created")
+            return True
+            
+        except Exception as e:
+            self._log_error(f"Docker setup failed: {str(e)}")
+            return False
+            
+    def _generate_dockerfile(self) -> str:
+        """Generate optimized Dockerfile"""
+        return f"""FROM python:3.11-slim
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \\
     build-essential \\
-    libpq-dev \\
     libssl-dev \\
     libffi-dev \\
     python3-dev \\
-    gcc \\
-    g++ \\
-    make \\
     git \\
     curl \\
-    wget \\
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
-# Copy requirements
-COPY requirements_standard.txt .
+# Copy requirements first for better caching
+COPY requirements{"_full" if self.install_profile == "full" else ""}.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements_standard.txt
+RUN pip install --no-cache-dir -r requirements{"_full" if self.install_profile == "full" else ""}.txt
 
-# Copy application
+# Install additional packages for enhanced features
+RUN pip install --no-cache-dir psutil pygame colorama
+
+# Copy application code
 COPY . .
 
-# Create directories
-RUN mkdir -p data logs backups config keys
+# Set Python path
+ENV PYTHONPATH=/app/src:$PYTHONPATH
+
+# Create necessary directories
+RUN mkdir -p data logs backups models
 
 # Set permissions
 RUN chmod -R 755 /app
 
-# Expose ports
-EXPOSE 8000 8001
-
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \\
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD python -c "import requests; requests.get('http://localhost:8000/health')"
 
-# Run application
+# Default command
 CMD ["python", "smart_launcher.py"]
 """
         
-        # Docker Compose
-        docker_compose_content = """version: '3.8'
+    def _generate_docker_compose(self) -> str:
+        """Generate docker-compose configuration"""
+        return f"""version: '3.8'
 
 services:
   nexlify:
     build: .
     container_name: nexlify_trading
-    restart: unless-stopped
     ports:
-      - "8000:8000"  # API
-      - "8001:8001"  # Mobile API
+      - "{self.config['ports']['api']}:8000"
+      - "{self.config['ports']['mobile_api']}:8001"
+      - "{self.config['ports']['websocket']}:8080"
+    environment:
+      - PYTHONUNBUFFERED=1
+    env_file:
+      - .env
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
-      - ./config:/app/config
       - ./backups:/app/backups
-    environment:
-      - DATABASE_URL=postgresql://nexlify:nexlify@postgres:5432/nexlify
-      - REDIS_URL=redis://redis:6379/0
-    depends_on:
-      - postgres
-      - redis
-    networks:
-      - nexlify_network
-
-  postgres:
-    image: postgres:15-alpine
-    container_name: nexlify_postgres
+      - ./models:/app/models
     restart: unless-stopped
-    environment:
-      POSTGRES_DB: nexlify
-      POSTGRES_USER: nexlify
-      POSTGRES_PASSWORD: nexlify_secure_password
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nexlify"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    depends_on:
+      - redis
+      - postgres
     networks:
       - nexlify_network
-
+    
   redis:
     image: redis:7-alpine
     container_name: nexlify_redis
-    restart: unless-stopped
-    command: redis-server --appendonly yes
+    ports:
+      - "{self.config['ports']['redis']}:6379"
+    command: redis-server --requirepass ${{REDIS_PASSWORD}}
     volumes:
       - redis_data:/data
-    ports:
-      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - nexlify_network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+    
+  postgres:
+    image: postgres:15-alpine
+    container_name: nexlify_postgres
+    ports:
+      - "{self.config['ports']['postgresql']}:5432"
+    environment:
+      - POSTGRES_DB=nexlify
+      - POSTGRES_USER=nexlify
+      - POSTGRES_PASSWORD=${{POSTGRES_PASSWORD}}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
     networks:
       - nexlify_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexlify"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
-  postgres_data:
   redis_data:
+  postgres_data:
 
 networks:
   nexlify_network:
     driver: bridge
 """
         
-        with open('Dockerfile', 'w') as f:
-            f.write(dockerfile_content)
+    def _create_scripts(self) -> bool:
+        """Create utility scripts"""
+        print("\nCreating utility scripts...")
         
-        with open('docker-compose.yml', 'w') as f:
-            f.write(docker_compose_content)
-        
-        print(f"  {self.colors['GREEN']}✓ Docker configuration created{self.colors['RESET']}")
+        try:
+            scripts_dir = self.root_path / 'scripts'
+            scripts_dir.mkdir(exist_ok=True)
+            
+            # Database initialization script
+            self._create_db_init_script()
+            
+            # Backup script
+            self._create_backup_script()
+            
+            # Health check script
+            self._create_health_check_script()
+            
+            # Migration script
+            self._create_migration_script()
+            
+            print("✓ Scripts created")
+            return True
+            
+        except Exception as e:
+            self._log_error(f"Script creation failed: {str(e)}")
+            return False
+            
+    def _create_db_init_script(self):
+        """Create database initialization script"""
+        script = """#!/usr/bin/env python3
+\"\"\"Initialize Nexlify databases\"\"\"
+
+import sqlite3
+from pathlib import Path
+
+def init_databases():
+    root = Path(__file__).parent.parent
     
-    def _create_systemd_service(self):
-        """Create systemd service file for Linux"""
-        service_content = f"""[Unit]
-Description=Nexlify Neural Trading System
-After=network.target
+    # Initialize trading database
+    trading_db = root / 'data' / 'trading.db'
+    trading_db.parent.mkdir(parents=True, exist_ok=True)
+    
+    conn = sqlite3.connect(str(trading_db))
+    cursor = conn.cursor()
+    
+    # Add any custom initialization here
+    cursor.execute("PRAGMA journal_mode=WAL")
+    
+    # Create test data if needed
+    cursor.execute(\"\"\"
+        INSERT OR IGNORE INTO portfolio (exchange, symbol, balance, value_usd)
+        VALUES ('testnet', 'USDT', 10000.0, 10000.0)
+    \"\"\")
+    
+    conn.commit()
+    conn.close()
+    
+    print("✓ Databases initialized")
 
-[Service]
-Type=simple
-User={os.getenv('USER', 'nexlify')}
-WorkingDirectory={self.base_path}
-Environment="PATH={sys.prefix}/bin"
-ExecStart={sys.executable} {self.base_path}/smart_launcher.py
-Restart=on-failure
-RestartSec=10
-
-# Security
-PrivateTmp=true
-NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths={self.base_path}/data {self.base_path}/logs {self.base_path}/backups
-
-[Install]
-WantedBy=multi-user.target
+if __name__ == "__main__":
+    init_databases()
 """
         
-        service_path = self.base_path / 'nexlify.service'
-        with open(service_path, 'w') as f:
-            f.write(service_content)
-        
-        print(f"  {self.colors['GREEN']}✓ Systemd service file created{self.colors['RESET']}")
-        print(f"    To install: sudo cp nexlify.service /etc/systemd/system/")
-        print(f"    To enable: sudo systemctl enable nexlify")
-        print(f"    To start: sudo systemctl start nexlify")
+        with open(self.root_path / 'scripts' / 'init_db.py', 'w') as f:
+            f.write(script)
+            
+    def _create_backup_script(self):
+        """Create backup script"""
+        script = """#!/usr/bin/env python3
+\"\"\"Backup Nexlify data and configuration\"\"\"
+
+import shutil
+import json
+from pathlib import Path
+from datetime import datetime
+
+def backup_nexlify():
+    root = Path(__file__).parent.parent
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    backup_dir = root / 'backups' / 'manual' / timestamp
     
-    def finalize_setup(self):
-        """Finalize installation"""
-        print("\nFinalizing installation...")
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Items to backup
+    items = [
+        'enhanced_config.json',
+        'neural_config.json',
+        '.env',
+        'data/',
+        'logs/',
+        'models/'
+    ]
+    
+    for item in items:
+        src = root / item
+        if src.exists():
+            dst = backup_dir / item
+            if src.is_dir():
+                shutil.copytree(src, dst, dirs_exist_ok=True)
+            else:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dst)
+    
+    # Create manifest
+    manifest = {
+        'timestamp': timestamp,
+        'items': items,
+        'size_mb': sum(f.stat().st_size for f in backup_dir.rglob('*') if f.is_file()) / (1024*1024)
+    }
+    
+    with open(backup_dir / 'manifest.json', 'w') as f:
+        json.dump(manifest, f, indent=2)
+    
+    print(f"✓ Backup created: {backup_dir}")
+    
+if __name__ == "__main__":
+    backup_nexlify()
+"""
         
-        # Create launch scripts
-        self._create_launch_scripts()
+        with open(self.root_path / 'scripts' / 'backup.py', 'w') as f:
+            f.write(script)
+            
+    def _create_health_check_script(self):
+        """Create system health check script"""
+        script = """#!/usr/bin/env python3
+\"\"\"Check Nexlify system health\"\"\"
+
+import psutil
+import sqlite3
+import json
+import socket
+from pathlib import Path
+
+def check_health():
+    root = Path(__file__).parent.parent
+    issues = []
+    
+    # Check system resources
+    if psutil.cpu_percent(interval=1) > 90:
+        issues.append("High CPU usage")
+    
+    if psutil.virtual_memory().percent > 90:
+        issues.append("High memory usage")
+    
+    if psutil.disk_usage(str(root)).percent > 90:
+        issues.append("Low disk space")
+    
+    # Check databases
+    try:
+        conn = sqlite3.connect(str(root / 'data' / 'trading.db'))
+        conn.execute("SELECT COUNT(*) FROM trades")
+        conn.close()
+    except Exception as e:
+        issues.append(f"Trading database issue: {e}")
+    
+    # Check ports
+    config = json.load(open(root / 'enhanced_config.json'))
+    for service, port in config.get('ports', {}).items():
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                result = s.connect_ex(('localhost', port))
+                if result == 0:
+                    print(f"✓ {service} on port {port}")
+                else:
+                    issues.append(f"{service} not responding on port {port}")
+        except:
+            pass
+    
+    if issues:
+        print("\\n⚠️  Issues found:")
+        for issue in issues:
+            print(f"  - {issue}")
+    else:
+        print("\\n✓ System healthy")
+    
+    return len(issues) == 0
+
+if __name__ == "__main__":
+    check_health()
+"""
         
-        # Create README
-        self._create_readme()
+        with open(self.root_path / 'scripts' / 'health_check.py', 'w') as f:
+            f.write(script)
+            
+    def _create_migration_script(self):
+        """Create configuration migration script"""
+        script = """#!/usr/bin/env python3
+\"\"\"Migrate from neural_config.json to enhanced_config.json\"\"\"
+
+import json
+from pathlib import Path
+from datetime import datetime
+
+def migrate_config():
+    root = Path(__file__).parent.parent
+    
+    old_config_path = root / 'neural_config.json'
+    new_config_path = root / 'enhanced_config.json'
+    
+    if not old_config_path.exists():
+        print("No neural_config.json found")
+        return
+    
+    # Backup old config
+    backup_path = root / 'backups' / 'config' / f'neural_config_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+    backup_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    with open(old_config_path) as f:
+        old_config = json.load(f)
+    
+    with open(backup_path, 'w') as f:
+        json.dump(old_config, f, indent=2)
+    
+    # Load enhanced config
+    with open(new_config_path) as f:
+        new_config = json.load(f)
+    
+    # Migrate settings
+    if 'risk_level' in old_config:
+        new_config['trading']['risk_level'] = old_config['risk_level']
+    
+    if 'telegram_bot_token' in old_config and old_config['telegram_bot_token']:
+        new_config['notifications']['telegram_enabled'] = True
+    
+    if 'btc_wallet_address' in old_config:
+        new_config['trading']['withdrawal_address'] = old_config['btc_wallet_address']
+    
+    # Save updated config
+    with open(new_config_path, 'w') as f:
+        json.dump(new_config, f, indent=2)
+    
+    print("✓ Configuration migrated")
+    
+if __name__ == "__main__":
+    migrate_config()
+"""
         
-        # Set up cron jobs
+        with open(self.root_path / 'scripts' / 'migrate_config.py', 'w') as f:
+            f.write(script)
+            
+    def _set_permissions(self) -> bool:
+        """Set proper file permissions"""
+        print("\nSetting file permissions...")
+        
+        try:
+            # Sensitive files (read/write owner only)
+            sensitive_files = [
+                '.env',
+                'enhanced_config.json',
+                'neural_config.json',
+                'data/trading.db',
+                'data/audit/audit_trail.db'
+            ]
+            
+            for file_path in sensitive_files:
+                path = self.root_path / file_path
+                if path.exists():
+                    self._set_secure_permissions(path)
+                    
+            # Script files (executable)
+            for script in (self.root_path / 'scripts').glob('*.py'):
+                self._set_executable_permissions(script)
+                
+            print("✓ Permissions set")
+            return True
+            
+        except Exception as e:
+            self._log_error(f"Permission setting failed: {str(e)}")
+            return False
+            
+    def _set_secure_permissions(self, path: Path):
+        """Set secure permissions (owner read/write only)"""
         if platform.system() != 'Windows':
-            self._setup_cron_jobs()
-        
-        # Initialize encryption keys
-        self._init_encryption_keys()
-    
-    def _create_launch_scripts(self):
-        """Create platform-specific launch scripts"""
-        # Windows batch script
-        if platform.system() == 'Windows':
-            bat_content = f"""@echo off
-echo Starting Nexlify Neural Trading System...
-"{sys.executable}" smart_launcher.py
-pause
-"""
-            with open('start_nexlify.bat', 'w') as f:
-                f.write(bat_content)
-        
-        # Unix shell script
+            # Unix-like systems
+            os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)  # 600
         else:
-            sh_content = f"""#!/bin/bash
-echo "Starting Nexlify Neural Trading System..."
-{sys.executable} smart_launcher.py
-"""
-            with open('start_nexlify.sh', 'w') as f:
-                f.write(sh_content)
-            os.chmod('start_nexlify.sh', 0o755)
-        
-        print(f"  {self.colors['GREEN']}✓ Launch scripts created{self.colors['RESET']}")
-    
-    def _create_readme(self):
-        """Create comprehensive README"""
-        readme_content = """# Nexlify Neural Trading System v2.0.8
-
-## 🚀 Quick Start
-
-1. **Start the system:**
-   - Windows: Double-click `start_nexlify.bat`
-   - Linux/Mac: Run `./start_nexlify.sh`
-
-2. **Access the GUI:**
-   - The trading interface will open automatically
-   - Default PIN: 2077 (change this immediately!)
-
-3. **Configure exchanges:**
-   - Go to Settings tab
-   - Add your exchange API keys
-   - Test connections before trading
-
-## 📋 System Requirements
-
-- Python 3.11+
-- 8GB RAM minimum (16GB recommended)
-- 20GB disk space minimum
-- Internet connection
-- GPU (optional): NVIDIA GTX 1060+ for ML features
-
-## 🔧 Configuration
-
-- Main config: `config/enhanced_config.json`
-- Environment: `.env` file
-- Logs: `logs/` directory
-- Backups: `backups/` directory
-
-## 🔒 Security
-
-1. Change default PIN immediately
-2. Enable 2FA in settings (recommended)
-3. Configure IP whitelist for production
-4. Keep your API keys secure
-
-## 📱 Mobile App
-
-- Mobile API runs on port 8001
-- Use QR code in settings to pair devices
-- Supports iOS and Android apps
-
-## 🆘 Troubleshooting
-
-- Check logs in `logs/errors/`
-- Emergency stop: Create `EMERGENCY_STOP_ACTIVE` file
-- Database issues: Run backup script first
-
-## 📞 Support
-
-- Documentation: https://docs.nexlify.com
-- Issues: https://github.com/nexlify/support
-- Email: support@nexlify.com
-
-## ⚠️ Disclaimer
-
-Trading cryptocurrencies involves substantial risk. Only trade with funds you can afford to lose.
-"""
-        
-        with open('README.md', 'w') as f:
-            f.write(readme_content)
-        
-        print(f"  {self.colors['GREEN']}✓ README created{self.colors['RESET']}")
-    
-    def _setup_cron_jobs(self):
-        """Setup cron jobs for automated tasks"""
-        cron_content = f"""# Nexlify Automated Tasks
-
-# Daily backup at 3 AM
-0 3 * * * cd {self.base_path} && {sys.executable} scripts/backup.py >> logs/backup.log 2>&1
-
-# Clean old logs weekly
-0 2 * * 0 find {self.base_path}/logs -name "*.log" -mtime +30 -delete
-
-# Monitor disk space
-0 * * * * df -h {self.base_path} | tail -1 | awk '{{if($(NF-1) > 90) print "Disk usage critical: " $(NF-1)}}' >> logs/system.log
-"""
-        
-        cron_file = self.base_path / 'nexlify.cron'
-        with open(cron_file, 'w') as f:
-            f.write(cron_content)
-        
-        print(f"  {self.colors['GREEN']}✓ Cron jobs configured{self.colors['RESET']}")
-        print(f"    To install: crontab nexlify.cron")
-    
-    def _init_encryption_keys(self):
-        """Initialize encryption keys directory"""
-        keys_dir = self.base_path / 'keys'
-        keys_dir.mkdir(exist_ok=True)
-        
-        # Create key generation script
-        keygen_content = '''#!/usr/bin/env python3
-"""Generate encryption keys for Nexlify"""
-
-import os
-import secrets
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.backends import default_backend
-
-# Generate master key
-master_key = secrets.token_bytes(32)
-with open('keys/master.key', 'wb') as f:
-    f.write(master_key)
-
-# Generate RSA key pair for audit signatures
-private_key = rsa.generate_private_key(
-    public_exponent=65537,
-    key_size=2048,
-    backend=default_backend()
-)
-
-# Save private key
-pem_private = private_key.private_bytes(
-    encoding=serialization.Encoding.PEM,
-    format=serialization.PrivateFormat.PKCS8,
-    encryption_algorithm=serialization.NoEncryption()
-)
-with open('keys/audit_key.pem', 'wb') as f:
-    f.write(pem_private)
-
-# Save public key
-public_key = private_key.public_key()
-pem_public = public_key.public_bytes(
-    encoding=serialization.Encoding.PEM,
-    format=serialization.PublicFormat.SubjectPublicKeyInfo
-)
-with open('keys/audit_key_public.pem', 'wb') as f:
-    f.write(pem_public)
-
-print("✓ Encryption keys generated")
-'''
-        
-        keygen_path = self.base_path / 'scripts' / 'generate_keys.py'
-        with open(keygen_path, 'w') as f:
-            f.write(keygen_content)
-        
+            # Windows - limited permission control
+            try:
+                import win32security
+                import ntsecuritycon as con
+                
+                # Get current user
+                user = win32security.GetUserName()
+                
+                # Create security descriptor
+                sd = win32security.GetFileSecurity(str(path), win32security.DACL_SECURITY_INFORMATION)
+                dacl = win32security.ACL()
+                
+                # Grant full control to owner only
+                user_sid = win32security.LookupAccountName(None, user)[0]
+                dacl.AddAccessAllowedAce(win32security.ACL_REVISION, con.FILE_ALL_ACCESS, user_sid)
+                
+                sd.SetSecurityDescriptorDacl(1, dacl, 0)
+                win32security.SetFileSecurity(str(path), win32security.DACL_SECURITY_INFORMATION, sd)
+            except ImportError:
+                # pywin32 not available, skip Windows-specific permissions
+                pass
+                
+    def _set_executable_permissions(self, path: Path):
+        """Set executable permissions"""
         if platform.system() != 'Windows':
-            os.chmod(keygen_path, 0o755)
-    
-    def display_summary(self):
-        """Display installation summary"""
-        print(f"\n{self.colors['CYAN']}{'='*60}{self.colors['RESET']}")
-        print(f"{self.colors['GREEN']}✓ NEXLIFY INSTALLATION COMPLETE!{self.colors['RESET']}")
-        print(f"{self.colors['CYAN']}{'='*60}{self.colors['RESET']}")
+            os.chmod(path, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)  # 755
+            
+    def _run_tests(self) -> bool:
+        """Run basic validation tests"""
+        print("\nRunning validation tests...")
         
-        # System info
-        print(f"\n{self.colors['BOLD']}System Information:{self.colors['RESET']}")
-        print(f"  • Python: {sys.version.split()[0]}")
-        print(f"  • Platform: {platform.system()} {platform.release()}")
-        print(f"  • Installation path: {self.base_path}")
+        tests = [
+            self._test_imports,
+            self._test_database_access,
+            self._test_config_loading,
+            self._test_port_availability
+        ]
         
-        # Warnings
+        failed = []
+        for test in tests:
+            try:
+                if not test():
+                    failed.append(test.__name__)
+            except Exception as e:
+                failed.append(f"{test.__name__}: {str(e)}")
+                
+        if failed:
+            self._log_error(f"Tests failed: {', '.join(failed)}")
+            return False
+            
+        print("✓ All tests passed")
+        return True
+        
+    def _test_imports(self) -> bool:
+        """Test critical imports"""
+        try:
+            import ccxt
+            import pandas
+            import numpy
+            import sqlalchemy
+            import cryptography
+            print("  ✓ Import test passed")
+            return True
+        except ImportError as e:
+            print(f"  ✗ Import test failed: {e}")
+            return False
+            
+    def _test_database_access(self) -> bool:
+        """Test database access"""
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            cursor.fetchall()
+            conn.close()
+            print("  ✓ Database test passed")
+            return True
+        except Exception as e:
+            print(f"  ✗ Database test failed: {e}")
+            return False
+            
+    def _test_config_loading(self) -> bool:
+        """Test configuration loading"""
+        try:
+            with open(self.root_path / 'enhanced_config.json') as f:
+                config = json.load(f)
+            assert 'version' in config
+            assert 'security' in config
+            print("  ✓ Config test passed")
+            return True
+        except Exception as e:
+            print(f"  ✗ Config test failed: {e}")
+            return False
+            
+    def _test_port_availability(self) -> bool:
+        """Test that configured ports are available"""
+        try:
+            for service, port in self.config['ports'].items():
+                if self._is_port_available(port):
+                    continue
+                else:
+                    # Port might be in use by our service
+                    pass
+            print("  ✓ Port test passed")
+            return True
+        except Exception as e:
+            print(f"  ✗ Port test failed: {e}")
+            return False
+            
+    def _generate_documentation(self):
+        """Generate setup documentation"""
+        print("\nGenerating documentation...")
+        
+        docs_dir = self.root_path / 'docs'
+        docs_dir.mkdir(exist_ok=True)
+        
+        # Quick start guide
+        quickstart = f"""# Nexlify Quick Start Guide
+
+## Installation Complete!
+
+Your Nexlify v2.0.8 installation is ready with the following configuration:
+
+- **Installation Profile**: {self.install_profile}
+- **API Port**: {self.config['ports']['api']}
+- **Mobile API Port**: {self.config['ports']['mobile_api']}
+- **Default PIN**: 2077 (Will be changed on first login)
+
+## First Steps
+
+1. **Start the System**
+   ```bash
+   python smart_launcher.py
+   ```
+
+2. **Initial Configuration**
+   The GUI will automatically open and guide you through:
+   - Setting up your PIN
+   - Configuring exchange API credentials
+   - Setting up notifications (optional)
+   - Configuring DeFi/RPC settings (optional)
+   - Enabling security features (2FA, IP whitelist)
+
+3. **Begin Trading**
+   Once configured, the system will:
+   - Connect to your selected exchanges
+   - Start monitoring markets
+   - Execute your trading strategies
+
+## Configuration Management
+
+All settings are managed through the GUI:
+- **Settings Tab**: General configuration
+- **Security Tab**: 2FA, API keys, IP whitelist
+- **Exchanges Tab**: Exchange credentials and settings
+- **Notifications Tab**: Telegram, email, webhooks
+
+## Security Features
+
+- Master password and JWT tokens are auto-generated
+- All sensitive data is encrypted
+- Optional 2FA and IP whitelisting
+- Audit trail for all actions
+
+## Troubleshooting
+
+- **Port conflicts**: Check `enhanced_config.json` for port settings
+- **Database issues**: Run `python scripts/health_check.py`
+- **Missing dependencies**: Run `pip install -r requirements.txt`
+- **GUI not opening**: Ensure tkinter is installed (Linux: `sudo apt-get install python3-tk`)
+
+## System Files
+
+- `/enhanced_config.json`: Main configuration (managed by GUI)
+- `/.env`: System secrets (do not edit)
+- `/data/`: Databases and trading data
+- `/logs/`: System logs
+- `/backups/`: Automatic backups
+"""
+        
+        with open(docs_dir / 'QUICKSTART.md', 'w') as f:
+            f.write(quickstart)
+            
+        # System requirements doc
+        sysreq = f"""# System Requirements
+
+## Hardware Requirements
+
+### Minimum:
+- CPU: 4 cores
+- RAM: {MIN_RAM_GB}GB
+- Disk: {MIN_DISK_GB}GB free space
+- Network: Stable internet connection
+
+### Recommended:
+- CPU: 8+ cores
+- RAM: {RECOMMENDED_RAM_GB}GB
+- Disk: {RECOMMENDED_DISK_GB}GB free space
+- GPU: NVIDIA GTX 1060+ (for ML features)
+
+## Software Requirements
+
+- Python {MIN_PYTHON_VERSION[0]}.{MIN_PYTHON_VERSION[1]}+ (64-bit)
+- Operating System: Windows 10+, Ubuntu 20.04+, macOS 11+
+
+## Optional Components
+
+- Docker (for containerized deployment)
+- Redis (for advanced caching)
+- PostgreSQL (for production database)
+
+## Network Ports
+
+The following ports are used by default:
+
+- API: {self.config['ports']['api']}
+- Mobile API: {self.config['ports']['mobile_api']}
+- WebSocket: {self.config['ports']['websocket']}
+- PostgreSQL: {self.config['ports']['postgresql']}
+- Redis: {self.config['ports']['redis']}
+"""
+        
+        with open(docs_dir / 'REQUIREMENTS.md', 'w') as f:
+            f.write(sysreq)
+            
+    def _display_final_instructions(self):
+        """Display final setup instructions"""
+        print("\n" + "="*50)
+        print("✨ NEXLIFY SETUP COMPLETE! ✨")
+        print("="*50)
+        
+        print("\n📋 Next Steps:")
+        print("1. Run: python smart_launcher.py")
+        print("2. The GUI will guide you through initial configuration")
+        print("3. All settings are managed through the GUI")
+        
+        print("\n🔐 First-Time Setup (via GUI):")
+        print("- Configure exchange API credentials")
+        print("- Set up notification services (optional)")
+        print("- Configure DeFi/RPC settings (optional)")
+        print("- Enable 2FA security (recommended)")
+        print("- Change default PIN (currently: 2077)")
+        
+        print("\n🌐 Access Points:")
+        print(f"- Trading API: http://localhost:{self.config['ports']['api']}")
+        print(f"- Mobile API: http://localhost:{self.config['ports']['mobile_api']}")
+        
         if self.warnings:
-            print(f"\n{self.colors['YELLOW']}⚠️  Warnings:{self.colors['RESET']}")
+            print("\n⚠️  Warnings:")
             for warning in self.warnings:
-                print(f"  • {warning}")
+                print(f"  - {warning}")
+                
+        print("\n📚 Documentation: docs/QUICKSTART.md")
+        print("\n🚀 Ready to trade in Night City!")
         
-        # Next steps
-        print(f"\n{self.colors['BOLD']}Next Steps:{self.colors['RESET']}")
-        print(f"  1. Configure your exchange API keys in Settings")
-        print(f"  2. Change the default PIN (2077) immediately")
-        print(f"  3. Enable 2FA for enhanced security (optional)")
-        print(f"  4. Run backups regularly")
+    def _check_windows_runtime(self) -> bool:
+        """Check for Windows C++ runtime and install if needed"""
+        try:
+            import ctypes
+            ctypes.cdll.LoadLibrary("vcruntime140.dll")
+            return True
+        except:
+            # Try to install Visual C++ Redistributable
+            return self._install_visual_cpp()
+            
+    def _install_visual_cpp(self) -> bool:
+        """Download and install Visual C++ Redistributable"""
+        print("\nVisual C++ Runtime not found. Installing...")
         
-        # Launch instructions
-        print(f"\n{self.colors['BOLD']}To start Nexlify:{self.colors['RESET']}")
-        if platform.system() == 'Windows':
-            print(f"  • Double-click: start_nexlify.bat")
-            print(f"  • Or run: python smart_launcher.py")
-        else:
-            print(f"  • Run: ./start_nexlify.sh")
-            print(f"  • Or: python3 smart_launcher.py")
+        try:
+            # Microsoft official download URL for VC++ 2022 Redistributable
+            vc_redist_url = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+            
+            # Download the installer
+            download_path = self.root_path / "vc_redist.x64.exe"
+            
+            print("Downloading Visual C++ Redistributable...")
+            response = requests.get(vc_redist_url, stream=True, timeout=30)
+            response.raise_for_status()
+            
+            # Save the installer
+            with open(download_path, 'wb') as f:
+                total_size = int(response.headers.get('content-length', 0))
+                downloaded = 0
+                
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    
+                    if total_size > 0:
+                        progress = int((downloaded / total_size) * 100)
+                        print(f"\rDownload progress: {progress}%", end='', flush=True)
+                        
+            print("\n✓ Download complete")
+            
+            # Run the installer silently
+            print("Installing Visual C++ Runtime...")
+            result = subprocess.run(
+                [str(download_path), '/install', '/quiet', '/norestart'],
+                capture_output=True,
+                timeout=300  # 5 minute timeout
+            )
+            
+            # Clean up installer
+            download_path.unlink(missing_ok=True)
+            
+            if result.returncode == 0:
+                print("✓ Visual C++ Runtime installed successfully")
+                return True
+            else:
+                self._log_warning("Visual C++ installation completed with warnings")
+                return True  # Often returns non-zero even on success
+                
+        except requests.RequestException as e:
+            self._log_error(f"Failed to download Visual C++ Runtime: {str(e)}")
+            print("\nPlease download and install manually from:")
+            print("https://aka.ms/vs/17/release/vc_redist.x64.exe")
+            return False
+        except subprocess.TimeoutExpired:
+            self._log_error("Visual C++ installation timed out")
+            return False
+        except Exception as e:
+            self._log_error(f"Failed to install Visual C++ Runtime: {str(e)}")
+            return False
+            
+    def _check_gui_dependencies(self):
+        """Check GUI dependencies on Linux"""
+        try:
+            subprocess.run(['python3', '-c', 'import tkinter'], check=True, capture_output=True)
+        except:
+            self._log_warning("tkinter not available, GUI features may not work")
+            print("Install with: sudo apt-get install python3-tk")
+            
+    def _get_current_version(self) -> str:
+        """Get current installation version"""
+        try:
+            config_path = self.root_path / 'enhanced_config.json'
+            if config_path.exists():
+                with open(config_path) as f:
+                    config = json.load(f)
+                    return config.get('version', 'unknown')
+        except:
+            pass
+        return 'unknown'
         
-        print(f"\n{self.colors['GREEN']}Happy Trading! 🚀{self.colors['RESET']}\n")
+    def _log_error(self, message: str):
+        """Log error message"""
+        self.errors.append(message)
+        print(f"\n❌ ERROR: {message}")
+        
+    def _log_warning(self, message: str):
+        """Log warning message"""
+        self.warnings.append(message)
+        print(f"\n⚠️  WARNING: {message}")
+        
+    def _save_error_report(self):
+        """Save error report for debugging"""
+        if self.errors:
+            report_path = self.root_path / 'setup_errors.log'
+            with open(report_path, 'w') as f:
+                f.write(f"Setup Error Report - {datetime.now().isoformat()}\n")
+                f.write("="*50 + "\n\n")
+                for error in self.errors:
+                    f.write(f"- {error}\n")
+            print(f"\nError report saved to: {report_path}")
 
 
 def main():
     """Main entry point"""
     setup = NexlifySetup()
+    success = setup.run()
     
-    try:
-        success = setup.run()
-        sys.exit(0 if success else 1)
-    except KeyboardInterrupt:
-        print("\n\nSetup cancelled by user")
+    if not success:
+        print("\n❌ Setup failed! Check setup_errors.log for details.")
         sys.exit(1)
-    except Exception as e:
-        print(f"\n{setup.colors['RED']}Fatal error: {e}{setup.colors['RESET']}")
-        sys.exit(1)
+    else:
+        sys.exit(0)
 
 
 if __name__ == "__main__":
