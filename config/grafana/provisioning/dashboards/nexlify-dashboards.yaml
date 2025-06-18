@@ -1,0 +1,131 @@
+# config/grafana/provisioning/dashboards/nexlify-dashboards.yaml
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# NEXLIFY DASHBOARD PROVISIONING - GRAFANA 12.0 CONFIGURATION
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# Dashboard-as-Code provisioning with Git Sync ready structure
+# Dynamic dashboards with tabs, conditional rendering, auto-grid layouts
+# Cyberpunk-themed visualizations that'll make Arasaka jealous
+# 
+# "In the matrix, data doesn't just flow - it dances." - Alt Cunningham
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+apiVersion: 1
+
+providers:
+  # ━━━━━━━━━━━━━━━━ TRADING COMMAND CENTER ━━━━━━━━━━━━━━━━
+  - name: 'nexlify-trading-matrix'
+    orgId: 1
+    folder: 'Trading Matrix'
+    folderUid: 'trading-matrix-uid'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: ${DASHBOARD_UPDATE_INTERVAL:-10}
+    allowUiUpdates: ${ALLOW_UI_UPDATES:-true}
+    options:
+      path: /etc/grafana/provisioning/dashboards/trading
+      # New in Grafana 12 - create folders from filesystem structure
+      foldersFromFilesStructure: true
+    
+  # ━━━━━━━━━━━━━━━━ SYSTEM MONITORING HUB ━━━━━━━━━━━━━━━━
+  - name: 'nexlify-system-health'
+    orgId: 1
+    folder: 'System Health'
+    folderUid: 'system-health-uid'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: ${DASHBOARD_UPDATE_INTERVAL:-10}
+    allowUiUpdates: ${ALLOW_UI_UPDATES:-true}
+    options:
+      path: /etc/grafana/provisioning/dashboards/system
+      foldersFromFilesStructure: true
+
+  # ━━━━━━━━━━━━━━━━ ML NEURAL NETWORK ━━━━━━━━━━━━━━━━
+  - name: 'nexlify-ml-insights'
+    orgId: 1
+    folder: 'ML Neural Network'
+    folderUid: 'ml-neural-uid'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: ${DASHBOARD_UPDATE_INTERVAL:-10}
+    allowUiUpdates: ${ALLOW_UI_UPDATES:-true}
+    options:
+      path: /etc/grafana/provisioning/dashboards/ml
+      foldersFromFilesStructure: true
+
+  # ━━━━━━━━━━━━━━━━ ALERTS & INCIDENTS ━━━━━━━━━━━━━━━━
+  - name: 'nexlify-alerts'
+    orgId: 1
+    folder: 'Alert Center'
+    folderUid: 'alert-center-uid'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: ${DASHBOARD_UPDATE_INTERVAL:-10}
+    allowUiUpdates: ${ALLOW_UI_UPDATES:-true}
+    options:
+      path: /etc/grafana/provisioning/dashboards/alerts
+      foldersFromFilesStructure: true
+
+  # ━━━━━━━━━━━━━━━━ EXECUTIVE OVERVIEW ━━━━━━━━━━━━━━━━
+  - name: 'nexlify-executive'
+    orgId: 1
+    folder: 'Executive Suite'
+    folderUid: 'executive-suite-uid'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: ${DASHBOARD_UPDATE_INTERVAL:-10}
+    # Executive dashboards are read-only
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/provisioning/dashboards/executive
+      foldersFromFilesStructure: true
+
+  # ━━━━━━━━━━━━━━━━ GIT SYNC INTEGRATION (EXPERIMENTAL) ━━━━━━━━━━━━━━━━
+  # When Git Sync is enabled, dashboards will sync to/from Git repository
+  # - name: 'nexlify-git-sync'
+  #   orgId: 1
+  #   folder: 'Git Synced'
+  #   folderUid: 'git-sync-uid'
+  #   type: git
+  #   disableDeletion: true
+  #   updateIntervalSeconds: ${GIT_SYNC_INTERVAL:-60}
+  #   allowUiUpdates: true
+  #   options:
+  #     url: ${GIT_REPO_URL:-}
+  #     branch: ${GIT_BRANCH:-main}
+  #     path: dashboards/
+  #     auth:
+  #       method: ${GIT_AUTH_METHOD:-token}
+  #       token: ${GIT_TOKEN:-}
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# PROVISIONING NOTES:
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# 1. Dashboard JSON files should use schema v2 for dynamic features
+# 2. Enable feature flags for full functionality:
+#    - scenes (for dynamic dashboards)
+#    - dashboardsFromStorage (for Git Sync)
+#    - tableNextGen (for 97.8% faster tables)
+#
+# 3. Folder structure:
+#    /etc/grafana/provisioning/dashboards/
+#    ├── trading/
+#    │   ├── trading-overview.json (with tabs)
+#    │   ├── order-execution.json
+#    │   └── arbitrage-matrix.json
+#    ├── system/
+#    │   ├── infrastructure.json
+#    │   ├── container-health.json
+#    │   └── gpu-monitoring.json
+#    ├── ml/
+#    │   ├── model-performance.json
+#    │   ├── prediction-accuracy.json
+#    │   └── feature-importance.json
+#    ├── alerts/
+#    │   └── incident-response.json
+#    └── executive/
+#        └── profit-overview.json
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
