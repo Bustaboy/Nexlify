@@ -1,0 +1,446 @@
+# config/vector/vector.toml
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# NEXLIFY LOG AGGREGATION MATRIX - VECTOR 0.47.0 CONFIGURATION
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# Ultra-fast log pipeline with 50% performance boost
+# Transforms chaos into structured data streams
+# Memory efficient - runs on edge devices to server farms
+# 
+# "Data flows like electricity through Night City's veins." - Alt Cunningham
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# ================================ GLOBAL CONFIGURATION ================================
+# Data directory for Vector state
+data_dir = "${VECTOR_DATA_DIR:-/var/lib/vector}"
+
+# Acknowledgements behavior
+acknowledgements.enabled = ${VECTOR_ACK_ENABLED:-true}
+
+# Log output format
+log_schema.host_key = "host"
+log_schema.message_key = "message"
+log_schema.source_type_key = "source_type"
+log_schema.timestamp_key = "timestamp"
+
+# ================================ API CONFIGURATION ================================
+[api]
+enabled = ${VECTOR_API_ENABLED:-true}
+address = "${VECTOR_API_ADDRESS:-127.0.0.1:8686}"
+playground = ${VECTOR_API_PLAYGROUND:-false}
+
+# GraphQL API for monitoring
+[api.graphql]
+introspection = ${VECTOR_GRAPHQL_INTROSPECTION:-true}
+
+# ================================ SOURCES - DATA INPUTS ================================
+
+# ━━━━━━━━━━━━━━━━ DOCKER CONTAINER LOGS ━━━━━━━━━━━━━━━━
+[sources.nexlify_containers]
+type = "docker_logs"
+docker_host = "${DOCKER_HOST:-unix:///var/run/docker.sock}"
+include_containers = ["nexlify-*"]  # Only our containers
+include_labels = ["prometheus.io/scrape=true", "logging.enabled=true"]
+exclude_containers = ["nexlify-vector"]  # Don't log ourselves
+retry_backoff_secs = ${DOCKER_RETRY_BACKOFF:-1}
+partial_event_marker_field = "_partial"
+
+# Container metadata to include
+include_metadata = true
+
+# ━━━━━━━━━━━━━━━━ KUBERNETES LOGS (FUTURE) ━━━━━━━━━━━━━━━━
+# [sources.k8s_logs]
+# type = "kubernetes_logs"
+# namespace_annotation_fields.pod_namespace = "nexlify.io/namespace"
+# node_annotation_fields.node_labels = "nexlify.io/node-labels"
+# pod_annotation_fields.pod_annotations = "nexlify.io/annotations"
+# auto_partial_merge = true
+# exclude_paths_glob_patterns = ["**/nexlify-vector-*"]
+# extra_label_selector = "app.kubernetes.io/part-of=nexlify"
+# extra_namespace_label_selector = "nexlify.io/logging=enabled"
+# max_read_bytes = 8192
+# max_line_bytes = ${K8S_MAX_LINE_BYTES:-1048576}
+
+# ━━━━━━━━━━━━━━━━ SYSTEM LOGS ━━━━━━━━━━━━━━━━
+[sources.system_logs]
+type = "file"
+include = [
+    "/var/log/syslog",
+    "/var/log/messages",
+    "/var/log/secure",
+    "/var/log/auth.log"
+]
+exclude = [
+    "/var/log/syslog.*.gz",
+    "/var/log/messages-*"
+]
+ignore_older_secs = ${SYSTEM_LOG_IGNORE_OLDER:-86400}  # 1 day
+read_from = "end"
+fingerprint.strategy = "device_and_inode"
+message_start_indicator = "^\\d{4}-\\d{2}-\\d{2}"
+max_line_bytes = ${SYSTEM_MAX_LINE_BYTES:-102400}
+
+# ━━━━━━━━━━━━━━━━ APPLICATION LOGS ━━━━━━━━━━━━━━━━
+[sources.nexlify_app_logs]
+type = "file"
+include = ["${APP_LOG_PATH:-/app/logs}/**/*.log"]
+exclude = ["${APP_LOG_PATH:-/app/logs}/**/*.gz"]
+ignore_older_secs = ${APP_LOG_IGNORE_OLDER:-3600}  # 1 hour
+read_from = "end"
+file_key = "file"
+host_key = "host"
+
+# Multiline configuration for stack traces
+multiline.start_pattern = '^(\d{4}-\d{2}-\d{2}|{)'
+multiline.mode = "halt_before"
+multiline.condition_pattern = '^(\d{4}-\d{2}-\d{2}|{)'
+multiline.timeout_ms = ${MULTILINE_TIMEOUT:-1000}
+
+# ━━━━━━━━━━━━━━━━ PROMETHEUS METRICS TO LOGS ━━━━━━━━━━━━━━━━
+[sources.nexlify_metrics]
+type = "prometheus_scrape"
+endpoints = ["http://${NEXLIFY_API_HOST:-nexlify-api}:${NEXLIFY_METRICS_PORT:-8000}/metrics"]
+scrape_interval_secs = ${METRICS_SCRAPE_INTERVAL:-60}
+instance_tag = "instance"
+endpoint_tag = "endpoint"
+
+# ━━━━━━━━━━━━━━━━ INTERNAL METRICS ━━━━━━━━━━━━━━━━
+[sources.vector_metrics]
+type = "internal_metrics"
+scrape_interval_secs = ${INTERNAL_METRICS_INTERVAL:-30}
+tags.service = "nexlify-vector"
+tags.component = "log-aggregation"
+
+# ━━━━━━━━━━━━━━━━ SYSLOG RECEIVER ━━━━━━━━━━━━━━━━
+[sources.syslog_input]
+type = "syslog"
+address = "${SYSLOG_ADDRESS:-0.0.0.0:514}"
+mode = "${SYSLOG_MODE:-udp}"
+max_length = ${SYSLOG_MAX_LENGTH:-102400}
+decoding.codec = "bytes"
+host_key = "syslog_host"
+
+# ================================ TRANSFORMS - DATA PROCESSING ================================
+
+# ━━━━━━━━━━━━━━━━ PARSE JSON LOGS ━━━━━━━━━━━━━━━━
+[transforms.parse_json]
+type = "remap"
+inputs = ["nexlify_containers", "nexlify_app_logs"]
+drop_on_error = false
+drop_on_abort = false
+reroute_dropped = true
+
+source = '''
+# Try to parse JSON, fallback to structured parsing
+if starts_with(.message, "{") {
+    parsed, err = parse_json(.message)
+    if err == null {
+        . = merge(., parsed)
+        del(.message)
+    }
+} else {
+    # Try common log formats
+    parsed, err = parse_regex(.message, r'^(?P<timestamp>\S+) (?P<level>\S+) (?P<module>\S+) - (?P<msg>.*)$')
+    if err == null {
+        . = merge(., parsed)
+    }
+}
+
+# Add standard fields
+.environment = get_env_var!("ENVIRONMENT", "development")
+.service = .container_name ?? .source_type ?? "unknown"
+.region = get_env_var!("DATACENTER_REGION", "night-city")
+
+# Parse timestamp if string
+if exists(.timestamp) && is_string(.timestamp) {
+    .timestamp = parse_timestamp!(.timestamp, "%Y-%m-%dT%H:%M:%S%.fZ") ??
+                 parse_timestamp!(.timestamp, "%Y-%m-%d %H:%M:%S") ??
+                 now()
+}
+'''
+
+# ━━━━━━━━━━━━━━━━ ENRICH WITH METADATA ━━━━━━━━━━━━━━━━
+[transforms.enrich_logs]
+type = "remap"
+inputs = ["parse_json"]
+
+source = '''
+# Add cyberpunk flair
+.matrix_id = uuid_v4()
+.neural_timestamp = to_unix_timestamp(now())
+
+# Severity mapping
+.severity = downcase(.level ?? .severity ?? "info")
+.severity_code = if .severity == "trace" { 0
+} else if .severity == "debug" { 1
+} else if .severity == "info" { 2
+} else if .severity == "warn" || .severity == "warning" { 3
+} else if .severity == "error" { 4
+} else if .severity == "fatal" || .severity == "critical" { 5
+} else { 2 }
+
+# Add processing metadata
+.vector_processed_at = now()
+.vector_host = get_hostname!()
+.vector_version = "0.47.0"
+'''
+
+# ━━━━━━━━━━━━━━━━ FILTER NOISE ━━━━━━━━━━━━━━━━
+[transforms.filter_noise]
+type = "filter"
+inputs = ["enrich_logs"]
+
+condition = '''
+# Drop debug logs in production
+if get_env_var("ENVIRONMENT") == "production" && .severity == "debug" {
+    false
+# Drop health checks
+} else if contains(string!(.message ?? ""), "health") || contains(string!(.message ?? ""), "ping") {
+    false
+# Drop Vector's own logs unless error
+} else if .service == "nexlify-vector" && .severity_code < 4 {
+    false
+} else {
+    true
+}
+'''
+
+# ━━━━━━━━━━━━━━━━ SENSITIVE DATA REDACTION ━━━━━━━━━━━━━━━━
+[transforms.redact_sensitive]
+type = "remap"
+inputs = ["filter_noise"]
+
+source = '''
+# Redact API keys
+.message = replace(string!(.message ?? ""), r'(api[_-]?key["\s:=]+)"?[a-zA-Z0-9\-_]{20,}"?', "$1\"REDACTED\"") ?? .message
+
+# Redact passwords
+.message = replace(string!(.message ?? ""), r'(password["\s:=]+)"?[^"\s]+"?', "$1\"REDACTED\"") ?? .message
+
+# Redact credit cards
+.message = replace(string!(.message ?? ""), r'\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b', "XXXX-XXXX-XXXX-XXXX") ?? .message
+
+# Redact SSNs
+.message = replace(string!(.message ?? ""), r'\b\d{3}-\d{2}-\d{4}\b', "XXX-XX-XXXX") ?? .message
+
+# Redact email addresses (optional)
+if get_env_var("REDACT_EMAILS", "false") == "true" {
+    .message = replace(string!(.message ?? ""), r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', "REDACTED@EMAIL") ?? .message
+}
+
+# Redact IP addresses (optional)
+if get_env_var("REDACT_IPS", "false") == "true" {
+    .message = replace(string!(.message ?? ""), r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b', "XXX.XXX.XXX.XXX") ?? .message
+}
+'''
+
+# ━━━━━━━━━━━━━━━━ ROUTE BY LOG TYPE ━━━━━━━━━━━━━━━━
+[transforms.route_logs]
+type = "route"
+inputs = ["redact_sensitive"]
+
+[transforms.route_logs.route]
+errors = '.severity_code >= 4'
+trades = 'contains(string!(.module ?? ""), "trading") || contains(string!(.message ?? ""), "trade")'
+security = 'contains(string!(.module ?? ""), "security") || contains(string!(.module ?? ""), "auth")'
+metrics = '.source_type == "prometheus_scrape"'
+system = '.source_type == "file" && contains(string!(.file ?? ""), "/var/log")'
+
+# ━━━━━━━━━━━━━━━━ AGGREGATE METRICS ━━━━━━━━━━━━━━━━
+[transforms.aggregate_metrics]
+type = "aggregate"
+inputs = ["vector_metrics", "nexlify_metrics"]
+interval_ms = ${AGGREGATE_INTERVAL:-10000}  # 10 seconds
+
+[transforms.aggregate_metrics.group_by]
+keys = ["service", "host"]
+
+# ━━━━━━━━━━━━━━━━ SAMPLE HIGH VOLUME ━━━━━━━━━━━━━━━━
+[transforms.sample_logs]
+type = "sample"
+inputs = ["route_logs.system"]
+rate = ${SAMPLE_RATE:-10}  # Keep 1 in 10 system logs
+key_field = "message"
+exclude = {"severity_code": [4, 5]}  # Never sample errors
+
+# ━━━━━━━━━━━━━━━━ BATCH FOR PERFORMANCE ━━━━━━━━━━━━━━━━
+[transforms.batch_logs]
+type = "batch"
+inputs = ["route_logs.trades", "route_logs.errors", "route_logs.security", "sample_logs"]
+max_bytes = ${BATCH_MAX_BYTES:-5242880}  # 5MB
+max_events = ${BATCH_MAX_EVENTS:-1000}
+timeout_secs = ${BATCH_TIMEOUT:-5}
+
+# ================================ SINKS - DATA OUTPUTS ================================
+
+# ━━━━━━━━━━━━━━━━ QUESTDB FOR TIME SERIES ━━━━━━━━━━━━━━━━
+[sinks.questdb_trades]
+type = "http"
+inputs = ["route_logs.trades"]
+uri = "http://${QUESTDB_HOST:-nexlify-questdb}:${QUESTDB_ILP_PORT:-9000}/write?precision=n"
+method = "post"
+compression = "gzip"
+batch.max_bytes = ${QDB_BATCH_BYTES:-1048576}
+batch.timeout_secs = ${QDB_BATCH_TIMEOUT:-1}
+healthcheck.enabled = true
+
+encoding.codec = "raw_message"
+encoding.timestamp_format = "unix_ns"
+
+# Format as InfluxDB Line Protocol
+[sinks.questdb_trades.encoding]
+only_fields = ["symbol", "exchange", "price", "volume", "side"]
+
+# ━━━━━━━━━━━━━━━━ KAFKA FOR STREAMING ━━━━━━━━━━━━━━━━
+[sinks.kafka_stream]
+type = "kafka"
+inputs = ["batch_logs"]
+bootstrap_servers = "${KAFKA_BROKERS:-localhost:9092}"
+topic = "${KAFKA_TOPIC:-nexlify-logs}"
+compression = "lz4"  # Best performance/ratio balance
+key_field = "service"
+
+# Batching for performance
+batch.max_bytes = ${KAFKA_BATCH_BYTES:-1048576}
+batch.timeout_secs = ${KAFKA_BATCH_TIMEOUT:-5}
+
+# Encoding
+encoding.codec = "json"
+encoding.timestamp_format = "rfc3339"
+
+# SASL authentication (if enabled)
+sasl.enabled = ${KAFKA_SASL_ENABLED:-false}
+sasl.mechanism = "${KAFKA_SASL_MECHANISM:-PLAIN}"
+sasl.username = "${KAFKA_SASL_USERNAME:-}"
+sasl.password = "${KAFKA_SASL_PASSWORD:-}"
+
+# TLS configuration
+tls.enabled = ${KAFKA_TLS_ENABLED:-false}
+tls.verify_certificate = ${KAFKA_TLS_VERIFY:-true}
+tls.verify_hostname = ${KAFKA_TLS_VERIFY_HOSTNAME:-true}
+
+# ━━━━━━━━━━━━━━━━ S3 FOR ARCHIVAL ━━━━━━━━━━━━━━━━
+[sinks.s3_archive]
+type = "aws_s3"
+inputs = ["route_logs.errors", "route_logs.security"]
+bucket = "${S3_BUCKET:-nexlify-logs}"
+region = "${AWS_REGION:-us-east-1}"
+compression = "gzip"
+content_type = "application/x-ndjson"
+
+# Dynamic key prefix
+key_prefix = "logs/year=%Y/month=%m/day=%d/hour=%H/"
+filename_time_format = "%Y%m%d%H%M%S"
+filename_append_uuid = true
+filename_extension = "json.gz"
+
+# Batching
+batch.max_bytes = ${S3_BATCH_BYTES:-5242880}  # 5MB
+batch.timeout_secs = ${S3_BATCH_TIMEOUT:-300}  # 5 minutes
+
+# Encoding
+encoding.codec = "ndjson"
+encoding.timestamp_format = "rfc3339"
+
+# Authentication (uses IAM role by default)
+auth.assume_role = "${AWS_ASSUME_ROLE:-}"
+
+# Server-side encryption
+request.headers.x-amz-server-side-encryption = "AES256"
+
+# ━━━━━━━━━━━━━━━━ ELASTICSEARCH/OPENSEARCH ━━━━━━━━━━━━━━━━
+[sinks.elasticsearch]
+type = "elasticsearch"
+inputs = ["batch_logs"]
+endpoint = "${ELASTICSEARCH_ENDPOINT:-http://localhost:9200}"
+bulk.index = "nexlify-logs-%Y.%m.%d"
+bulk.action = "index"
+compression = "gzip"
+healthcheck.enabled = true
+
+# Authentication
+auth.strategy = "${ES_AUTH_STRATEGY:-basic}"
+auth.user = "${ES_USER:-}"
+auth.password = "${ES_PASSWORD:-}"
+
+# Performance tuning
+batch.max_bytes = ${ES_BATCH_BYTES:-10485760}  # 10MB
+batch.timeout_secs = ${ES_BATCH_TIMEOUT:-5}
+request.timeout_secs = ${ES_REQUEST_TIMEOUT:-30}
+request.retry_attempts = ${ES_RETRY_ATTEMPTS:-3}
+
+# Index lifecycle management
+bulk.index = "nexlify-logs-%Y.%m.%d"
+mode = "bulk"
+
+# ━━━━━━━━━━━━━━━━ LOKI FOR GRAFANA ━━━━━━━━━━━━━━━━
+[sinks.loki_logs]
+type = "loki"
+inputs = ["batch_logs"]
+endpoint = "http://${LOKI_HOST:-nexlify-loki}:${LOKI_PORT:-3100}"
+compression = "snappy"
+out_of_order_action = "accept"
+
+# Labels for Loki
+labels.environment = "{{ environment }}"
+labels.service = "{{ service }}"
+labels.severity = "{{ severity }}"
+labels.host = "{{ host }}"
+
+# Encoding
+encoding.codec = "json"
+encoding.timestamp_format = "rfc3339nano"
+
+# Batching
+batch.max_bytes = ${LOKI_BATCH_BYTES:-1048576}
+batch.timeout_secs = ${LOKI_BATCH_TIMEOUT:-5}
+
+# Authentication (if required)
+auth.strategy = "${LOKI_AUTH_STRATEGY:-}"
+auth.user = "${LOKI_USER:-}"
+auth.password = "${LOKI_PASSWORD:-}"
+
+# ━━━━━━━━━━━━━━━━ CONSOLE OUTPUT (DEV) ━━━━━━━━━━━━━━━━
+[sinks.console_debug]
+type = "console"
+inputs = ["route_logs.errors"]
+target = "stdout"
+encoding.codec = "json"
+encoding.timestamp_format = "rfc3339"
+
+# Only enable in development
+healthcheck.enabled = false
+
+# ━━━━━━━━━━━━━━━━ PROMETHEUS METRICS ━━━━━━━━━━━━━━━━
+[sinks.prometheus_metrics]
+type = "prometheus_exporter"
+inputs = ["aggregate_metrics"]
+address = "${VECTOR_METRICS_ADDRESS:-0.0.0.0:9598}"
+default_namespace = "nexlify_logs"
+buckets = [0.001, 0.01, 0.1, 0.5, 1.0, 5.0, 10.0]
+
+# ━━━━━━━━━━━━━━━━ ERROR ALERTING ━━━━━━━━━━━━━━━━
+[sinks.alert_webhook]
+type = "http"
+inputs = ["route_logs.errors"]
+uri = "${ALERT_WEBHOOK_URL:-}"
+method = "post"
+compression = "none"
+healthcheck.enabled = false
+
+# Only critical errors
+[sinks.alert_webhook.request]
+concurrency = ${ALERT_CONCURRENCY:-10}
+rate_limit_num = ${ALERT_RATE_LIMIT:-10}
+rate_limit_duration_secs = ${ALERT_RATE_WINDOW:-60}
+
+# Headers for authentication
+[sinks.alert_webhook.request.headers]
+Content-Type = "application/json"
+X-Nexlify-Source = "vector-logs"
+Authorization = "Bearer ${ALERT_WEBHOOK_TOKEN:-}"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# "Logging is the first line of defense in the data wars." - Spider Murphy
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
