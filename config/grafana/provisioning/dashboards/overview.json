@@ -1,0 +1,686 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus-uid"
+        },
+        "enable": true,
+        "expr": "nexlify_trade_executed{status=\"success\"}",
+        "iconColor": "#00FF88",
+        "name": "Successful Trades",
+        "step": "10s",
+        "tagKeys": "symbol,exchange",
+        "textFormat": "Trade: {{symbol}} on {{exchange}}"
+      }
+    ]
+  },
+  "description": "Real-time cryptocurrency trading command center with cyberpunk aesthetics",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": ["trading"],
+      "targetBlank": false,
+      "title": "Trading Dashboards",
+      "tooltip": "Navigate trading matrix",
+      "type": "dashboards",
+      "url": ""
+    }
+  ],
+  "panels": [],
+  "refresh": "${refresh}",
+  "schemaVersion": 40,
+  "tags": ["trading", "crypto", "nexlify", "cyberpunk"],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": ["BTC", "ETH"],
+          "value": ["BTC", "ETH"]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus-uid"
+        },
+        "definition": "label_values(nexlify_ticker_price, symbol)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Symbol",
+        "multi": true,
+        "name": "symbol",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(nexlify_ticker_price, symbol)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": ["coinbase", "binance"],
+          "value": ["coinbase", "binance"]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus-uid"
+        },
+        "definition": "label_values(nexlify_exchange_status, exchange)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Exchange",
+        "multi": true,
+        "name": "exchange",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(nexlify_exchange_status, exchange)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "5s",
+          "value": "5s"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Refresh",
+        "multi": false,
+        "name": "refresh",
+        "options": [
+          {
+            "selected": true,
+            "text": "5s",
+            "value": "5s"
+          },
+          {
+            "selected": false,
+            "text": "10s",
+            "value": "10s"
+          },
+          {
+            "selected": false,
+            "text": "30s",
+            "value": "30s"
+          },
+          {
+            "selected": false,
+            "text": "1m",
+            "value": "1m"
+          }
+        ],
+        "query": "5s,10s,30s,1m",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "production",
+          "value": "production"
+        },
+        "hide": 2,
+        "includeAll": false,
+        "label": "Trading Mode",
+        "multi": false,
+        "name": "trading_mode",
+        "options": [
+          {
+            "selected": false,
+            "text": "simulation",
+            "value": "simulation"
+          },
+          {
+            "selected": true,
+            "text": "production",
+            "value": "production"
+          }
+        ],
+        "query": "simulation,production",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"]
+  },
+  "timezone": "${__timezone}",
+  "title": "Nexlify Trading Matrix - Command Center",
+  "uid": "nexlify-trading-overview",
+  "version": 1,
+  "weekStart": "",
+  "gnetId": null,
+  "body": {
+    "type": "tabs",
+    "items": [
+      {
+        "title": "📊 Market Overview",
+        "active": true,
+        "type": "tab",
+        "items": [
+          {
+            "type": "row",
+            "title": "Exchange Status",
+            "collapsed": false,
+            "items": [
+              {
+                "type": "stat",
+                "title": "Connected Exchanges",
+                "gridPos": {
+                  "h": 4,
+                  "w": 6,
+                  "x": 0,
+                  "y": 0
+                },
+                "options": {
+                  "reduceOptions": {
+                    "values": false,
+                    "calcs": ["lastNotNull"]
+                  },
+                  "orientation": "auto",
+                  "textMode": "value_and_name",
+                  "colorMode": "background",
+                  "graphMode": "none",
+                  "justifyMode": "auto"
+                },
+                "pluginVersion": "12.0.0",
+                "targets": [
+                  {
+                    "datasource": {
+                      "type": "prometheus",
+                      "uid": "prometheus-uid"
+                    },
+                    "editorMode": "code",
+                    "expr": "count(nexlify_exchange_status{status=\"connected\"})",
+                    "instant": true,
+                    "legendFormat": "Active",
+                    "range": false,
+                    "refId": "A"
+                  }
+                ],
+                "fieldConfig": {
+                  "defaults": {
+                    "color": {
+                      "mode": "thresholds"
+                    },
+                    "mappings": [],
+                    "thresholds": {
+                      "mode": "absolute",
+                      "steps": [
+                        {
+                          "color": "#FF0044",
+                          "value": null
+                        },
+                        {
+                          "color": "#FFAA00",
+                          "value": 1
+                        },
+                        {
+                          "color": "#00FF88",
+                          "value": 3
+                        }
+                      ]
+                    },
+                    "unit": "short"
+                  },
+                  "overrides": []
+                }
+              }
+            ]
+          },
+          {
+            "type": "auto-grid",
+            "title": "Market Prices",
+            "maxColumns": 4,
+            "maxItemHeight": 300,
+            "items": [
+              {
+                "type": "timeseries",
+                "title": "${symbol} Price",
+                "repeat": "symbol",
+                "repeatDirection": "h",
+                "maxPerRow": 4,
+                "gridPos": {
+                  "h": 8,
+                  "w": 6,
+                  "x": 0,
+                  "y": 4
+                },
+                "conditional": {
+                  "if": "A > 0",
+                  "hide": false
+                },
+                "fieldConfig": {
+                  "defaults": {
+                    "color": {
+                      "mode": "palette-classic",
+                      "seriesBy": "last"
+                    },
+                    "custom": {
+                      "axisBorderShow": false,
+                      "axisCenteredZero": false,
+                      "axisColorMode": "series",
+                      "axisLabel": "",
+                      "axisPlacement": "auto",
+                      "barAlignment": 0,
+                      "drawStyle": "line",
+                      "fillOpacity": 10,
+                      "gradientMode": "opacity",
+                      "hideFrom": {
+                        "tooltip": false,
+                        "viz": false,
+                        "legend": false
+                      },
+                      "insertNulls": false,
+                      "lineInterpolation": "smooth",
+                      "lineStyle": {
+                        "fill": "solid"
+                      },
+                      "lineWidth": 2,
+                      "pointSize": 5,
+                      "scaleDistribution": {
+                        "type": "linear"
+                      },
+                      "showPoints": "never",
+                      "spanNulls": false,
+                      "stacking": {
+                        "group": "A",
+                        "mode": "none"
+                      },
+                      "thresholdsStyle": {
+                        "mode": "off"
+                      }
+                    },
+                    "decimals": 2,
+                    "links": [],
+                    "mappings": [],
+                    "thresholds": {
+                      "mode": "absolute",
+                      "steps": [
+                        {
+                          "color": "green",
+                          "value": null
+                        }
+                      ]
+                    },
+                    "unit": "currencyUSD"
+                  },
+                  "overrides": [
+                    {
+                      "matcher": {
+                        "id": "byName",
+                        "options": "coinbase"
+                      },
+                      "properties": [
+                        {
+                          "id": "color",
+                          "value": {
+                            "fixedColor": "#00D4FF",
+                            "mode": "fixed"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "matcher": {
+                        "id": "byName",
+                        "options": "binance"
+                      },
+                      "properties": [
+                        {
+                          "id": "color",
+                          "value": {
+                            "fixedColor": "#FF00FF",
+                            "mode": "fixed"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "options": {
+                  "tooltip": {
+                    "mode": "multi",
+                    "sort": "desc"
+                  },
+                  "legend": {
+                    "displayMode": "list",
+                    "placement": "bottom",
+                    "showLegend": true,
+                    "calcs": ["last", "mean"]
+                  }
+                },
+                "pluginVersion": "12.0.0",
+                "targets": [
+                  {
+                    "datasource": {
+                      "type": "prometheus",
+                      "uid": "prometheus-uid"
+                    },
+                    "editorMode": "code",
+                    "expr": "nexlify_ticker_price{symbol=\"${symbol}\", exchange=~\"${exchange}\"}",
+                    "instant": false,
+                    "legendFormat": "{{exchange}}",
+                    "range": true,
+                    "refId": "A"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "💰 Trading Performance",
+        "type": "tab",
+        "items": [
+          {
+            "type": "row",
+            "title": "P&L Analysis",
+            "items": [
+              {
+                "type": "table-v2",
+                "title": "Open Positions",
+                "gridPos": {
+                  "h": 10,
+                  "w": 12,
+                  "x": 0,
+                  "y": 0
+                },
+                "options": {
+                  "showHeader": true,
+                  "cellHeight": "md",
+                  "frameIndex": 0,
+                  "showTypeIcons": false
+                },
+                "pluginVersion": "12.0.0",
+                "targets": [
+                  {
+                    "datasource": {
+                      "type": "postgres",
+                      "uid": "questdb-uid"
+                    },
+                    "editorMode": "code",
+                    "format": "table",
+                    "rawQuery": true,
+                    "rawSql": "SELECT \n  timestamp,\n  symbol,\n  side,\n  entry_price,\n  current_price,\n  quantity,\n  (current_price - entry_price) * quantity as unrealized_pnl,\n  CASE \n    WHEN current_price > entry_price THEN '#00FF88'\n    ELSE '#FF0044'\n  END as pnl_color\nFROM positions\nWHERE status = 'open'\n  AND ($__timeFilter(timestamp))\nORDER BY timestamp DESC",
+                    "refId": "A",
+                    "sql": {
+                      "columns": [
+                        {
+                          "parameters": [],
+                          "type": "function"
+                        }
+                      ],
+                      "groupBy": [
+                        {
+                          "property": {
+                            "type": "string"
+                          },
+                          "type": "groupBy"
+                        }
+                      ],
+                      "limit": 50
+                    }
+                  }
+                ],
+                "fieldConfig": {
+                  "defaults": {
+                    "color": {
+                      "mode": "thresholds"
+                    },
+                    "custom": {
+                      "align": "auto",
+                      "cellOptions": {
+                        "type": "auto"
+                      },
+                      "inspect": false
+                    },
+                    "mappings": [],
+                    "thresholds": {
+                      "mode": "absolute",
+                      "steps": [
+                        {
+                          "color": "green",
+                          "value": null
+                        }
+                      ]
+                    }
+                  },
+                  "overrides": [
+                    {
+                      "matcher": {
+                        "id": "byName",
+                        "options": "unrealized_pnl"
+                      },
+                      "properties": [
+                        {
+                          "id": "custom.cellOptions",
+                          "value": {
+                            "type": "color-background",
+                            "mode": "gradient"
+                          }
+                        },
+                        {
+                          "id": "color",
+                          "value": {
+                            "mode": "continuous-GrYlRd",
+                            "seriesBy": "last"
+                          }
+                        },
+                        {
+                          "id": "unit",
+                          "value": "currencyUSD"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "🤖 ML Insights",
+        "type": "tab",
+        "items": [
+          {
+            "type": "row",
+            "title": "Model Performance",
+            "conditional": {
+              "if": "${trading_mode} == 'production'",
+              "hide": false
+            },
+            "items": [
+              {
+                "type": "gauge",
+                "title": "Model Accuracy",
+                "gridPos": {
+                  "h": 8,
+                  "w": 6,
+                  "x": 0,
+                  "y": 0
+                },
+                "options": {
+                  "orientation": "auto",
+                  "showThresholdLabels": true,
+                  "showThresholdMarkers": true,
+                  "reduceOptions": {
+                    "values": false,
+                    "calcs": ["lastNotNull"]
+                  }
+                },
+                "pluginVersion": "12.0.0",
+                "targets": [
+                  {
+                    "datasource": {
+                      "type": "prometheus",
+                      "uid": "prometheus-uid"
+                    },
+                    "editorMode": "code",
+                    "expr": "nexlify_ml_model_accuracy{model=\"timesfm\"}",
+                    "instant": true,
+                    "legendFormat": "{{model}}",
+                    "range": false,
+                    "refId": "A"
+                  }
+                ],
+                "fieldConfig": {
+                  "defaults": {
+                    "color": {
+                      "mode": "thresholds"
+                    },
+                    "mappings": [],
+                    "max": 100,
+                    "min": 0,
+                    "thresholds": {
+                      "mode": "absolute",
+                      "steps": [
+                        {
+                          "color": "#FF0044",
+                          "value": null
+                        },
+                        {
+                          "color": "#FFAA00",
+                          "value": 60
+                        },
+                        {
+                          "color": "#00FF88",
+                          "value": 80
+                        },
+                        {
+                          "color": "#00D4FF",
+                          "value": 95
+                        }
+                      ]
+                    },
+                    "unit": "percent"
+                  },
+                  "overrides": []
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "⚡ System Health",
+        "type": "tab",
+        "items": [
+          {
+            "type": "row",
+            "title": "Infrastructure Metrics",
+            "items": [
+              {
+                "type": "heatmap",
+                "title": "API Latency Heatmap",
+                "gridPos": {
+                  "h": 8,
+                  "w": 12,
+                  "x": 0,
+                  "y": 0
+                },
+                "options": {
+                  "calculate": false,
+                  "calculation": {},
+                  "cellGap": 2,
+                  "cellValues": {},
+                  "color": {
+                    "exponent": 0.5,
+                    "fill": "#00D4FF",
+                    "max": null,
+                    "min": null,
+                    "mode": "scheme",
+                    "reverse": false,
+                    "scale": "exponential",
+                    "scheme": "Turbo",
+                    "steps": 64
+                  },
+                  "exemplars": {
+                    "color": "rgba(255,0,255,0.7)"
+                  },
+                  "filterValues": {
+                    "le": 1e-9
+                  },
+                  "legend": {
+                    "show": true
+                  },
+                  "rowsFrame": {
+                    "layout": "auto"
+                  },
+                  "showValue": "never",
+                  "tooltip": {
+                    "show": true,
+                    "yHistogram": false
+                  },
+                  "yAxis": {
+                    "axisPlacement": "left",
+                    "reverse": false,
+                    "unit": "s"
+                  }
+                },
+                "pluginVersion": "12.0.0",
+                "targets": [
+                  {
+                    "datasource": {
+                      "type": "prometheus",
+                      "uid": "prometheus-uid"
+                    },
+                    "editorMode": "code",
+                    "expr": "sum(increase(nexlify_api_request_duration_seconds_bucket{exchange=~\"${exchange}\"}[$__rate_interval])) by (le)",
+                    "format": "heatmap",
+                    "instant": false,
+                    "legendFormat": "{{le}}",
+                    "range": true,
+                    "refId": "A"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
