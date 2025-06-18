@@ -1,0 +1,386 @@
+# config/prometheus/prometheus.yml
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# NEXLIFY MONITORING MATRIX - PROMETHEUS 3.4.1 CONFIGURATION
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# The all-seeing eye of Night City's trading matrix
+# Native OTLP support, Remote Write 2.0, UTF-8 metrics
+# First major release in 7 years - this is the real chrome
+# 
+# "In Night City, if you're not watching, you're already flatlined." - V
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# ================================ GLOBAL SETTINGS ================================
+global:
+  # How often to scrape targets
+  scrape_interval: ${PROMETHEUS_SCRAPE_INTERVAL:-15s}
+  
+  # How often to evaluate rules
+  evaluation_interval: ${PROMETHEUS_EVAL_INTERVAL:-15s}
+  
+  # Scrape timeout - must be less than scrape_interval
+  scrape_timeout: ${PROMETHEUS_SCRAPE_TIMEOUT:-10s}
+  
+  # External labels to attach to all time series
+  external_labels:
+    monitor: 'nexlify-neural-matrix'
+    environment: '${ENVIRONMENT:-development}'
+    region: '${DATACENTER_REGION:-night-city}'
+    cluster: '${CLUSTER_NAME:-trading-matrix}'
+
+  # Query log file for debugging slow queries
+  query_log_file: /prometheus/query.log
+
+# ================================ RUNTIME CONFIG ================================
+runtime:
+  # Go garbage collection target percentage
+  gogc: ${PROMETHEUS_GOGC:-75}
+
+# ================================ OTLP CONFIGURATION ================================
+# Native OpenTelemetry support in Prometheus 3.x
+otlp:
+  # Translation strategy for OTLP metrics
+  # Options: UnderscoreEscapingWithSuffixes, NoUTF8EscapingWithSuffixes, NoTranslation
+  translation_strategy: NoUTF8EscapingWithSuffixes
+  
+  # Keep identifying resource attributes (service.name, etc.)
+  keep_identifying_resource_attributes: true
+  
+  # Convert OTLP exponential histograms to native histograms
+  convert_exponential_histograms:
+    enabled: true
+
+# ================================ REMOTE WRITE 2.0 ================================
+# Send data to long-term storage or other Prometheus instances
+remote_write:
+  # Primary remote storage (if configured)
+  - url: '${REMOTE_WRITE_URL:-}'
+    name: 'nexlify-timeseries-vault'
+    
+    # Remote Write 2.0 features
+    send_native_histograms: true
+    send_metadata: true
+    send_exemplars: true
+    
+    # Protocol buffer settings
+    remote_timeout: ${REMOTE_WRITE_TIMEOUT:-30s}
+    capacity: ${REMOTE_WRITE_CAPACITY:-10000}
+    max_samples_per_send: ${REMOTE_WRITE_BATCH_SIZE:-5000}
+    
+    # Queue configuration for reliability
+    queue_config:
+      capacity: ${REMOTE_WRITE_QUEUE_CAPACITY:-100000}
+      max_shards: ${REMOTE_WRITE_MAX_SHARDS:-50}
+      min_shards: ${REMOTE_WRITE_MIN_SHARDS:-1}
+      max_samples_per_send: ${REMOTE_WRITE_SAMPLES_PER_SEND:-5000}
+      batch_send_deadline: ${REMOTE_WRITE_BATCH_DEADLINE:-5s}
+      min_backoff: ${REMOTE_WRITE_MIN_BACKOFF:-30ms}
+      max_backoff: ${REMOTE_WRITE_MAX_BACKOFF:-5s}
+      retry_on_http_429: true
+    
+    # Metadata configuration
+    metadata_config:
+      send: true
+      send_interval: ${METADATA_SEND_INTERVAL:-1m}
+      max_samples_per_send: 500
+    
+    # TLS configuration
+    tls_config:
+      insecure_skip_verify: ${REMOTE_WRITE_SKIP_TLS_VERIFY:-false}
+    
+    # Optional basic auth (from env)
+    basic_auth:
+      username: '${REMOTE_WRITE_USERNAME:-}'
+      password: '${REMOTE_WRITE_PASSWORD:-}'
+
+# ================================ REMOTE READ ================================
+# Read data from remote storage for federation
+remote_read:
+  - url: '${REMOTE_READ_URL:-}'
+    name: 'nexlify-historical-data'
+    read_recent: true
+    
+    # Filter which data to read remotely
+    required_matchers:
+      - job
+    
+    remote_timeout: ${REMOTE_READ_TIMEOUT:-1m}
+
+# ================================ STORAGE CONFIGURATION ================================
+storage:
+  # TSDB settings
+  tsdb:
+    # Data retention
+    retention_time: ${PROMETHEUS_RETENTION:-30d}
+    retention_size: ${PROMETHEUS_RETENTION_SIZE:-0}
+    
+    # Path to store data
+    path: /prometheus
+    
+    # WAL compression
+    wal_compression: true
+    
+    # Block duration settings
+    min_block_duration: 2h
+    max_block_duration: 36h
+    
+    # Exemplar storage settings
+    max_exemplars: ${MAX_EXEMPLARS:-100000}
+    
+    # Native histogram settings
+    enable_native_histograms: true
+    
+    # Out of order sample handling
+    out_of_order_time_window: ${OOO_TIME_WINDOW:-30m}
+
+# ================================ TRACING CONFIGURATION ================================
+tracing:
+  # Send traces to Jaeger or other OTLP endpoint
+  endpoint: '${TRACING_ENDPOINT:-}'
+  client_type: 'grpc'
+  sampling_fraction: ${TRACING_SAMPLING:-0.1}
+  insecure: ${TRACING_INSECURE:-true}
+
+# ================================ SCRAPE CONFIGURATIONS ================================
+scrape_configs:
+  # ━━━━━━━━━━━━━━━━ NEXLIFY CORE SERVICES ━━━━━━━━━━━━━━━━
+  
+  # Main trading engine metrics
+  - job_name: 'nexlify-neural-engine'
+    scrape_interval: ${NEXLIFY_SCRAPE_INTERVAL:-5s}
+    scrape_timeout: ${NEXLIFY_SCRAPE_TIMEOUT:-4s}
+    
+    # Enable native histogram ingestion
+    scrape_classic_histograms: false
+    native_histogram_bucket_limit: 0
+    native_histogram_min_bucket_factor: 1.1
+    
+    static_configs:
+      - targets: ['${NEXLIFY_API_HOST:-nexlify-api}:${NEXLIFY_METRICS_PORT:-8000}']
+        labels:
+          service: 'trading-engine'
+          component: 'core'
+    
+    # Metric relabeling
+    metric_relabel_configs:
+      # Drop debug metrics in production
+      - source_labels: [__name__]
+        regex: '.*_debug_.*'
+        action: drop
+      
+      # Keep high cardinality metrics under control
+      - source_labels: [__name__]
+        regex: 'http_request_duration_seconds.*'
+        target_label: __tmp_bucket_limit
+        replacement: "0.005,0.01,0.025,0.05,0.1,0.25,0.5,1,2.5,5,10"
+
+  # ━━━━━━━━━━━━━━━━ DATABASE EXPORTERS ━━━━━━━━━━━━━━━━
+  
+  # QuestDB metrics
+  - job_name: 'nexlify-questdb'
+    scrape_interval: ${DB_SCRAPE_INTERVAL:-30s}
+    static_configs:
+      - targets: ['${QUESTDB_HOST:-nexlify-questdb}:${QUESTDB_METRICS_PORT:-9003}']
+        labels:
+          service: 'time-series-db'
+          component: 'storage'
+    
+    # QuestDB exposes Prometheus metrics natively
+    metrics_path: '/metrics'
+
+  # Valkey (Redis fork) exporter
+  - job_name: 'nexlify-cache-matrix'
+    scrape_interval: ${CACHE_SCRAPE_INTERVAL:-15s}
+    static_configs:
+      - targets: ['${VALKEY_EXPORTER_HOST:-valkey-exporter}:${VALKEY_EXPORTER_PORT:-9121}']
+        labels:
+          service: 'cache'
+          component: 'storage'
+    
+    # Valkey connection config via exporter
+    params:
+      target: ['${VALKEY_HOST:-nexlify-cache}:${VALKEY_PORT:-6379}']
+    
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: '${VALKEY_EXPORTER_HOST:-valkey-exporter}:${VALKEY_EXPORTER_PORT:-9121}'
+
+  # ━━━━━━━━━━━━━━━━ SYSTEM MONITORING ━━━━━━━━━━━━━━━━
+  
+  # Node exporter for host metrics
+  - job_name: 'nexlify-node-metrics'
+    scrape_interval: ${NODE_SCRAPE_INTERVAL:-30s}
+    static_configs:
+      - targets: ['${NODE_EXPORTER_HOST:-node-exporter}:${NODE_EXPORTER_PORT:-9100}']
+        labels:
+          service: 'infrastructure'
+          component: 'host'
+    
+    # Filter out unnecessary metrics
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'node_scrape_collector_.*'
+        action: drop
+
+  # GPU metrics (if available)
+  - job_name: 'nexlify-gpu-matrix'
+    scrape_interval: ${GPU_SCRAPE_INTERVAL:-30s}
+    static_configs:
+      - targets: ['${GPU_EXPORTER_HOST:-nvidia-smi-exporter}:${GPU_EXPORTER_PORT:-9445}']
+        labels:
+          service: 'ml-acceleration'
+          component: 'gpu'
+    
+    # Only scrape if GPU is present
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: '.*'
+        target_label: __tmp_gpu_enabled
+        replacement: '${GPU_ENABLED:-false}'
+      - source_labels: [__tmp_gpu_enabled]
+        regex: 'false'
+        action: drop
+
+  # ━━━━━━━━━━━━━━━━ MONITORING STACK ━━━━━━━━━━━━━━━━
+  
+  # Prometheus self-monitoring
+  - job_name: 'nexlify-prometheus'
+    scrape_interval: ${SELF_SCRAPE_INTERVAL:-30s}
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'monitoring'
+          component: 'prometheus'
+
+  # Grafana metrics
+  - job_name: 'nexlify-dashboards'
+    scrape_interval: ${GRAFANA_SCRAPE_INTERVAL:-60s}
+    static_configs:
+      - targets: ['${GRAFANA_HOST:-nexlify-dashboards}:${GRAFANA_PORT:-3000}']
+        labels:
+          service: 'monitoring'
+          component: 'visualization'
+    
+    # Grafana auth if required
+    basic_auth:
+      username: '${GRAFANA_METRICS_USER:-}'
+      password: '${GRAFANA_METRICS_PASSWORD:-}'
+
+  # Alertmanager metrics
+  - job_name: 'nexlify-alerts'
+    scrape_interval: ${ALERT_SCRAPE_INTERVAL:-30s}
+    static_configs:
+      - targets: ['${ALERTMANAGER_HOST:-nexlify-alerts}:${ALERTMANAGER_PORT:-9093}']
+        labels:
+          service: 'monitoring'
+          component: 'alerting'
+
+  # ━━━━━━━━━━━━━━━━ SERVICE DISCOVERY ━━━━━━━━━━━━━━━━
+  
+  # Docker service discovery for dynamic containers
+  - job_name: 'nexlify-docker-discovery'
+    docker_sd_configs:
+      - host: '${DOCKER_HOST:-unix:///var/run/docker.sock}'
+        refresh_interval: ${DOCKER_SD_REFRESH:-30s}
+        filters:
+          - name: label
+            values: ["prometheus.io/scrape=true"]
+    
+    relabel_configs:
+      # Only keep containers with prometheus labels
+      - source_labels: [__meta_docker_container_label_prometheus_io_scrape]
+        regex: true
+        action: keep
+      
+      # Use container name as job name
+      - source_labels: [__meta_docker_container_name]
+        target_label: job
+        regex: '/?(.*)'
+      
+      # Set metrics path from label
+      - source_labels: [__meta_docker_container_label_prometheus_io_path]
+        target_label: __metrics_path__
+        regex: (.+)
+      
+      # Set port from label
+      - source_labels: [__address__, __meta_docker_container_label_prometheus_io_port]
+        target_label: __address__
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+
+  # ━━━━━━━━━━━━━━━━ KUBERNETES (FUTURE) ━━━━━━━━━━━━━━━━
+  
+  # K3s service discovery (when deployed to k8s)
+  # - job_name: 'nexlify-kubernetes-pods'
+  #   kubernetes_sd_configs:
+  #     - role: pod
+  #       namespaces:
+  #         names: ['${K8S_NAMESPACE:-nexlify}']
+  #   
+  #   relabel_configs:
+  #     - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+  #       action: keep
+  #       regex: true
+
+# ================================ ALERTING CONFIGURATION ================================
+alerting:
+  # Alert relabeling
+  alert_relabel_configs:
+    - source_labels: [dc]
+      target_label: dc
+      replacement: '${DATACENTER:-night-city}'
+  
+  # Alertmanager configuration
+  alertmanagers:
+    - static_configs:
+        - targets: ['${ALERTMANAGER_HOST:-nexlify-alerts}:${ALERTMANAGER_PORT:-9093}']
+      
+      # Alertmanager API version
+      api_version: v2
+      
+      # Timeout for alerts
+      timeout: ${ALERT_TIMEOUT:-10s}
+      
+      # Path prefix
+      path_prefix: /
+      
+      # Scheme
+      scheme: http
+
+# ================================ RULE FILES ================================
+# Alert and recording rules
+rule_files:
+  # System alerts
+  - '/etc/prometheus/rules/system-alerts.yml'
+  
+  # Trading alerts
+  - '/etc/prometheus/rules/trading-alerts.yml'
+  
+  # SLA rules
+  - '/etc/prometheus/rules/sla-rules.yml'
+  
+  # Anomaly detection rules
+  - '/etc/prometheus/rules/anomaly-rules.yml'
+  
+  # Recording rules for dashboards
+  - '/etc/prometheus/rules/recording-rules.yml'
+
+# ================================ EXPERIMENTAL FEATURES ================================
+# Enable experimental features with flags:
+# --enable-feature=native-histograms
+# --enable-feature=created-timestamp-ingestion
+# --enable-feature=promql-experimental-functions
+# --enable-feature=remote-write-receiver
+# --enable-feature=otlp-write-receiver
+# --enable-feature=concurrent-rule-eval
+# --enable-feature=delayed-compaction
+# --enable-feature=old-ui (fallback UI)
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# "Wake up, samurai. We have a system to monitor." - Johnny Silverhand
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
