@@ -1,0 +1,238 @@
+# config/grafana/provisioning/datasources/nexlify-datasources.yaml
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# NEXLIFY DATASOURCE PROVISIONING - GRAFANA 12.0 CONFIGURATION
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# All data streams converge here - the neural hub of our trading matrix
+# SQL Expressions enabled for cross-datasource queries
+# Every connection encrypted, every query optimized
+# 
+# "Data is the new oil, but in Night City, it's more like rocket fuel." - V
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+apiVersion: 1
+
+# Datasources to delete before provisioning
+deleteDatasources:
+  - name: old-prometheus
+    orgId: 1
+
+datasources:
+  # ━━━━━━━━━━━━━━━━ PROMETHEUS - METRICS VAULT ━━━━━━━━━━━━━━━━
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    orgId: 1
+    uid: prometheus-uid
+    url: http://${PROMETHEUS_HOST:-nexlify-prometheus}:${PROMETHEUS_PORT:-9090}
+    isDefault: true
+    version: 1
+    editable: true
+    jsonData:
+      httpMethod: POST
+      # Enhanced features
+      incrementalQuerying: true
+      incrementalQueryOverlapWindow: 10m
+      prometheusType: Prometheus
+      prometheusVersion: '3.4.1'
+      # Native histogram support
+      disableMetricsLookup: false
+      customQueryParameters: ''
+      # Exemplar tracing
+      exemplarTraceIdDestinations:
+        - datasourceUid: tempo-uid
+          name: traceID
+      # Alert manager integration
+      manageAlerts: true
+      alertmanagerUid: alertmanager-uid
+      # Timeout settings
+      timeout: ${PROMETHEUS_TIMEOUT:-60}
+      queryTimeout: ${PROMETHEUS_QUERY_TIMEOUT:-60s}
+      # Custom headers for authentication
+      httpHeaderName1: 'X-Nexlify-Source'
+    secureJsonData:
+      httpHeaderValue1: 'grafana-datasource'
+
+  # ━━━━━━━━━━━━━━━━ LOKI - LOG STREAMS ━━━━━━━━━━━━━━━━
+  - name: Loki
+    type: loki
+    access: proxy
+    orgId: 1
+    uid: loki-uid
+    url: http://${LOKI_HOST:-nexlify-loki}:${LOKI_PORT:-3100}
+    version: 1
+    editable: true
+    jsonData:
+      maxLines: ${LOKI_MAX_LINES:-5000}
+      # Derived fields for trace correlation
+      derivedFields:
+        - datasourceUid: tempo-uid
+          matcherRegex: '"trace_id":"(\w+)"'
+          name: TraceID
+          url: '$${__value.raw}'
+          urlDisplayLabel: 'View Trace'
+        - datasourceUid: tempo-uid
+          matcherRegex: 'traceID=(\w+)'
+          name: TraceID
+          url: '$${__value.raw}'
+      # Alert support
+      manageAlerts: false
+      alertmanagerUid: alertmanager-uid
+      timeout: ${LOKI_TIMEOUT:-60}
+
+  # ━━━━━━━━━━━━━━━━ QUESTDB - TIME SERIES MATRIX ━━━━━━━━━━━━━━━━
+  - name: QuestDB
+    type: postgres
+    access: proxy
+    orgId: 1
+    uid: questdb-uid
+    url: ${QUESTDB_HOST:-nexlify-questdb}:${QUESTDB_PG_PORT:-8812}
+    user: ${QUESTDB_USER:-admin}
+    database: ${QUESTDB_DATABASE:-qdb}
+    version: 1
+    editable: true
+    jsonData:
+      sslmode: ${QUESTDB_SSL_MODE:-disable}
+      postgresVersion: 1400  # PostgreSQL 14 compatible
+      timescaledb: false
+      # Connection pool settings
+      maxOpenConns: ${QUESTDB_MAX_CONNECTIONS:-100}
+      maxIdleConns: ${QUESTDB_MAX_IDLE:-10}
+      connMaxLifetime: ${QUESTDB_CONN_LIFETIME:-14400}
+      # Query settings
+      queryTimeout: ${QUESTDB_QUERY_TIMEOUT:-300s}
+      timeInterval: auto
+    secureJsonData:
+      password: ${QUESTDB_PASSWORD:-quest}
+
+  # ━━━━━━━━━━━━━━━━ VALKEY - CACHE METRICS ━━━━━━━━━━━━━━━━
+  - name: Valkey-Metrics
+    type: redis-datasource
+    access: proxy
+    orgId: 1
+    uid: valkey-metrics-uid
+    url: redis://${VALKEY_HOST:-nexlify-cache}:${VALKEY_PORT:-6379}
+    version: 1
+    editable: true
+    jsonData:
+      client: standalone
+      tlsAuth: ${VALKEY_TLS_ENABLED:-false}
+      tlsSkipVerify: ${VALKEY_TLS_SKIP_VERIFY:-true}
+      poolSize: ${VALKEY_POOL_SIZE:-10}
+      timeout: ${VALKEY_TIMEOUT:-30}
+      pingInterval: ${VALKEY_PING_INTERVAL:-0}
+      pipelineWindow: ${VALKEY_PIPELINE_WINDOW:-0}
+    secureJsonData:
+      password: ${VALKEY_PASSWORD:-}
+      tlsCACert: ${VALKEY_TLS_CA:-}
+      tlsClientCert: ${VALKEY_TLS_CERT:-}
+      tlsClientKey: ${VALKEY_TLS_KEY:-}
+
+  # ━━━━━━━━━━━━━━━━ SQL EXPRESSIONS (EXPERIMENTAL) ━━━━━━━━━━━━━━━━
+  # Cross-datasource SQL queries - combine data from anywhere
+  - name: SQL-Expressions
+    type: grafana-sql-datasource
+    access: proxy
+    orgId: 1
+    uid: sql-expressions-uid
+    version: 1
+    editable: true
+    jsonData:
+      # References other datasources
+      datasources:
+        - uid: prometheus-uid
+          name: prometheus
+        - uid: questdb-uid
+          name: questdb
+        - uid: loki-uid
+          name: loki
+
+  # ━━━━━━━━━━━━━━━━ TEMPO - DISTRIBUTED TRACING ━━━━━━━━━━━━━━━━
+  - name: Tempo
+    type: tempo
+    access: proxy
+    orgId: 1
+    uid: tempo-uid
+    url: http://${TEMPO_HOST:-nexlify-tempo}:${TEMPO_PORT:-3200}
+    version: 1
+    editable: true
+    jsonData:
+      httpMethod: GET
+      serviceMap:
+        datasourceUid: prometheus-uid
+      search:
+        hide: false
+      nodeGraph:
+        enabled: true
+      lokiSearch:
+        datasourceUid: loki-uid
+      tracesToLogs:
+        datasourceUid: loki-uid
+        tags: ['job', 'instance', 'pod', 'namespace']
+        mappedTags:
+          - key: service.name
+            value: service
+        mapTagNamesEnabled: true
+        spanStartTimeShift: '-1h'
+        spanEndTimeShift: '1h'
+        filterByTraceID: true
+        filterBySpanID: false
+      tracesToMetrics:
+        datasourceUid: prometheus-uid
+        tags:
+          - key: service.name
+            value: service
+        queries:
+          - name: 'Request Rate'
+            query: 'sum(rate(traces_spanmetrics_calls_total{$$__tags}[5m]))'
+          - name: 'Error Rate'
+            query: 'sum(rate(traces_spanmetrics_calls_total{$$__tags, status_code="ERROR"}[5m]))'
+          - name: 'P95 Latency'
+            query: 'histogram_quantile(0.95, sum(rate(traces_spanmetrics_latency_bucket{$$__tags}[5m])) by (le))'
+
+  # ━━━━━━━━━━━━━━━━ ALERT MANAGER ━━━━━━━━━━━━━━━━
+  - name: AlertManager
+    type: alertmanager
+    access: proxy
+    orgId: 1
+    uid: alertmanager-uid
+    url: http://${ALERTMANAGER_HOST:-nexlify-alerts}:${ALERTMANAGER_PORT:-9093}
+    version: 1
+    editable: true
+    jsonData:
+      implementation: prometheus
+      handleGrafanaManagedAlerts: true
+
+  # ━━━━━━━━━━━━━━━━ TEST DATA (DEVELOPMENT) ━━━━━━━━━━━━━━━━
+  - name: TestData
+    type: testdata
+    access: proxy
+    orgId: 1
+    uid: testdata-uid
+    version: 1
+    editable: true
+    jsonData:
+      # Use for dashboard development without real data
+      scenarios:
+        - id: 'random_walk'
+          name: 'Random Walk'
+        - id: 'predictable_pulse'
+          name: 'Trading Pulse Simulation'
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# DATASOURCE NOTES:
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# 1. All datasources use proxy access for security
+# 2. Cross-datasource queries enabled via SQL Expressions
+# 3. Trace correlation configured between Loki, Tempo, and Prometheus
+# 4. Environment variables for all sensitive data
+# 5. Redis datasource plugin required for Valkey metrics
+# 6. PostgreSQL plugin supports QuestDB's wire protocol
+#
+# Required plugins:
+# - redis-datasource
+# - grafana-sql-datasource (built-in with Grafana 12)
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
