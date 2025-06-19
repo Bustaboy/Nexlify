@@ -1,0 +1,302 @@
+# compose/monitoring.yaml
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# NEXLIFY MONITORING STACK - Full Observability Suite
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Prometheus 3.4.1 (first major release in 7 years!)
+# Grafana 12.0.1 with dashboard-as-code
+# Vector 0.47.0 for log aggregation
+
+services:
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # 📈 PROMETHEUS - Metrics collection with Remote Write 2.0
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  prometheus:
+    image: cgr.dev/chainguard/prometheus:latest
+    container_name: nexlify-metrics
+    profiles: ["monitoring", "full"]
+    hostname: prometheus
+    user: "65534:65534"  # nobody user
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}'
+      - '--storage.tsdb.retention.size=${PROMETHEUS_RETENTION_SIZE:-10GB}'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.enable-remote-write-receiver'
+      - '--enable-feature=otlp-receiver'  # Native OTLP ingestion
+      - '--enable-feature=remote-write-v2'  # 90% memory reduction
+      - '--enable-feature=native-histograms'
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 100M
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      monitoring:
+        aliases:
+          - prometheus.monitoring
+      backend:
+      database:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '${PROMETHEUS_CPU_LIMIT:-2.0}'
+          memory: ${PROMETHEUS_MEMORY_LIMIT:-4G}
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service=monitoring,component=prometheus"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # 📊 GRAFANA - Visualization with cyberpunk theming
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  grafana:
+    image: cgr.dev/chainguard/grafana:latest
+    container_name: nexlify-dashboards
+    profiles: ["monitoring", "full"]
+    hostname: grafana
+    user: "472:472"  # grafana user
+    environment:
+      # Basic Configuration
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana_password
+      - GF_INSTALL_PLUGINS=${GRAFANA_PLUGINS:-}
+      
+      # Cyberpunk Theme
+      - GF_USERS_DEFAULT_THEME=dark
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/nexlify-overview.json
+      
+      # Performance Settings
+      - GF_RENDERING_CONCURRENT_RENDER_LIMIT=10
+      - GF_DATABASE_WAL=true
+      - GF_QUERY_RETRIES=3
+      
+      # Feature Flags
+      - GF_FEATURE_TOGGLES_ENABLE=dashboardPreviews,newPanelChromeUI,publicDashboards
+    secrets:
+      - source: grafana_password
+        target: /run/secrets/grafana_password
+        mode: 0400
+    volumes:
+      - ./config/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 100M
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    networks:
+      monitoring:
+        aliases:
+          - grafana.monitoring
+      frontend:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '${GRAFANA_CPU_LIMIT:-1.0}'
+          memory: ${GRAFANA_MEMORY_LIMIT:-1G}
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service=monitoring,component=grafana"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # 📋 VECTOR - Log aggregation with VRL transforms
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  vector:
+    image: cgr.dev/chainguard/vector:latest
+    container_name: nexlify-logs
+    profiles: ["monitoring", "full"]
+    hostname: vector
+    user: "1000:1000"
+    environment:
+      - VECTOR_CONFIG=/etc/vector/vector.toml
+      - VECTOR_REQUIRE_HEALTHY=true
+    volumes:
+      - ./config/vector/vector.toml:/etc/vector/vector.toml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - vector-data:/var/lib/vector
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 500M
+    ports:
+      - "${VECTOR_API_PORT:-8686}:8686"    # API
+      - "${VECTOR_SYSLOG_PORT:-514}:514/udp"  # Syslog
+    healthcheck:
+      test: ["CMD", "vector", "health", "--config", "/etc/vector/vector.toml"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      monitoring:
+        aliases:
+          - vector.monitoring
+      backend:
+      database:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '${VECTOR_CPU_LIMIT:-2.0}'
+          memory: ${VECTOR_MEMORY_LIMIT:-2G}
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+        labels: "service=monitoring,component=vector"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # 🎯 PROMETHEUS PUSHGATEWAY - For batch job metrics
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  prometheus-push:
+    image: cgr.dev/chainguard/prometheus-pushgateway:latest
+    container_name: nexlify-pushgateway
+    profiles: ["monitoring", "full"]
+    hostname: prometheus-push
+    ports:
+      - "${PUSHGATEWAY_PORT:-9091}:9091"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9091/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      monitoring:
+        aliases:
+          - prometheus-push.monitoring
+      backend:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=monitoring,component=pushgateway"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # 📡 NODE EXPORTER - Host metrics collection
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  node-exporter:
+    image: cgr.dev/chainguard/prometheus-node-exporter:latest
+    container_name: nexlify-node-exporter
+    profiles: ["monitoring", "full"]
+    hostname: node-exporter
+    pid: host
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/host'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - '--collector.netclass.ignored-devices=^(veth.*|docker.*|lo)$$'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host:ro
+    ports:
+      - "${NODE_EXPORTER_PORT:-9100}:9100"
+    networks:
+      monitoring:
+        aliases:
+          - node-exporter.monitoring
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 32M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=monitoring,component=node-exporter"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# VOLUMES - Monitoring data persistence
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+volumes:
+  prometheus-data:
+    name: nexlify-prometheus-data
+    driver: local
+    labels:
+      com.nexlify.volume.type: "metrics"
+      com.nexlify.volume.retention: "30d"
+
+  grafana-data:
+    name: nexlify-grafana-data
+    driver: local
+    labels:
+      com.nexlify.volume.type: "dashboards"
+      com.nexlify.volume.backup: "daily"
+
+  vector-data:
+    name: nexlify-vector-data
+    driver: local
+    driver_opts:
+      o: "size=5g"
+    labels:
+      com.nexlify.volume.type: "logs"
+      com.nexlify.volume.retention: "7d"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SECRETS - Monitoring stack credentials
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+secrets:
+  grafana_password:
+    file: ./secrets/grafana_password.txt
