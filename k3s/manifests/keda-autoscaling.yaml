@@ -1,0 +1,214 @@
+# keda-autoscaling.yaml
+# 🌊 KEDA EVENT-DRIVEN AUTOSCALING - RIDE THE VOLATILITY WAVE
+# Location: k3s/manifests/keda-autoscaling.yaml
+# When the market bleeds, we scale. When it dreams, we profit.
+---
+# First, ensure KEDA is installed in your cluster:
+# helm repo add kedacore https://kedacore.github.io/charts
+# helm install keda kedacore/keda --namespace keda-system --create-namespace
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: nexlify-volatility-scaler
+  namespace: nexlify-trading
+  labels:
+    app: nexlify
+    scaler-type: market-volatility
+spec:
+  scaleTargetRef:
+    name: nexlify-trading-engine
+    kind: Deployment
+  
+  # Scale between 3 and 100 pods based on market conditions
+  minReplicaCount: 3
+  maxReplicaCount: 100
+  
+  # Don't scale down during market hours - learned this from the Tokyo incident
+  cooldownPeriod: 300  # 5 minutes
+  
+  # Advanced scaling behavior - aggressive up, cautious down
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 0  # Scale immediately on volatility
+          policies:
+          - type: Percent
+            value: 100  # Double pods every 60 seconds if needed
+            periodSeconds: 60
+          - type: Pods
+            value: 10   # Or add 10 pods at once
+            periodSeconds: 60
+          selectPolicy: Max  # Use most aggressive policy
+        scaleDown:
+          stabilizationWindowSeconds: 600  # Wait 10 min before scaling down
+          policies:
+          - type: Percent
+            value: 10   # Only remove 10% at a time
+            periodSeconds: 300  # Every 5 minutes
+  
+  triggers:
+  # Trigger 1: Market Volatility Index (VIX equivalent for crypto)
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus:9090
+      metricName: crypto_volatility_index
+      threshold: '25'  # VIX > 25 = fear in the streets
+      query: |
+        avg_over_time(
+          nexlify_market_volatility{
+            exchange="coinbase",
+            symbol=~"BTC.*|ETH.*"
+          }[5m]
+        )
+      activationThreshold: '15'  # Start watching at VIX 15
+  
+  # Trigger 2: Order Queue Depth - when the streets get busy
+  - type: redis  # Works with Valkey too
+    metadata:
+      address: valkey-service.nexlify-trading.svc.cluster.local:6379
+      listName: nexlify:order:queue
+      listLength: '1000'  # Scale when queue > 1000 orders
+      activationListLength: '500'  # Start watching at 500
+  
+  # Trigger 3: API Request Rate - when everyone wants a piece
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus:9090
+      metricName: api_request_rate
+      threshold: '10000'  # 10k requests per minute
+      query: |
+        sum(rate(
+          haproxy_http_requests_total{
+            backend="nexlify-trading-service"
+          }[1m]
+        )) * 60
+  
+  # Trigger 4: Error Rate - scale when things get dicey
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus:9090
+      metricName: error_rate_percentage
+      threshold: '5'  # 5% error rate
+      query: |
+        (sum(rate(nexlify_errors_total[1m])) / 
+         sum(rate(nexlify_requests_total[1m]))) * 100
+---
+# ML Inference Autoscaler - for when predictions matter most
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: ml-inference-gpu-scaler
+  namespace: nexlify-trading
+  labels:
+    app: nexlify
+    scaler-type: ml-load
+spec:
+  scaleTargetRef:
+    name: ml-inference-engine
+    kind: Deployment
+  
+  minReplicaCount: 1  # Always keep one warm GPU
+  maxReplicaCount: 8  # Based on your GPU node count
+  
+  cooldownPeriod: 600  # GPUs take time to warm up
+  
+  triggers:
+  # GPU utilization trigger
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus:9090
+      metricName: gpu_utilization
+      threshold: '80'  # Scale at 80% GPU usage
+      query: |
+        avg(
+          DCGM_FI_DEV_GPU_UTIL{
+            pod=~"ml-inference-engine-.*"
+          }
+        )
+  
+  # Inference queue depth
+  - type: redis
+    metadata:
+      address: valkey-service.nexlify-trading.svc.cluster.local:6379
+      streamName: nexlify:ml:inference:stream
+      pendingEntriesCount: '1000'
+      consumerGroup: ml-inference-group
+---
+# Time-based scaler for market hours - pre-scale for the rush
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: market-hours-scaler
+  namespace: nexlify-trading
+  labels:
+    app: nexlify
+    scaler-type: time-based
+spec:
+  scaleTargetRef:
+    name: nexlify-trading-engine
+    kind: Deployment
+  
+  minReplicaCount: 3   # Off-hours minimum
+  maxReplicaCount: 50  # Market hours capacity
+  
+  triggers:
+  # US Market Hours (NYSE: 9:30 AM - 4:00 PM EST)
+  - type: cron
+    metadata:
+      timezone: America/New_York
+      start: "25 9 * * 1-5"  # 5 minutes before open
+      end: "5 16 * * 1-5"   # 5 minutes after close
+      desiredReplicas: "20" # Pre-scale to 20 pods
+  
+  # Crypto is 24/7 but has patterns - Asian markets wake up
+  - type: cron
+    metadata:
+      timezone: Asia/Tokyo
+      start: "55 8 * * *"   # Tokyo market influence
+      end: "5 17 * * *"
+      desiredReplicas: "15"
+  
+  # European markets
+  - type: cron
+    metadata:
+      timezone: Europe/London
+      start: "55 7 * * 1-5"
+      end: "5 16 * * 1-5"
+      desiredReplicas: "15"
+---
+# ScaledJob for batch processing during quiet hours
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: market-analysis-batch
+  namespace: nexlify-trading
+spec:
+  jobTargetRef:
+    template:
+      metadata:
+        labels:
+          app: nexlify
+          job-type: batch-analysis
+      spec:
+        containers:
+        - name: batch-processor
+          image: nexlify/batch-analyzer:latest
+          resources:
+            requests:
+              memory: "4Gi"
+              cpu: "2"
+        restartPolicy: OnFailure
+  
+  minReplicaCount: 0
+  maxReplicaCount: 20
+  
+  triggers:
+  # Run when order queue is empty (quiet market)
+  - type: redis
+    metadata:
+      address: valkey-service.nexlify-trading.svc.cluster.local:6379
+      listName: nexlify:order:queue
+      listLength: '50'  # Scale up batch when queue < 50
+      activationListLength: '100'
