@@ -1,0 +1,256 @@
+# nexlify-core-deployment.yaml
+# 🧠 NEXLIFY CORE TRADING ENGINE - K3S DEPLOYMENT
+# Location: k3s/manifests/nexlify-core-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexlify-trading-engine
+  namespace: nexlify-trading
+  labels:
+    app: nexlify
+    component: trading-engine
+    version: v4.0.0
+spec:
+  replicas: 3  # High availability trio
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0  # Zero downtime deployments
+  selector:
+    matchLabels:
+      app: nexlify
+      component: trading-engine
+  template:
+    metadata:
+      labels:
+        app: nexlify
+        component: trading-engine
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      # Anti-affinity for spreading across nodes
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - nexlify
+            topologyKey: kubernetes.io/hostname
+      
+      # Security context - locked down tighter than Arasaka HQ
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      
+      # Service account for RBAC
+      serviceAccountName: nexlify-trader
+      
+      containers:
+      - name: trading-engine
+        image: chainguard/python:latest-dev  # Minimal CVE surface
+        imagePullPolicy: Always
+        
+        # Command override for our trading bot
+        command: ["/app/nexlify_launcher.py"]
+        args: ["--jack-in", "--exchange", "coinbase", "--mode", "production"]
+        
+        # Security context for container
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+        
+        # Resource management - tuned for RTX 2070 nodes
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "2"
+            ephemeral-storage: "10Gi"
+          limits:
+            memory: "4Gi"
+            cpu: "4"
+            ephemeral-storage: "20Gi"
+        
+        # Environment configuration
+        env:
+        - name: NEXLIFY_ENV
+          value: "production"
+        - name: NEXLIFY_EXCHANGE
+          value: "coinbase"
+        - name: NEXLIFY_LOG_LEVEL
+          value: "INFO"
+        - name: QUESTDB_HOST
+          value: "questdb-service.nexlify-trading.svc.cluster.local"
+        - name: QUESTDB_PORT
+          value: "9000"
+        - name: VALKEY_HOST
+          value: "valkey-service.nexlify-trading.svc.cluster.local"
+        - name: VALKEY_PORT
+          value: "6379"
+        - name: GPU_INFERENCE_ENDPOINT
+          value: "http://ml-inference-service:8080"
+        
+        # Secrets mounted from External Secrets Operator
+        - name: COINBASE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: nexlify-exchange-secrets
+              key: coinbase-api-key
+        - name: COINBASE_API_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: nexlify-exchange-secrets
+              key: coinbase-api-secret
+        
+        # Volume mounts
+        volumeMounts:
+        - name: app-code
+          mountPath: /app
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        - name: cache
+          mountPath: /app/.cache
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        
+        # Probes for K3s health management
+        startupProbe:
+          httpGet:
+            path: /health/startup
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 30
+        
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8080
+          initialDelaySeconds: 20
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        
+        # Ports
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+      
+      # Sidecar container for log shipping
+      - name: log-shipper
+        image: chainguard/vector:latest
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+        volumeMounts:
+        - name: logs
+          mountPath: /logs
+          readOnly: true
+        - name: vector-config
+          mountPath: /etc/vector
+          readOnly: true
+      
+      # Init container to verify dependencies
+      initContainers:
+      - name: wait-for-questdb
+        image: chainguard/busybox:latest
+        command: ['sh', '-c']
+        args:
+        - |
+          until nc -z questdb-service.nexlify-trading.svc.cluster.local 9000; do
+            echo "Waiting for QuestDB to jack in..."
+            sleep 2
+          done
+          echo "QuestDB neural link established!"
+      
+      # Volumes
+      volumes:
+      - name: app-code
+        configMap:
+          name: nexlify-app-code
+          defaultMode: 0755
+      - name: tmp
+        emptyDir:
+          sizeLimit: 1Gi
+      - name: cache
+        emptyDir:
+          sizeLimit: 5Gi
+      - name: config
+        configMap:
+          name: nexlify-config
+      - name: logs
+        emptyDir:
+          sizeLimit: 1Gi
+      - name: vector-config
+        configMap:
+          name: vector-config
+---
+# Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nexlify-trader
+  namespace: nexlify-trading
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: nexlify-trading-service
+  namespace: nexlify-trading
+  labels:
+    app: nexlify
+    component: trading-engine
+spec:
+  type: ClusterIP
+  selector:
+    app: nexlify
+    component: trading-engine
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
