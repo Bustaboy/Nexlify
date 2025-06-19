@@ -1,0 +1,84 @@
+# nexlify-namespace.yaml
+# 🌃 NEXLIFY TRADING MATRIX - K3S NAMESPACE CONFIGURATION
+# Location: k3s/manifests/nexlify-namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nexlify-trading
+  labels:
+    app: nexlify
+    environment: production
+    # Pod Security Standards - Financial grade lockdown
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    description: "Cyberpunk crypto trading neural network"
+---
+# Resource Quotas - Prevent runaway resource consumption
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: nexlify-quota
+  namespace: nexlify-trading
+spec:
+  hard:
+    requests.cpu: "100"
+    requests.memory: "200Gi"
+    requests.storage: "10Ti"
+    persistentvolumeclaims: "50"
+    services.loadbalancers: "2"
+---
+# Network Policies - Zero trust architecture
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nexlify-network-policy
+  namespace: nexlify-trading
+spec:
+  podSelector:
+    matchLabels:
+      app: nexlify
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: nexlify-trading
+    - podSelector:
+        matchLabels:
+          app: nexlify
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: nexlify-trading
+  - to:
+    - podSelector:
+        matchLabels:
+          app: nexlify
+  # Allow DNS
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+  # Allow external API calls (exchanges)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 169.254.169.254/32  # Block metadata service
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
