@@ -1,0 +1,348 @@
+# monitoring-stack.yaml
+# 👁️ PROMETHEUS + GRAFANA - SEE EVERYTHING, MISS NOTHING
+# Location: k3s/manifests/monitoring-stack.yaml
+# In Night City, what you don't see can flatline you
+---
+# Prometheus Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: nexlify-trading
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 1s      # Real-time for trading metrics
+      evaluation_interval: 1s   # Hair-trigger alerts
+      
+      # External labels for federation/remote write
+      external_labels:
+        cluster: 'nexlify-production'
+        region: 'night-city-west'
+    
+    # Alerting configuration
+    alerting:
+      alertmanagers:
+      - static_configs:
+        - targets: ['alertmanager:9093']
+    
+    # Load rules
+    rule_files:
+      - '/etc/prometheus/rules/*.yml'
+    
+    # Scrape configurations - the neural pathways
+    scrape_configs:
+    # Trading engine metrics - 1 second resolution
+    - job_name: 'nexlify-trading'
+      scrape_interval: 1s
+      metrics_path: '/metrics'
+      kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: ['nexlify-trading']
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        action: keep
+        regex: nexlify
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: 'true'
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        target_label: __address__
+        regex: ([^:]+)(?::\d+)?
+        replacement: $1:${2}
+    
+    # Critical order flow - 100ms scraping
+    - job_name: 'order-flow-critical'
+      scrape_interval: 100ms
+      metrics_path: '/metrics'
+      static_configs:
+      - targets: ['nexlify-trading-service:9090']
+        labels:
+          priority: 'critical'
+          subsystem: 'orders'
+    
+    # GPU metrics from DCGM
+    - job_name: 'gpu-metrics'
+      scrape_interval: 5s
+      static_configs:
+      - targets: ['ml-inference-service:9400']
+        labels:
+          hardware: 'gpu'
+          model: 'rtx-2070'
+    
+    # QuestDB metrics
+    - job_name: 'questdb'
+      scrape_interval: 10s
+      static_configs:
+      - targets: ['questdb-service:9003']
+    
+    # HAProxy metrics
+    - job_name: 'haproxy'
+      scrape_interval: 5s
+      static_configs:
+      - targets: ['haproxy-ingress:9101']
+    
+    # Valkey/Redis metrics
+    - job_name: 'valkey'
+      scrape_interval: 10s
+      static_configs:
+      - targets: ['valkey-service:9121']
+---
+# Alert Rules - when the streets get dangerous
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: nexlify-trading
+data:
+  trading-alerts.yml: |
+    groups:
+    - name: trading_critical
+      interval: 10s
+      rules:
+      # Market maker spread too wide
+      - alert: SpreadTooWide
+        expr: nexlify_spread_percentage > 0.5
+        for: 30s
+        labels:
+          severity: critical
+          team: trading
+        annotations:
+          summary: "Spread > 0.5% on {{ $labels.symbol }}"
+          description: "Market maker spread is {{ $value }}% - potential liquidity crisis"
+      
+      # Order latency spike
+      - alert: OrderLatencyHigh
+        expr: histogram_quantile(0.99, nexlify_order_latency_seconds) > 0.1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P99 order latency > 100ms"
+          description: "Orders taking {{ $value }}s - investigate immediately"
+      
+      # GPU memory pressure
+      - alert: GPUMemoryPressure
+        expr: DCGM_FI_DEV_FB_USED / DCGM_FI_DEV_FB_FREE > 0.9
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GPU memory > 90% on {{ $labels.gpu }}"
+      
+      # Exchange API degradation
+      - alert: ExchangeAPIErrors
+        expr: rate(nexlify_exchange_errors_total[1m]) > 10
+        for: 30s
+        labels:
+          severity: critical
+          exchange: "{{ $labels.exchange }}"
+        annotations:
+          summary: "Exchange API throwing errors"
+          description: "{{ $labels.exchange }} API error rate: {{ $value }}/sec"
+---
+# Prometheus Deployment
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: prometheus
+  namespace: nexlify-trading
+spec:
+  serviceName: prometheus
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      serviceAccountName: prometheus
+      securityContext:
+        fsGroup: 65534
+        runAsUser: 65534
+        runAsNonRoot: true
+      
+      containers:
+      - name: prometheus
+        image: prom/prometheus:v2.45.0
+        args:
+        - '--config.file=/etc/prometheus/prometheus.yml'
+        - '--storage.tsdb.path=/prometheus'
+        - '--storage.tsdb.retention.time=30d'
+        - '--storage.tsdb.retention.size=100GB'
+        - '--web.enable-lifecycle'
+        - '--web.enable-admin-api'
+        
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1"
+          limits:
+            memory: "4Gi"
+            cpu: "2"
+        
+        ports:
+        - name: web
+          containerPort: 9090
+        
+        volumeMounts:
+        - name: config
+          mountPath: /etc/prometheus
+        - name: rules
+          mountPath: /etc/prometheus/rules
+        - name: storage
+          mountPath: /prometheus
+      
+      volumes:
+      - name: config
+        configMap:
+          name: prometheus-config
+      - name: rules
+        configMap:
+          name: prometheus-rules
+  
+  volumeClaimTemplates:
+  - metadata:
+      name: storage
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: longhorn-ssd
+      resources:
+        requests:
+          storage: 100Gi
+---
+# Grafana Deployment - where data becomes art
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: nexlify-trading
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      securityContext:
+        fsGroup: 472
+        runAsUser: 472
+        runAsNonRoot: true
+      
+      containers:
+      - name: grafana
+        image: grafana/grafana:11.0.0
+        
+        env:
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: grafana-secrets
+              key: admin-password
+        - name: GF_INSTALL_PLUGINS
+          value: "grafana-clock-panel,grafana-simple-json-datasource,grafana-worldmap-panel"
+        - name: GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH
+          value: "/var/lib/grafana/dashboards/nexlify-trading.json"
+        
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1"
+        
+        ports:
+        - name: web
+          containerPort: 3000
+        
+        volumeMounts:
+        - name: storage
+          mountPath: /var/lib/grafana
+        - name: dashboards
+          mountPath: /var/lib/grafana/dashboards
+        - name: datasources
+          mountPath: /etc/grafana/provisioning/datasources
+      
+      volumes:
+      - name: storage
+        emptyDir: {}
+      - name: dashboards
+        configMap:
+          name: grafana-dashboards
+      - name: datasources
+        configMap:
+          name: grafana-datasources
+---
+# Services
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: nexlify-trading
+spec:
+  type: ClusterIP
+  selector:
+    app: prometheus
+  ports:
+  - name: web
+    port: 9090
+    targetPort: 9090
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: nexlify-trading
+spec:
+  type: LoadBalancer
+  selector:
+    app: grafana
+  ports:
+  - name: web
+    port: 3000
+    targetPort: 3000
+---
+# RBAC for Prometheus
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: nexlify-trading
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus
+rules:
+- apiGroups: [""]
+  resources:
+  - nodes
+  - services
+  - endpoints
+  - pods
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources:
+  - configmaps
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus
+subjects:
+- kind: ServiceAccount
+  name: prometheus
+  namespace: nexlify-trading
