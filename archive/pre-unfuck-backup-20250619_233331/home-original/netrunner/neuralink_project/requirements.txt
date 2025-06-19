@@ -1,0 +1,57 @@
+# /home/netrunner/neuralink_project/requirements.txt
+# NEXUS-7 Python Dependencies
+# "The chrome your deck needs to run the future"
+
+# Core numerical computing
+numpy>=1.21.0,<2.0.0
+numba>=0.56.0  # JIT compilation for street-level speed
+
+# System monitoring and optimization
+psutil>=5.9.0  # Hardware detection and monitoring
+
+# Data handling
+pyyaml>=6.0  # Configuration file parsing
+h5py>=3.7.0  # Efficient data storage
+
+# Parallel processing
+multiprocess>=0.70.0  # Better multiprocessing
+
+# Testing
+pytest>=7.0.0
+pytest-benchmark>=3.4.0
+pytest-cov>=4.0.0
+
+# Logging and monitoring
+colorlog>=6.6.0  # Colored logging for that cyberpunk aesthetic
+
+# Optional GPU acceleration (uncomment if you have the chrome)
+# cupy>=11.0.0  # GPU arrays (requires CUDA)
+# pycuda>=2022.1  # Direct CUDA access
+
+# Development tools
+black>=22.0.0  # Code formatting
+flake8>=5.0.0  # Linting
+mypy>=0.990  # Type checking
+ipython>=8.0.0  # Enhanced interactive shell
+
+# Documentation
+sphinx>=5.0.0
+sphinx-rtd-theme>=1.0.0
+
+# Performance profiling
+line-profiler>=3.5.0
+memory-profiler>=0.60.0
+
+# Data visualization (for debugging and monitoring)
+matplotlib>=3.5.0
+seaborn>=0.12.0
+
+# Network communication (if using actual data streams)
+# pyzmq>=23.0.0  # ZeroMQ for data streams
+# msgpack>=1.0.0  # Efficient serialization
+
+# Time series specific
+# statsmodels>=0.13.0  # Statistical models
+
+# Version-specific pins for stability
+# These ensure consistent behavior across different systems

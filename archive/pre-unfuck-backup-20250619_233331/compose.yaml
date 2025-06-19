@@ -1,0 +1,170 @@
+# compose.yaml
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# NEXLIFY CYBERPUNK TRADING MATRIX - MAIN ORCHESTRATOR
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Compose Specification Format - No version declaration (2025 standard)
+# Uses include directive for true modular architecture
+# 
+# Usage:
+#   Development: docker compose --profile dev up
+#   Core only: docker compose --profile core up  
+#   Full stack: docker compose --profile full up
+#   With GPU: docker compose --profile gpu up
+#
+# Required: .env file with configuration (see .env.example)
+
+name: nexlify-matrix
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# MODULAR ARCHITECTURE - Include directive for clean separation
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+include:
+  - path: compose/networks.yaml      # Zero-trust network architecture
+  - path: compose/core.yaml          # Core trading services
+  - path: compose/monitoring.yaml    # Prometheus, Grafana, Vector
+    env_file: .env.monitoring        # Optional monitoring-specific config
+  - path: compose/ml.yaml            # ML/AI services with GPU support
+    profiles: ["gpu", "ml"]          # Only loaded with GPU profile
+  - path: compose/dev.yaml           # Development tools (hot-reload, docs)
+    profiles: ["dev"]                # Only in dev mode
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# GATEWAY SERVICE - Main entry point with TLS termination
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+services:
+  # 🌐 API GATEWAY - Nginx with Post-Quantum Crypto ready
+  nexlify-gateway:
+    image: cgr.dev/chainguard/nginx:latest
+    container_name: nexlify-gateway
+    profiles: ["core", "full", "production"]
+    volumes:
+      - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./config/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./secrets/certs:/etc/nginx/certs:ro
+      - type: tmpfs
+        target: /var/cache/nginx
+        tmpfs:
+          size: 100M
+    ports:
+      - "${GATEWAY_HTTP_PORT:-80}:80"
+      - "${GATEWAY_HTTPS_PORT:-443}:443"
+    environment:
+      - NGINX_ENVSUBST_TEMPLATE_DIR=/etc/nginx/templates
+      - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx/conf.d
+      - BACKEND_HOST=nexlify-core
+      - BACKEND_PORT=8888
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      nexlify-core:
+        condition: service_healthy
+    networks:
+      - frontend
+      - backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=gateway"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SECRETS CONFIGURATION - File-based secrets (no env vars!)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  api_keys:
+    file: ./secrets/api_keys.json
+  mpc_wallet_key:
+    file: ./secrets/mpc_wallet_key.pem
+  ssl_cert:
+    file: ./secrets/certs/nexlify.crt
+  ssl_key:
+    file: ./secrets/certs/nexlify.key
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# CONFIGURATION MANAGEMENT
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+configs:
+  nginx_config:
+    file: ./config/nginx/nginx.conf
+  prometheus_config:
+    file: ./config/prometheus/prometheus.yml
+  grafana_provisioning:
+    file: ./config/grafana/provisioning/
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# EXTENSION FIELDS - Reusable configuration blocks
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "50m"
+    max-file: "5"
+    labels: "project=nexlify,environment=${NEXLIFY_ENV:-development}"
+
+x-healthcheck-defaults: &healthcheck-defaults
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 40s
+
+x-resource-limits: &resource-limits
+  deploy:
+    resources:
+      limits:
+        cpus: '2.0'
+        memory: 2G
+      reservations:
+        cpus: '0.5'
+        memory: 512M
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# GLOBAL DEPLOY CONFIGURATION
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+x-deploy-policy: &deploy-policy
+  restart_policy:
+    condition: any
+    delay: 5s
+    max_attempts: 3
+    window: 120s
+  update_config:
+    parallelism: 1
+    delay: 10s
+    failure_action: rollback
+    monitor: 60s
+    max_failure_ratio: 0.3
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# BUILDX BAKE CONFIGURATION (Future-proofing)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Set COMPOSE_BAKE=1 to test Docker Buildx Bake integration
+
+x-bake-config: &bake-config
+  platforms:
+    - linux/amd64
+    - linux/arm64
+  cache_from:
+    - type=registry,ref=nexlify/cache
+  cache_to:
+    - type=registry,ref=nexlify/cache,mode=max

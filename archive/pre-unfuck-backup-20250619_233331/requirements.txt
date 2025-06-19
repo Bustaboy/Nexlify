@@ -1,0 +1,119 @@
+# Nexlify Trading Platform Requirements v2.0.8
+# Organized by category with unused dependencies removed
+
+# ====================
+# Core Dependencies
+# ====================
+# Exchange connectivity
+ccxt==4.1.22
+
+# Data processing
+pandas==2.1.3
+numpy==1.26.2
+
+# Async operations
+aiohttp==3.9.0
+asyncio==3.4.3
+websocket-client==1.6.4
+
+# Configuration
+python-dotenv==1.0.0
+pydantic==2.4.2
+
+# System monitoring
+psutil==5.9.5
+
+# Console output
+colorama==0.4.6
+
+# ====================
+# Database
+# ====================
+sqlalchemy==2.0.23
+# alembic==1.12.0  # Removed - unused for migrations
+
+# ====================
+# Security
+# ====================
+cryptography==41.0.5
+pyjwt==2.8.0
+argon2-cffi==23.1.0
+pyotp==2.9.0
+qrcode==7.4.2
+
+# ====================
+# GUI (Standard)
+# ====================
+# PyQt5 for enhanced GUI
+PyQt5==5.15.9
+PyQt5-sip==12.12.2
+pyqtgraph==0.13.3
+
+# Plotting
+matplotlib==3.8.1
+Pillow==10.1.0
+
+# ====================
+# API & Web
+# ====================
+fastapi==0.104.1
+uvicorn==0.24.0
+requests==2.31.0
+websockets==12.0
+
+# ====================
+# Utilities
+# ====================
+python-dateutil==2.8.2
+pytz==2023.3
+pyyaml==6.0.1
+
+# ====================
+# Optional - ML/AI
+# ====================
+# Uncomment for full installation with ML features:
+# scikit-learn==1.3.2
+# scipy==1.11.4
+# statsmodels==0.14.0
+# torch==2.1.0
+# tensorflow==2.15.0
+# xgboost==2.0.2
+# lightgbm==4.1.0
+
+# ====================
+# Optional - DeFi
+# ====================
+# Uncomment for DeFi/DEX features:
+# web3==6.11.3
+# eth-account==0.10.0
+
+# ====================
+# Optional - Audio
+# ====================
+# Uncomment for cyberpunk sound effects:
+# pygame==2.5.2
+
+# ====================
+# Development Only
+# ====================
+# These should be in requirements-dev.txt:
+# pytest==7.4.3
+# black==23.11.0
+# flake8==6.1.0
+# sphinx==7.2.6
+
+# ====================
+# Removed Dependencies
+# ====================
+# The following were removed as they're not used:
+# - sentry-sdk (error tracking not implemented)
+# - rich, questionary (CLI tools not used)
+# - loguru (using standard logging)
+# - py-cpuinfo, gputil (using psutil instead)
+# - jsonschema, marshmallow (validation not implemented)
+# - backoff (retry logic implemented manually)
+# - anyio, trio (using asyncio)
+# - python-json-logger (using standard logging)
+# - click (no CLI commands)
+# - zipfile38 (using standard library)
+# - py7zr (compression not implemented)

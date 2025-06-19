@@ -1,0 +1,427 @@
+# docker-compose.yml
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# NEXLIFY CYBERPUNK TRADING MATRIX - LOCAL DEVELOPMENT STACK
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# June 2025 Best Practices: Chainguard images, profiles, health checks
+# 
+# Usage:
+#   Development (hot-reload): docker compose --profile dev up
+#   Core only: docker compose --profile core up
+#   Full stack: docker compose --profile full up
+#   With GPU: docker compose --profile gpu up
+#
+# Required: .env file with configuration (see .env.example)
+
+name: nexlify-matrix
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# CORE SERVICES - Required for basic functionality
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+services:
+  # 🧠 NEURAL ENGINE - Main Trading Core
+  nexlify-core:
+    image: cgr.dev/chainguard/python:latest-dev
+    container_name: nexlify-neural-engine
+    profiles: ["core", "dev", "full", "gpu"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.core
+      args:
+        PYTHON_VERSION: ${PYTHON_VERSION:-3.12}
+        BUILD_ENV: ${BUILD_ENV:-development}
+    environment:
+      # Core Configuration
+      - NEXLIFY_ENV=${NEXLIFY_ENV:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - PYTHONUNBUFFERED=1
+      - ENABLE_HOT_RELOAD=${ENABLE_HOT_RELOAD:-true}
+      
+      # Service Discovery
+      - REDIS_URL=redis://nexlify-cache:6379/0
+      - QUESTDB_URL=postgresql://admin:quest@nexlify-timeseries:8812/nexlify
+      - PROMETHEUS_URL=http://nexlify-metrics:9090
+      
+      # Exchange Configuration (from .env)
+      - COINBASE_API_KEY=${COINBASE_API_KEY}
+      - COINBASE_API_SECRET=${COINBASE_API_SECRET}
+      - BINANCE_API_KEY=${BINANCE_API_KEY}
+      - BINANCE_API_SECRET=${BINANCE_API_SECRET}
+      
+      # Security (from .env)
+      - MPC_WALLET_CONFIG=${MPC_WALLET_CONFIG}
+      - FIREBLOCKS_API_KEY=${FIREBLOCKS_API_KEY}
+      - HSM_ENABLED=${HSM_ENABLED:-false}
+      
+      # Performance
+      - UVLOOP_ENABLED=true
+      - MAX_WORKERS=${MAX_WORKERS:-4}
+      - MEMORY_LIMIT=${MEMORY_LIMIT:-2G}
+    volumes:
+      # Hot reload for development
+      - ./src:/app/src:ro
+      - ./config:/app/config:ro
+      - ./data/logs:/app/logs
+      # Exclude Python cache
+      - /app/src/__pycache__
+      - /app/src/**/__pycache__
+    ports:
+      - "${NEXLIFY_API_PORT:-8888}:8888"  # REST API
+      - "${NEXLIFY_WS_PORT:-8889}:8889"   # WebSocket
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      nexlify-cache:
+        condition: service_healthy
+      nexlify-timeseries:
+        condition: service_healthy
+    networks:
+      - nexlify-net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '${NEXLIFY_CPU_LIMIT:-2}'
+          memory: ${NEXLIFY_MEMORY_LIMIT:-2G}
+        reservations:
+          cpus: '${NEXLIFY_CPU_RESERVE:-1}'
+          memory: ${NEXLIFY_MEMORY_RESERVE:-1G}
+
+  # 💾 CACHE MATRIX - Redis with persistence
+  nexlify-cache:
+    image: cgr.dev/chainguard/redis:latest
+    container_name: nexlify-cache-matrix
+    profiles: ["core", "dev", "full", "gpu"]
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-nexlify2025}
+      - REDIS_MAXMEMORY=${REDIS_MAXMEMORY:-1gb}
+      - REDIS_MAXMEMORY_POLICY=allkeys-lru
+    volumes:
+      - nexlify-redis-data:/data
+      - ./config/redis.conf:/etc/redis/redis.conf:ro
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nexlify-net
+    restart: unless-stopped
+    command: ["redis-server", "/etc/redis/redis.conf"]
+
+  # 📊 TIME SERIES DATABASE - QuestDB for market data
+  nexlify-timeseries:
+    image: questdb/questdb:8.1.4  # QuestDB doesn't have Chainguard image yet
+    container_name: nexlify-questdb
+    profiles: ["core", "dev", "full", "gpu"]
+    environment:
+      - QDB_LOG_LEVEL=${QDB_LOG_LEVEL:-INFO}
+      - QDB_TELEMETRY_ENABLED=false
+      - QDB_HTTP_ENABLED=true
+      - QDB_PG_ENABLED=true
+      - QDB_PG_USER=admin
+      - QDB_PG_PASSWORD=quest
+      - QDB_CAIRO_MAX_UNCOMMITTED_ROWS=1000000
+      - QDB_SHARED_WORKER_COUNT=${QDB_WORKERS:-4}
+      - JAVA_OPTS=-XX:+UseG1GC -XX:MaxGCPauseMillis=50 -Xms1g -Xmx${QDB_MEMORY:-4g}
+    volumes:
+      - nexlify-questdb-data:/var/lib/questdb
+      - ./config/questdb:/etc/questdb:ro
+    ports:
+      - "${QDB_HTTP_PORT:-9000}:9000"     # HTTP API & Web Console
+      - "${QDB_PG_PORT:-8812}:8812"       # PostgreSQL wire protocol
+      - "${QDB_ILP_PORT:-9009}:9009"      # InfluxDB line protocol
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nexlify-net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '${QDB_CPU_LIMIT:-2}'
+          memory: ${QDB_MEMORY_LIMIT:-4G}
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# MONITORING STACK - Optional but recommended
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  # 📈 METRICS COLLECTOR - Prometheus
+  nexlify-metrics:
+    image: cgr.dev/chainguard/prometheus:latest
+    container_name: nexlify-prometheus
+    profiles: ["monitoring", "full"]
+    environment:
+      - PROMETHEUS_RETENTION=${PROMETHEUS_RETENTION:-30d}
+      - PROMETHEUS_RETENTION_SIZE=${PROMETHEUS_RETENTION_SIZE:-10GB}
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/prometheus/alerts:/etc/prometheus/alerts:ro
+      - nexlify-prometheus-data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}'
+      - '--storage.tsdb.retention.size=${PROMETHEUS_RETENTION_SIZE:-10GB}'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - nexlify-net
+    restart: unless-stopped
+
+  # 🎨 CYBERPUNK DASHBOARDS - Grafana with custom theme
+  nexlify-dashboards:
+    image: cgr.dev/chainguard/grafana:latest
+    container_name: nexlify-grafana
+    profiles: ["monitoring", "full"]
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-nexlify2025}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_USERS_DEFAULT_THEME=dark
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/dashboards/nexlify-main.json
+      - GF_INSTALL_PLUGINS=redis-datasource,questdb-questdb-datasource
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/etc/grafana/dashboards:ro
+      - nexlify-grafana-data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      - nexlify-metrics
+    networks:
+      - nexlify-net
+    restart: unless-stopped
+
+  # 🔍 LOG AGGREGATION - Vector (lighter than Loki)
+  nexlify-logs:
+    image: cgr.dev/chainguard/vector:latest
+    container_name: nexlify-vector
+    profiles: ["monitoring", "full"]
+    environment:
+      - VECTOR_LOG_LEVEL=${VECTOR_LOG_LEVEL:-info}
+      - VECTOR_REQUIRE_HEALTHY=true
+    volumes:
+      - ./config/vector/vector.toml:/etc/vector/vector.toml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - nexlify-vector-data:/var/lib/vector
+    ports:
+      - "${VECTOR_API_PORT:-8686}:8686"  # GraphQL API
+    healthcheck:
+      test: ["CMD", "vector", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - nexlify-net
+    restart: unless-stopped
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# ML/AI SERVICES - GPU-accelerated when available
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  # 🤖 TIMESFM MODEL SERVER - GPU optimized
+  nexlify-timesfm:
+    image: cgr.dev/chainguard/python:latest-dev
+    container_name: nexlify-ml-timesfm
+    profiles: ["ml", "gpu", "full"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.ml
+      args:
+        CUDA_VERSION: ${CUDA_VERSION:-12.1}
+        ENABLE_GPU: ${ENABLE_GPU:-true}
+    environment:
+      - MODEL_NAME=timesfm
+      - MODEL_PATH=/models/timesfm
+      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
+      - TF_FORCE_GPU_ALLOW_GROWTH=true
+      - TF_CPP_MIN_LOG_LEVEL=2
+      - MODEL_API_PORT=8001
+      - REDIS_URL=redis://nexlify-cache:6379/1
+      - MAX_BATCH_SIZE=${ML_BATCH_SIZE:-32}
+      - USE_MIXED_PRECISION=${USE_MIXED_PRECISION:-true}
+    volumes:
+      - ./models:/models:ro
+      - ./src/ml:/app/src/ml:ro
+      - nexlify-ml-cache:/cache
+    ports:
+      - "${TIMESFM_PORT:-8001}:8001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 120s
+    depends_on:
+      - nexlify-cache
+    networks:
+      - nexlify-net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '${ML_CPU_LIMIT:-4}'
+          memory: ${ML_MEMORY_LIMIT:-8G}
+        reservations:
+          devices:
+            - driver: nvidia
+              count: ${GPU_COUNT:-1}
+              capabilities: [gpu]
+
+  # 🎯 ML ENSEMBLE COORDINATOR
+  nexlify-ml-ensemble:
+    image: cgr.dev/chainguard/python:latest-dev
+    container_name: nexlify-ml-ensemble
+    profiles: ["ml", "gpu", "full"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.ml
+    environment:
+      - MODEL_NAME=ensemble
+      - ENSEMBLE_MODELS=timesfm,chronos,itransformer
+      - MODEL_API_PORT=8002
+      - REDIS_URL=redis://nexlify-cache:6379/1
+      - ENSEMBLE_WEIGHTS=${ENSEMBLE_WEIGHTS:-0.4,0.3,0.3}
+    volumes:
+      - ./src/ml:/app/src/ml:ro
+    ports:
+      - "${ENSEMBLE_PORT:-8002}:8002"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      - nexlify-timesfm
+    networks:
+      - nexlify-net
+    restart: unless-stopped
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# DEVELOPMENT TOOLS - Only in dev profile
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  # 🔧 HOT RELOAD SERVER - Watchdog for Python
+  nexlify-watchdog:
+    image: cgr.dev/chainguard/python:latest-dev
+    container_name: nexlify-watchdog
+    profiles: ["dev"]
+    environment:
+      - WATCHDOG_PATHS=/app/src
+      - WATCHDOG_RECURSIVE=true
+      - WATCHDOG_PATTERNS=*.py;*.yaml;*.json
+      - RELOAD_SIGNAL=SIGHUP
+      - TARGET_CONTAINER=nexlify-neural-engine
+    volumes:
+      - ./src:/app/src:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: ["python", "-m", "watchdog", "auto-restart", "--recursive", "/app/src"]
+    networks:
+      - nexlify-net
+    restart: unless-stopped
+
+  # 📝 API DOCUMENTATION - ReDoc
+  nexlify-docs:
+    image: cgr.dev/chainguard/nginx:latest
+    container_name: nexlify-api-docs
+    profiles: ["dev"]
+    volumes:
+      - ./docs/api:/usr/share/nginx/html:ro
+      - ./config/nginx/redoc.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "${DOCS_PORT:-8080}:80"
+    networks:
+      - nexlify-net
+    restart: unless-stopped
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# NETWORK CONFIGURATION
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+networks:
+  nexlify-net:
+    name: nexlify-matrix-network
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.25.0.0/16
+          ip_range: 172.25.0.0/24
+          gateway: 172.25.0.1
+    driver_opts:
+      com.docker.network.bridge.name: nexlify0
+      com.docker.network.bridge.enable_icc: "true"
+      com.docker.network.bridge.enable_ip_masquerade: "true"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# VOLUME CONFIGURATION - Named volumes for persistence
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+volumes:
+  nexlify-redis-data:
+    name: nexlify-redis-data
+    driver: local
+  nexlify-questdb-data:
+    name: nexlify-questdb-data
+    driver: local
+  nexlify-prometheus-data:
+    name: nexlify-prometheus-data
+    driver: local
+  nexlify-grafana-data:
+    name: nexlify-grafana-data
+    driver: local
+  nexlify-vector-data:
+    name: nexlify-vector-data
+    driver: local
+  nexlify-ml-cache:
+    name: nexlify-ml-cache
+    driver: local
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# USAGE INSTRUCTIONS:
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# 1. Copy .env.example to .env and configure
+# 2. Create required config files in ./config/
+# 3. Run with profiles:
+#    - Development: docker compose --profile dev up
+#    - Production-like: docker compose --profile core up
+#    - Everything: docker compose --profile full up
+#    - With GPU: docker compose --profile gpu up
+#
+# 4. Access services:
+#    - API: http://localhost:8888
+#    - QuestDB Console: http://localhost:9000
+#    - Grafana: http://localhost:3000 (admin/nexlify2025)
+#    - Prometheus: http://localhost:9090
+#    - API Docs: http://localhost:8080
+#
+# 5. View logs: docker compose logs -f nexlify-core
+# 6. Stop: docker compose down
+# 7. Clean everything: docker compose down -v
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

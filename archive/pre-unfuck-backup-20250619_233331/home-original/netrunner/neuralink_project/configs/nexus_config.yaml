@@ -1,0 +1,406 @@
+# /home/netrunner/neuralink_project/configs/nexus_config.yaml
+# NEXUS-7 Main Configuration
+# "The neural blueprint of Night City's digital consciousness"
+
+system:
+  name: "NEXUS-7"
+  version: "7.0"
+  mode: "autonomous"  # autonomous, supervised, test
+  log_level: "INFO"
+  checkpoint_dir: "checkpoints/"
+  report_dir: "reports/"
+
+# Neural module configurations
+modules:
+  market_oracle:
+    enabled: true
+    feature_dim: 32
+    hidden_dim: 128
+    prediction_horizon: 24  # hours
+    sequence_length: 168    # 1 week of hourly data
+    manipulation_sensitivity: 0.7
+    update_frequency: 60    # seconds
+    
+  crowd_psyche:
+    enabled: true
+    grid_size: 100         # 100x100 city grid
+    feature_dim: 48
+    hidden_dim: 128
+    prediction_window: 12   # hours
+    contagion_spread_rate: 0.15
+    intervention_threshold: 0.6
+    
+  city_pulse:
+    enabled: true
+    grid_resolution: 128    # 128x128 infrastructure grid
+    zone_types: 7
+    resource_types: 5
+    prediction_horizon: 48  # hours
+    cascade_threshold: 0.85
+    optimization_interval: 300  # seconds
+
+# Neural fusion parameters
+fusion:
+  market_dim: 128
+  crowd_dim: 128
+  urban_dim: 128
+  fusion_dim: 256
+  decision_dim: 64
+  attention_heads: 8
+  dropout_rate: 0.1
+  
+# DRL agent configuration
+agent:
+  state_dim: 256
+  action_dim: 64
+  hidden_dim: 256
+  memory_dim: 128
+  learning_rate: 0.0003
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_epsilon: 0.2
+  entropy_coef: 0.01
+  value_coef: 0.5
+  max_grad_norm: 0.5
+  
+# Optimization settings
+optimization:
+  batch_size: 32
+  sequence_length: 96
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  gradient_clip: 1.0
+  update_frequency: 100
+  target_update_freq: 1000
+  
+# Data stream endpoints
+data_streams:
+  market_feed: "tcp://localhost:5555"
+  crowd_sensors: "tcp://localhost:5556"
+  urban_network: "tcp://localhost:5557"
+  fusion_output: "tcp://localhost:5558"
+  
+# Performance constraints
+performance:
+  max_memory_gb: 16
+  target_fps: 10
+  max_latency_ms: 100
+  checkpoint_interval: 3600  # seconds
+  metric_interval: 60        # seconds
+  
+# Hardware optimization profiles
+hardware_profiles:
+  CORPO_MAINFRAME:
+    parallel_workers: 16
+    cache_size_mb: 2048
+    batch_multiplier: 4
+    jit_enabled: true
+    
+  STREET_SAMURAI:
+    parallel_workers: 8
+    cache_size_mb: 1024
+    batch_multiplier: 2
+    jit_enabled: true
+    
+  NETRUNNER_STANDARD:
+    parallel_workers: 4
+    cache_size_mb: 512
+    batch_multiplier: 1
+    jit_enabled: true
+    
+  BACK_ALLEY_DECK:
+    parallel_workers: 2
+    cache_size_mb: 256
+    batch_multiplier: 0.5
+    jit_enabled: false
+
+# Alert thresholds
+alerts:
+  market_crash_threshold: 0.8
+  crowd_riot_threshold: 0.7
+  infrastructure_failure_threshold: 0.85
+  cascade_risk_threshold: 0.6
+  system_overload_threshold: 0.9
+  
+# Emergency protocols
+emergency_protocols:
+  market_halt:
+    trigger: "market_crash_detected"
+    actions: ["freeze_trading", "notify_authorities", "activate_reserves"]
+    
+  crowd_control:
+    trigger: "riot_imminent"
+    actions: ["deploy_peacekeepers", "activate_dispersal", "lockdown_zones"]
+    
+  infrastructure_protection:
+    trigger: "cascade_detected"
+    actions: ["isolate_systems", "reroute_resources", "emergency_backup"]
+
+---
+# /home/netrunner/neuralink_project/configs/hardware_profiles.yaml
+# Hardware optimization profiles
+# Match neural requirements to available chrome
+
+profiles:
+  # Top-tier corpo hardware
+  CORPO_MAINFRAME:
+    cpu:
+      cores_required: 16
+      frequency_min: 3.0  # GHz
+      cache_min: 32       # MB
+    memory:
+      ram_min: 32         # GB
+      bandwidth_min: 50   # GB/s
+    gpu:
+      required: true
+      vram_min: 16        # GB
+      compute_capability: 7.0
+    optimizations:
+      parallel_execution: true
+      vectorization: true
+      cache_prefetch: true
+      numa_aware: true
+      
+  # High-end street hardware  
+  STREET_SAMURAI:
+    cpu:
+      cores_required: 8
+      frequency_min: 2.5
+      cache_min: 16
+    memory:
+      ram_min: 16
+      bandwidth_min: 25
+    gpu:
+      required: false
+      vram_min: 8
+      compute_capability: 6.0
+    optimizations:
+      parallel_execution: true
+      vectorization: true
+      cache_prefetch: false
+      numa_aware: false
+      
+  # Standard netrunner setup
+  NETRUNNER_STANDARD:
+    cpu:
+      cores_required: 4
+      frequency_min: 2.0
+      cache_min: 8
+    memory:
+      ram_min: 8
+      bandwidth_min: 15
+    gpu:
+      required: false
+      vram_min: 4
+      compute_capability: 5.0
+    optimizations:
+      parallel_execution: limited
+      vectorization: true
+      cache_prefetch: false
+      numa_aware: false
+      
+  # Minimal viable hardware
+  BACK_ALLEY_DECK:
+    cpu:
+      cores_required: 2
+      frequency_min: 1.5
+      cache_min: 4
+    memory:
+      ram_min: 4
+      bandwidth_min: 10
+    gpu:
+      required: false
+      vram_min: 0
+      compute_capability: 0
+    optimizations:
+      parallel_execution: false
+      vectorization: false
+      cache_prefetch: false
+      numa_aware: false
+
+# Optimization strategies per profile
+optimization_strategies:
+  CORPO_MAINFRAME:
+    tensor_ops:
+      backend: "numba_cuda"
+      precision: "mixed"  # FP16/32
+      fusion: true
+    memory:
+      pooling: true
+      compression: false
+      swap_enabled: false
+    scheduling:
+      async_execution: true
+      pipeline_depth: 4
+      prefetch_queue: 8
+      
+  STREET_SAMURAI:
+    tensor_ops:
+      backend: "numba_parallel"
+      precision: "float32"
+      fusion: true
+    memory:
+      pooling: true
+      compression: false
+      swap_enabled: true
+    scheduling:
+      async_execution: true
+      pipeline_depth: 2
+      prefetch_queue: 4
+      
+  NETRUNNER_STANDARD:
+    tensor_ops:
+      backend: "numba"
+      precision: "float32"
+      fusion: false
+    memory:
+      pooling: true
+      compression: true
+      swap_enabled: true
+    scheduling:
+      async_execution: false
+      pipeline_depth: 1
+      prefetch_queue: 2
+      
+  BACK_ALLEY_DECK:
+    tensor_ops:
+      backend: "numpy"
+      precision: "float32"
+      fusion: false
+    memory:
+      pooling: false
+      compression: true
+      swap_enabled: true
+    scheduling:
+      async_execution: false
+      pipeline_depth: 1
+      prefetch_queue: 1
+
+---
+# /home/netrunner/neuralink_project/configs/module_specs.yaml
+# Detailed module specifications
+# The fine print of neural architecture
+
+market_oracle:
+  architecture:
+    feature_extractor:
+      layers: [6, 32, 64, 32]  # Raw features to encoded features
+      activation: "relu"
+      dropout: 0.1
+    pattern_memory:
+      type: "xLSTM"
+      hidden_size: 128
+      num_layers: 2
+      bidirectional: false
+      stateful: true
+    manipulation_detector:
+      patterns: ["pump_dump", "wash_trading", "spoofing", "front_running", "stop_hunting"]
+      sensitivity_range: [0.5, 0.9]
+      source_attribution: ["arasaka", "militech", "kang_tao", "unknown_corpo"]
+    price_predictor:
+      horizons: [1, 6, 24, 48]  # hours
+      confidence_levels: [0.68, 0.95, 0.99]
+      
+  data_requirements:
+    min_sequence_length: 24
+    max_sequence_length: 720  # 30 days
+    features: ["price", "volume", "volatility", "sentiment", "manipulation_score", "timestamp"]
+    sampling_rate: "1H"  # Hourly
+    
+crowd_psyche:
+  architecture:
+    spatial_encoder:
+      conv_layers: [[3, 3, 9, 16], [3, 3, 16, 32]]  # [kernel_h, kernel_w, in_channels, out_channels]
+      pool_size: 2
+      activation: "relu"
+    temporal_memory:
+      type: "xLSTM"
+      hidden_size: 128
+      sequence_length: 48  # 2 days
+      stateful: true
+    state_classifier:
+      states: ["dormant", "agitated", "volatile", "erupting", "dispersing", "euphoric", "panicked"]
+      hidden_layers: [128, 64]
+      activation: "tanh"
+    contagion_model:
+      kernel_size: 5
+      spread_function: "exponential"
+      decay_rate: 0.1
+      
+  behavioral_parameters:
+    state_transitions:
+      dormant: {"agitated": 0.2, "euphoric": 0.1}
+      agitated: {"dormant": 0.3, "volatile": 0.3, "euphoric": 0.1}
+      volatile: {"agitated": 0.2, "erupting": 0.4, "dispersing": 0.2}
+      erupting: {"volatile": 0.1, "dispersing": 0.6, "panicked": 0.2}
+      dispersing: {"dormant": 0.5, "agitated": 0.3}
+      euphoric: {"dormant": 0.4, "agitated": 0.3}
+      panicked: {"erupting": 0.3, "dispersing": 0.5}
+      
+city_pulse:
+  architecture:
+    traffic_predictor:
+      spatial_encoder_dim: 96
+      temporal_model: "xLSTM"
+      prediction_heads: [1, 6, 12, 24, 48]  # hours
+    resource_optimizer:
+      resource_types: ["power", "water", "waste", "bandwidth", "transport"]
+      efficiency_matrix_init: "xavier"
+      allocation_algorithm: "weighted_proportional"
+    infrastructure_monitor:
+      health_thresholds:
+        warning: 0.7
+        critical: 0.85
+        failure: 0.95
+      failure_prediction_window: 6  # hours
+    cascade_analyzer:
+      propagation_steps: 5
+      influence_radius: 5
+      resilience_factor: 0.7
+      
+  zone_definitions:
+    corpo_plaza:
+      id: 0
+      base_efficiency: 0.9
+      resource_priority: ["power", "bandwidth", "transport"]
+    market_district:
+      id: 1
+      base_efficiency: 0.8
+      resource_priority: ["power", "water", "transport"]
+    industrial:
+      id: 2
+      base_efficiency: 0.7
+      resource_priority: ["power", "waste", "transport"]
+    residential:
+      id: 3
+      base_efficiency: 0.75
+      resource_priority: ["water", "power", "waste"]
+    entertainment:
+      id: 4
+      base_efficiency: 0.6
+      resource_priority: ["power", "water", "bandwidth"]
+    slums:
+      id: 5
+      base_efficiency: 0.4
+      resource_priority: ["water", "power", "waste"]
+    transport_hub:
+      id: 6
+      base_efficiency: 0.85
+      resource_priority: ["transport", "power", "bandwidth"]
+
+neural_fusion:
+  cross_attention:
+    implementation: "scaled_dot_product"
+    temperature: 0.7
+    dropout: 0.1
+  conflict_resolution:
+    strategies: ["weighted_average", "majority_vote", "confidence_based", "learned"]
+    default: "confidence_based"
+  decision_synthesis:
+    time_horizons: ["immediate", "short_term", "long_term"]
+    action_categories: ["market", "crowd", "infrastructure", "emergency"]
+    confidence_threshold: 0.6
+  meta_prediction:
+    accuracy_window: 100  # samples
+    confidence_adjustment: true
+    historical_weight: 0.3

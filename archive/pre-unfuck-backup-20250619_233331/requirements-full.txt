@@ -1,0 +1,134 @@
+# Nexlify Trading Platform Requirements - Full Installation
+# v2.0.8 - Includes all optional features
+
+# ====================
+# Core Dependencies
+# ====================
+# Exchange connectivity
+ccxt==4.1.22
+
+# Data processing
+pandas==2.1.3
+numpy==1.26.2
+
+# Async operations
+aiohttp==3.9.0
+asyncio==3.4.3
+websocket-client==1.6.4
+
+# Configuration
+python-dotenv==1.0.0
+pydantic==2.4.2
+
+# System monitoring
+psutil==5.9.5
+
+# Console output
+colorama==0.4.6
+
+# ====================
+# Database
+# ====================
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9  # PostgreSQL support
+redis==5.0.1  # Redis cache support
+
+# ====================
+# Security
+# ====================
+cryptography==41.0.5
+pyjwt==2.8.0
+argon2-cffi==23.1.0
+pyotp==2.9.0
+qrcode==7.4.2
+
+# ====================
+# GUI
+# ====================
+# PyQt5 for enhanced GUI
+PyQt5==5.15.9
+PyQt5-sip==12.12.2
+pyqtgraph==0.13.3
+
+# Plotting
+matplotlib==3.8.1
+Pillow==10.1.0
+plotly==5.18.0  # Interactive charts
+
+# ====================
+# API & Web
+# ====================
+fastapi==0.104.1
+uvicorn==0.24.0
+requests==2.31.0
+websockets==12.0
+
+# ====================
+# Machine Learning & AI
+# ====================
+scikit-learn==1.3.2
+scipy==1.11.4
+statsmodels==0.14.0
+torch==2.1.0
+tensorflow==2.15.0
+xgboost==2.0.2
+lightgbm==4.1.0
+transformers==4.35.2  # For sentiment analysis
+openai==1.3.7  # AI companion
+
+# ====================
+# DeFi & Blockchain
+# ====================
+web3==6.11.3
+eth-account==0.10.0
+eth-abi==4.2.1
+
+# ====================
+# Technical Analysis
+# ====================
+ta-lib==0.4.28  # Technical indicators
+pandas-ta==0.3.14b  # More indicators
+
+# ====================
+# Audio & Effects
+# ====================
+pygame==2.5.2  # Sound effects
+pydub==0.25.1  # Audio processing
+
+# ====================
+# Utilities
+# ====================
+python-dateutil==2.8.2
+pytz==2023.3
+pyyaml==6.0.1
+schedule==1.2.0  # Task scheduling
+python-telegram-bot==20.7  # Telegram notifications
+
+# ====================
+# Performance
+# ====================
+numba==0.58.1  # JIT compilation
+cython==3.0.6  # C extensions
+
+# ====================
+# Mobile API Support
+# ====================
+python-socketio==5.10.0  # WebSocket support
+python-jose[cryptography]==3.3.0  # JWT tokens
+
+# ====================
+# Monitoring & Logging
+# ====================
+prometheus-client==0.19.0  # Metrics
+structlog==23.2.0  # Structured logging
+
+# ====================
+# Development Tools
+# ====================
+# Keep these separate in requirements-dev.txt:
+# pytest==7.4.3
+# pytest-asyncio==0.21.1
+# black==23.11.0
+# flake8==6.1.0
+# mypy==1.7.1
+# sphinx==7.2.6

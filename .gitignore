@@ -143,3 +143,11 @@ test_*.py
 *wallet*
 *private*
 !*example*
+
+# Added by unfuck script - Thu Jun 19 23:33:32 WEDT 2025
+node_modules/
+dist/
+build/
+*.log
+.DS_Store
+Thumbs.db
