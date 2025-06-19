@@ -1,0 +1,149 @@
+# compose/networks.yaml
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# NEXLIFY ZERO-TRUST NETWORK ARCHITECTURE
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Three-tier isolation: Frontend, Backend, Database
+# No direct database access from frontend services
+# Internal networks prevent external connectivity
+
+networks:
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # FRONTEND NETWORK - External facing services
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  frontend:
+    name: nexlify-frontend
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/24
+          ip_range: 172.20.0.0/25
+          gateway: 172.20.0.1
+    driver_opts:
+      com.docker.network.bridge.name: nexlify-front
+      com.docker.network.bridge.enable_icc: "true"
+      com.docker.network.bridge.enable_ip_masquerade: "true"
+      com.docker.network.bridge.host_binding_ipv4: "0.0.0.0"
+      com.docker.network.driver.mtu: "1500"
+    labels:
+      com.nexlify.network.tier: "frontend"
+      com.nexlify.network.security: "public"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # BACKEND NETWORK - Application services (internal only)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  backend:
+    name: nexlify-backend
+    driver: bridge
+    internal: true  # No external connectivity
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.21.0.0/24
+          ip_range: 172.21.0.0/25
+          gateway: 172.21.0.1
+    driver_opts:
+      com.docker.network.bridge.name: nexlify-back
+      com.docker.network.bridge.enable_icc: "true"
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+      com.docker.network.driver.mtu: "9000"  # Jumbo frames for performance
+    labels:
+      com.nexlify.network.tier: "backend"
+      com.nexlify.network.security: "internal"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # DATABASE NETWORK - Data layer isolation
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  database:
+    name: nexlify-database
+    driver: bridge
+    internal: true  # No external connectivity
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.22.0.0/24
+          ip_range: 172.22.0.0/26
+          gateway: 172.22.0.1
+    driver_opts:
+      com.docker.network.bridge.name: nexlify-data
+      com.docker.network.bridge.enable_icc: "true"
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+      com.docker.network.driver.mtu: "9000"  # Jumbo frames for bulk data
+    labels:
+      com.nexlify.network.tier: "database"
+      com.nexlify.network.security: "restricted"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # MONITORING NETWORK - Observability stack
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  monitoring:
+    name: nexlify-monitoring
+    driver: bridge
+    internal: true  # Internal access only
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.23.0.0/24
+          ip_range: 172.23.0.0/26
+          gateway: 172.23.0.1
+    driver_opts:
+      com.docker.network.bridge.name: nexlify-mon
+      com.docker.network.bridge.enable_icc: "true"
+      com.docker.network.driver.mtu: "1500"
+    labels:
+      com.nexlify.network.tier: "monitoring"
+      com.nexlify.network.security: "internal"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # ML/GPU NETWORK - High-bandwidth for model serving
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ml-network:
+    name: nexlify-ml
+    driver: bridge
+    internal: true
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.24.0.0/24
+          ip_range: 172.24.0.0/26
+          gateway: 172.24.0.1
+    driver_opts:
+      com.docker.network.bridge.name: nexlify-ml
+      com.docker.network.bridge.enable_icc: "true"
+      com.docker.network.driver.mtu: "9000"  # Jumbo frames for tensor data
+    labels:
+      com.nexlify.network.tier: "ml"
+      com.nexlify.network.security: "compute"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# NETWORK SECURITY RULES (Documentation)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# Service Communication Matrix:
+# ┌─────────────┬──────────┬─────────┬──────────┬────────────┬────┐
+# │   FROM\TO   │ Frontend │ Backend │ Database │ Monitoring │ ML │
+# ├─────────────┼──────────┼─────────┼──────────┼────────────┼────┤
+# │ Frontend    │    ✓     │    ✓    │    ✗     │     ✗      │ ✗  │
+# │ Backend     │    ✗     │    ✓    │    ✓     │     ✓      │ ✓  │
+# │ Database    │    ✗     │    ✗    │    ✓     │     ✗      │ ✗  │
+# │ Monitoring  │    ✓     │    ✓    │    ✓     │     ✓      │ ✓  │
+# │ ML          │    ✗     │    ✓    │    ✗     │     ✓      │ ✓  │
+# └─────────────┴──────────┴─────────┴──────────┴────────────┴────┘
+#
+# Network Aliases for Service Discovery:
+# - nexlify-core.backend
+# - valkey-cache.database
+# - questdb-ts.database
+# - prometheus.monitoring
+# - grafana.monitoring
+# - ml-engine.ml-network
+#
+# Security Policies:
+# 1. Database network is completely isolated
+# 2. Frontend cannot directly access databases
+# 3. All database access goes through backend services
+# 4. Monitoring can observe all networks (read-only)
+# 5. ML services isolated from external access
+# 6. Jumbo frames (MTU 9000) for internal high-throughput
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
