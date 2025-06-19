@@ -1,0 +1,256 @@
+# gpu-ml-deployment.yaml
+# 🧠 GPU-ACCELERATED ML INFERENCE ENGINE
+# Location: k3s/manifests/gpu-ml-deployment.yaml
+# Where silicon meets soul, where predictions become profit
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: nvidia-gpu
+handler: nvidia
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ml-model-config
+  namespace: nexlify-trading
+data:
+  model_config.json: |
+    {
+      "models": {
+        "price_predictor": {
+          "path": "/models/price_predictor_v4.pt",
+          "batch_size": 256,
+          "memory_fraction": 0.3,
+          "precision": "fp16"
+        },
+        "volatility_analyzer": {
+          "path": "/models/volatility_net.pt", 
+          "batch_size": 512,
+          "memory_fraction": 0.2,
+          "precision": "fp16"
+        },
+        "pattern_recognition": {
+          "path": "/models/market_patterns.pt",
+          "batch_size": 128,
+          "memory_fraction": 0.4,
+          "precision": "fp32"
+        }
+      },
+      "inference_config": {
+        "max_batch_delay_ms": 10,
+        "gpu_memory_limit": "7GB",
+        "enable_tensorrt": true,
+        "dynamic_batching": true
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-inference-engine
+  namespace: nexlify-trading
+  labels:
+    app: nexlify
+    component: ml-engine
+    hardware: gpu
+spec:
+  replicas: 2  # Scale based on GPU availability
+  selector:
+    matchLabels:
+      app: nexlify
+      component: ml-engine
+  template:
+    metadata:
+      labels:
+        app: nexlify
+        component: ml-engine
+        hardware: gpu
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      # Pin to GPU nodes - the chrome we need for neural predictions
+      nodeSelector:
+        nvidia.com/gpu: "true"
+        gpu.nvidia.com/class: "nvidia-tesla-t4"  # Or your RTX 2070/4090
+      
+      # Tolerate GPU taints
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      
+      runtimeClassName: nvidia-gpu
+      
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      
+      containers:
+      - name: ml-inference
+        image: chainguard/pytorch:latest-cuda12.5
+        imagePullPolicy: Always
+        
+        command: ["/app/ml_inference_server.py"]
+        args: ["--gpu", "--production", "--port", "8080"]
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - SYS_ADMIN  # Required for GPU access
+        
+        resources:
+          requests:
+            memory: "8Gi"
+            cpu: "4"
+            nvidia.com/gpu: 1  # Request one GPU
+          limits:
+            memory: "16Gi"
+            cpu: "8"
+            nvidia.com/gpu: 1  # Limit to one GPU
+        
+        env:
+        # PyTorch optimization for inference
+        - name: PYTORCH_CUDA_ALLOC_CONF
+          value: "max_split_size_mb:128,garbage_collection_threshold:0.6"
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0"  # Use first GPU
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: "all"
+        - name: NVIDIA_DRIVER_CAPABILITIES
+          value: "compute,utility"
+        # Model serving config
+        - name: MODEL_CACHE_DIR
+          value: "/models"
+        - name: INFERENCE_BATCH_SIZE
+          value: "256"
+        - name: TORCH_CUDNN_BENCHMARK
+          value: "1"  # Enable cuDNN autotuner
+        
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: grpc
+          containerPort: 9090
+          protocol: TCP
+        
+        volumeMounts:
+        - name: models
+          mountPath: /models
+          readOnly: true
+        - name: model-config
+          mountPath: /config
+          readOnly: true
+        - name: shm
+          mountPath: /dev/shm  # Shared memory for DataLoader
+        
+        # Health checks - neural net integrity verification
+        startupProbe:
+          httpGet:
+            path: /health/gpu
+            port: 8080
+          initialDelaySeconds: 60  # GPU init takes time
+          periodSeconds: 10
+          timeoutSeconds: 10
+          failureThreshold: 30
+        
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8080
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8080
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+      
+      # DCGM exporter for GPU metrics - know your silicon's soul
+      - name: dcgm-exporter
+        image: nvidia/dcgm-exporter:3.1.7-3.1.4-ubuntu20.04
+        imagePullPolicy: IfNotPresent
+        
+        securityContext:
+          privileged: true  # Required for GPU metrics
+        
+        env:
+        - name: DCGM_EXPORTER_LISTEN
+          value: ":9400"
+        - name: DCGM_EXPORTER_KUBERNETES
+          value: "true"
+        
+        ports:
+        - name: metrics
+          containerPort: 9400
+          protocol: TCP
+        
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+      
+      volumes:
+      - name: models
+        persistentVolumeClaim:
+          claimName: ml-models-pvc
+      - name: model-config
+        configMap:
+          name: ml-model-config
+      - name: shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 2Gi
+---
+# Service for ML inference
+apiVersion: v1
+kind: Service
+metadata:
+  name: ml-inference-service
+  namespace: nexlify-trading
+  labels:
+    app: nexlify
+    component: ml-engine
+spec:
+  type: ClusterIP
+  selector:
+    app: nexlify
+    component: ml-engine
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: grpc
+    port: 9090
+    targetPort: 9090
+  - name: gpu-metrics
+    port: 9400
+    targetPort: 9400
+---
+# PVC for model storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ml-models-pvc
+  namespace: nexlify-trading
+spec:
+  accessModes:
+  - ReadOnlyMany
+  storageClassName: longhorn-ssd
+  resources:
+    requests:
+      storage: 100Gi
