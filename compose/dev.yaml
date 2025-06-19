@@ -1,0 +1,321 @@
+# compose/dev.yaml
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# NEXLIFY DEVELOPMENT TOOLS - Code Jockey's Arsenal
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Hot-reload, API docs, debugging tools
+# Only loaded with --profile dev
+
+services:
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # 🔥 HOT RELOAD - Watchdog for instant code updates
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  hot-reload:
+    image: cgr.dev/chainguard/python:latest-dev
+    container_name: nexlify-hot-reload
+    profiles: ["dev"]
+    hostname: hot-reload
+    environment:
+      - PYTHONPATH=/app
+      - WATCHDOG_PATTERNS="*.py;*.yaml;*.json;*.toml"
+      - RELOAD_SIGNAL=SIGHUP
+      - TARGET_SERVICES=nexlify-core,ml-engine
+      - RELOAD_DELAY=1
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./src:/app/src:ro
+      - ./config:/app/config:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 100M
+    command: |
+      sh -c "pip install watchdog[watchmedo] && \
+             watchmedo auto-restart \
+               --patterns='${WATCHDOG_PATTERNS}' \
+               --recursive \
+               --signal=SIGHUP \
+               --directory=/app \
+               -- python -c 'import time; \
+                  import os; \
+                  import docker; \
+                  client = docker.from_env(); \
+                  while True: \
+                    time.sleep(60); \
+                    for service in os.getenv(\"TARGET_SERVICES\").split(\",\"): \
+                      try: \
+                        container = client.containers.get(service); \
+                        if container.status == \"running\": \
+                          print(f\"Service {service} is healthy\"); \
+                      except: pass'"
+    networks:
+      - backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=dev,component=hot-reload"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # 📝 API DOCUMENTATION - ReDoc for beautiful API docs
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  api-docs:
+    image: cgr.dev/chainguard/nginx:latest
+    container_name: nexlify-api-docs
+    profiles: ["dev"]
+    hostname: api-docs
+    volumes:
+      - ./docs/api:/usr/share/nginx/html:ro
+      - ./config/nginx/redoc.conf:/etc/nginx/conf.d/default.conf:ro
+      - type: tmpfs
+        target: /var/cache/nginx
+        tmpfs:
+          size: 50M
+    ports:
+      - "${DOCS_PORT:-8080}:80"
+    environment:
+      - API_SPEC_URL=http://nexlify-core:8888/openapi.json
+      - PAGE_TITLE=Nexlify Trading Matrix API
+      - THEME=cyberpunk
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      nexlify-core:
+        condition: service_healthy
+    networks:
+      - frontend
+      - backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=dev,component=api-docs"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # 🐛 DEBUGGER - Remote Python debugger
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  debugger:
+    image: cgr.dev/chainguard/python:latest-dev
+    container_name: nexlify-debugger
+    profiles: ["dev"]
+    hostname: debugger
+    environment:
+      - PYTHONPATH=/app/src
+      - DEBUGPY_PORT=5678
+      - ENABLE_DEBUGGER=true
+    volumes:
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 100M
+    ports:
+      - "${DEBUGPY_PORT:-5678}:5678"  # VSCode debugger port
+    command: |
+      sh -c "pip install debugpy pytest pytest-asyncio && \
+             python -m debugpy --listen 0.0.0.0:5678 --wait-for-client -m pytest --no-cov -v"
+    networks:
+      - backend
+      - database
+    restart: "no"  # Run on demand
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=dev,component=debugger"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # 📊 QUESTDB WEB CONSOLE - Direct database access (dev only!)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  questdb-console:
+    image: cgr.dev/chainguard/nginx:latest
+    container_name: nexlify-questdb-console
+    profiles: ["dev"]
+    hostname: questdb-console
+    environment:
+      - PROXY_PASS_URL=http://questdb-ts:9000
+    volumes:
+      - ./config/nginx/proxy.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "${QUESTDB_CONSOLE_PORT:-9001}:80"
+    depends_on:
+      questdb-ts:
+        condition: service_healthy
+    networks:
+      - frontend
+      - database
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=dev,component=questdb-console"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # 🔧 ADMINER - Database management UI
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  adminer:
+    image: adminer:latest
+    container_name: nexlify-adminer
+    profiles: ["dev"]
+    hostname: adminer
+    environment:
+      - ADMINER_DEFAULT_SERVER=questdb-ts:8812
+      - ADMINER_DESIGN=neon  # Cyberpunk-ish theme
+    ports:
+      - "${ADMINER_PORT:-8082}:8080"
+    networks:
+      - frontend
+      - database
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=dev,component=adminer"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # 📈 PERFORMANCE PROFILER - cProfile server
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  profiler:
+    image: cgr.dev/chainguard/python:latest-dev
+    container_name: nexlify-profiler
+    profiles: ["dev"]
+    hostname: profiler
+    environment:
+      - PROFILER_PORT=8083
+      - PROFILE_DIR=/profiles
+    volumes:
+      - ./profiles:/profiles
+      - ./src:/app/src:ro
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 500M
+    ports:
+      - "${PROFILER_PORT:-8083}:8083"
+    command: |
+      sh -c "pip install py-spy snakeviz && \
+             python -m http.server 8083 --directory /profiles"
+    networks:
+      - backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=dev,component=profiler"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # 🚀 CODE QUALITY - Linting and formatting service
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  code-quality:
+    image: cgr.dev/chainguard/python:latest-dev
+    container_name: nexlify-code-quality
+    profiles: ["dev"]
+    hostname: code-quality
+    environment:
+      - ENABLE_AUTO_FIX=${ENABLE_AUTO_FIX:-false}
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./.ruff.toml:/app/.ruff.toml:ro
+      - ./pyproject.toml:/app/pyproject.toml:ro
+    command: |
+      sh -c "pip install ruff black isort mypy && \
+             echo '🔍 Running code quality checks...' && \
+             ruff check /app/src /app/tests && \
+             black --check /app/src /app/tests && \
+             isort --check-only /app/src /app/tests && \
+             mypy /app/src"
+    networks:
+      - backend
+    restart: "no"  # Run on demand
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=dev,component=code-quality"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# DEV TOOL ENDPOINTS
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# Service Endpoints (when profile=dev):
+# - API Documentation: http://localhost:8080
+# - QuestDB Console: http://localhost:9001
+# - Adminer (DB UI): http://localhost:8082
+# - Python Debugger: localhost:5678 (VSCode attach)
+# - Performance Profiler: http://localhost:8083
+#
+# VSCode Debug Configuration:
+# {
+#   "name": "Docker: Nexlify Debug",
+#   "type": "python",
+#   "request": "attach",
+#   "connect": {
+#     "host": "localhost",
+#     "port": 5678
+#   },
+#   "pathMappings": [{
+#     "localRoot": "${workspaceFolder}/src",
+#     "remoteRoot": "/app/src"
+#   }]
+# }
+#
+# Hot Reload:
+# - Automatically reloads nexlify-core and ml-engine on code changes
+# - Monitor logs: docker compose logs -f hot-reload
+#
+# Code Quality Check:
+# docker compose run --rm code-quality
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
