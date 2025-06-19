@@ -1,0 +1,216 @@
+# questdb-statefulset.yaml
+# 💾 QUESTDB TIME-SERIES DATABASE - STATEFULSET
+# Location: k3s/manifests/questdb-statefulset.yaml
+# The chrome dragon that drinks 4.3M rows/sec of market data
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: questdb-config
+  namespace: nexlify-trading
+data:
+  server.conf: |
+    # QuestDB Configuration - Tuned for crypto market data
+    shared.worker.count=8
+    http.worker.count=4
+    line.tcp.worker.count=4
+    
+    # Memory settings for high-frequency trading
+    cairo.max.uncommitted.rows=1000000
+    cairo.commit.lag=1000000
+    cairo.page.frame.size=1048576
+    
+    # Network tuning
+    line.tcp.net.bind.to=0.0.0.0:9009
+    http.bind.to=0.0.0.0:9000
+    pg.net.bind.to=0.0.0.0:8812
+    
+    # WAL for critical trading data
+    cairo.wal.enabled=true
+    cairo.wal.max.segment.file.size=104857600
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: questdb
+  namespace: nexlify-trading
+  labels:
+    app: nexlify
+    component: questdb
+spec:
+  serviceName: questdb-headless
+  replicas: 3  # High availability cluster
+  selector:
+    matchLabels:
+      app: nexlify
+      component: questdb
+  template:
+    metadata:
+      labels:
+        app: nexlify
+        component: questdb
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9003"
+    spec:
+      # Spread across zones for resilience
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: nexlify
+                component: questdb
+            topologyKey: topology.kubernetes.io/zone
+      
+      securityContext:
+        fsGroup: 10001
+        runAsUser: 10001
+        runAsNonRoot: true
+      
+      containers:
+      - name: questdb
+        image: questdb/questdb:8.3.1
+        imagePullPolicy: IfNotPresent
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false  # QuestDB needs write access
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - DAC_OVERRIDE  # Required for file operations
+        
+        # Resources tuned for market data ingestion
+        resources:
+          requests:
+            memory: "8Gi"
+            cpu: "4"
+            ephemeral-storage: "50Gi"
+          limits:
+            memory: "16Gi"
+            cpu: "8"
+            ephemeral-storage: "100Gi"
+        
+        env:
+        - name: QDB_TELEMETRY_ENABLED
+          value: "false"  # No corpo telemetry in our matrix
+        - name: JAVA_OPTS
+          value: "-XX:+UseG1GC -XX:MaxGCPauseMillis=50 -Xms8g -Xmx14g"
+        
+        ports:
+        - name: http
+          containerPort: 9000
+          protocol: TCP
+        - name: influx
+          containerPort: 9009
+          protocol: TCP
+        - name: postgres
+          containerPort: 8812
+          protocol: TCP
+        - name: metrics
+          containerPort: 9003
+          protocol: TCP
+        
+        volumeMounts:
+        - name: questdb-data
+          mountPath: /var/lib/questdb
+        - name: questdb-config
+          mountPath: /var/lib/questdb/conf
+        
+        # Health checks for K3s management
+        startupProbe:
+          httpGet:
+            path: /status
+            port: 9003
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+        
+        livenessProbe:
+          httpGet:
+            path: /status
+            port: 9003
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /status
+            port: 9003
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+      
+      volumes:
+      - name: questdb-config
+        configMap:
+          name: questdb-config
+  
+  # Volume claim templates for persistent storage
+  volumeClaimTemplates:
+  - metadata:
+      name: questdb-data
+      labels:
+        app: nexlify
+        component: questdb
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: longhorn-nvme  # Chrome-plated NVMe storage
+      resources:
+        requests:
+          storage: 1Ti  # 1TB for serious market data
+---
+# Headless service for StatefulSet
+apiVersion: v1
+kind: Service
+metadata:
+  name: questdb-headless
+  namespace: nexlify-trading
+  labels:
+    app: nexlify
+    component: questdb
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: nexlify
+    component: questdb
+  ports:
+  - name: http
+    port: 9000
+    targetPort: 9000
+  - name: influx
+    port: 9009
+    targetPort: 9009
+  - name: postgres
+    port: 8812
+    targetPort: 8812
+---
+# Regular service for client connections
+apiVersion: v1
+kind: Service
+metadata:
+  name: questdb-service
+  namespace: nexlify-trading
+  labels:
+    app: nexlify
+    component: questdb
+spec:
+  type: ClusterIP
+  selector:
+    app: nexlify
+    component: questdb
+  ports:
+  - name: http
+    port: 9000
+    targetPort: 9000
+  - name: influx
+    port: 9009
+    targetPort: 9009
+  - name: postgres
+    port: 8812
+    targetPort: 8812
