@@ -9,12 +9,10 @@ use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc, Duration};
 use tracing::{debug, info, warn, error};
 use ring::{rand, pbkdf2};
-use ring::rand::SecureRandom;
 use base64::{Engine as _, engine::general_purpose};
 
 use crate::state::AppState;
 use super::{CommandResult, CommandError};
-use rand::Rng;
 
 // Security constants - learned these numbers the hard way
 const CREDENTIAL_ITERATIONS: u32 = 100_000; // PBKDF2 iterations - paranoia level: maximum
@@ -500,7 +498,7 @@ async fn simulate_credential_verification(exchange: &str) -> (bool, Vec<String>)
 /// Check exchange health
 async fn check_exchange_health(exchange: &str) -> ExchangeStatus {
     // Simulate health check
-    let latency = (rand::thread_rng().gen::<f32>() * 100.0) as i64 + 20;
+    let latency = (rand::random::<f32>() * 100.0) as i64 + 20;
     
     ExchangeStatus {
         exchange: exchange.to_string(),

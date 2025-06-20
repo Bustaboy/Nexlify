@@ -3,7 +3,6 @@
 // Last sync: 2025-06-19 | "The market whispers secrets to those who listen"
 
 use tauri::State;
-use tauri::Emitter;
 use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc, Duration};
@@ -96,7 +95,7 @@ pub async fn get_ticker(
     debug!("📈 Cache stats - Hits: {}, Misses: {}", cache_stats.cache_hits, cache_stats.cache_misses);
     
     // First, try to get fresh ticker data
-    if let Some(ticker) = market_cache.inner().get_ticker(&symbol) {
+    if let Some(ticker) = market_cache.get_ticker(&symbol) {
         // Calculate momentum indicators - my secret sauce from the old days
         let momentum_score = calculate_momentum(&ticker);
         
@@ -278,7 +277,7 @@ pub async fn get_historical_candles(
     Ok(CandleResponse {
         symbol,
         timeframe,
-        candles: candles.clone(),
+        candles,
         start_time: start,
         end_time: candles.last().map(|c| c.timestamp).unwrap_or(start),
     })

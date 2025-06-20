@@ -19,8 +19,6 @@ mod state;
 
 use commands::{market_data, trading, auth};
 use state::{AppState, MarketCache, TradingEngine};
-use tauri::Emitter;
-use tauri::menu::Menu;
 
 /// Neural mesh initialization - where we jack into the matrix
 #[tokio::main]
@@ -105,20 +103,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         
         // Plugin initialization - extending our capabilities
-        .plugin(tauri_plugin_shell::Builder::new().build())
-        .plugin(tauri_plugin_process::Builder::new().build())
-        .plugin(tauri_plugin_os::Builder::new().build())
-        .plugin(tauri_plugin_http::Builder::new().build())
-        .plugin(tauri_plugin_websocket::Builder::new().build())
-        .plugin(tauri_plugin_notification::Builder::new().build())
-        .plugin(tauri_plugin_dialog::Builder::new().build())
-        .plugin(tauri_plugin_fs::Builder::new().build())
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_window_state::Builder::new().build())
-        .plugin(tauri_plugin_stronghold::Builder::new().build())
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_websocket::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_updater::init())
+        .plugin(tauri_plugin_window_state::init())
+        .plugin(tauri_plugin_stronghold::init())
         
         // Run our neural terminal
-        .run(tauri::generate_context!())
+        .run(generate_context!())
         .expect("Failed to run NEXLIFY terminal - matrix rejection");
     
     Ok(())
@@ -147,13 +145,21 @@ fn setup_window_effects<R: Runtime>(window: &WebviewWindow<R>) {
     #[cfg(target_os = "windows")]
     {
         // Mica effect for that translucent chrome feel
-        // Window effects removed - not available in current Tauri version.ok();
+        window.set_effects(tauri::window::WindowEffects {
+            effects: vec![tauri::window::Effect::Mica],
+            state: Some(tauri::window::EffectState::Active),
+            ..Default::default()
+        }).ok();
     }
     
     #[cfg(target_os = "macos")]
     {
         // macOS vibrancy for the neural aesthetic
-        // Window effects removed - not available in current Tauri version.ok();
+        window.set_effects(tauri::window::WindowEffects {
+            effects: vec![tauri::window::Effect::UnderWindowBackground],
+            state: Some(tauri::window::EffectState::Active),
+            ..Default::default()
+        }).ok();
     }
 }
 
@@ -172,7 +178,7 @@ fn setup_system_tray<R: Runtime>(app: &tauri::App<R>) -> Result<(), Box<dyn std:
     
     let tray = TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
-        .menu(&menu)
+        .menu(Some(menu))
         .tooltip("NEXLIFY - Neural Trading Active")
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => {
@@ -205,7 +211,7 @@ fn spawn_performance_monitor() {
     
     async_runtime::spawn(async move {
         let mut sys = System::new_with_specifics(
-            RefreshKind::everything()
+            RefreshKind::new()
                 .with_cpu(CpuRefreshKind::everything())
                 .with_memory(MemoryRefreshKind::everything())
         );
@@ -247,7 +253,7 @@ async fn initialize_market_streams(
     market_cache: Arc<MarketCache>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use tokio_tungstenite::{connect_async, tungstenite::Message};
-    use futures_util::stream::StreamExt;
+    use futures_util::StreamExt;
     
     let coinbase_url = std::env::var("COINBASE_WS_URL")
         .unwrap_or_else(|_| "wss://ws-feed.exchange.coinbase.com".to_string());

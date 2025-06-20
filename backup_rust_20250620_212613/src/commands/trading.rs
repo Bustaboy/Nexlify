@@ -124,7 +124,7 @@ pub async fn place_order(
     engine.place_order(order.clone())?;
     
     info!("🎯 Order placed: {} - {} {} @ {:?}", 
-          order_id, order.side.clone() as i32, quantity, price);
+          order_id, order.side as i32, quantity, price);
     
     // Simulate order execution for now - in production, this would hit the exchange
     tokio::spawn(simulate_order_execution(order_id.clone(), trading_engine.inner().clone()));
@@ -237,13 +237,12 @@ pub async fn get_positions(
         .sum();
     
     info!("📊 Retrieved {} positions - Total value: ${:.2}", positions.len(), total_value);
-    let position_count = positions.len();
     
     Ok(PositionsResponse {
         positions,
         total_value,
         total_pnl,
-        position_count,
+        position_count: positions.len(),
         margin_usage: calculate_margin_usage(&engine),
         timestamp: Utc::now(),
     })
@@ -543,7 +542,7 @@ fn calculate_risk_score(order: &Order) -> f32 {
     // Volatility risk (would use real vol data in production)
     score += 20.0; // Placeholder
     
-    score.min(100.0) as f32
+    score.min(100.0)
 }
 
 /// Format duration for human reading
