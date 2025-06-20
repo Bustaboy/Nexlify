@@ -1,0 +1,6 @@
+#tax compliance and audit logs
+deep-dive research on:
+
+Crypto tax reporting requirements for 2025 (they keep changing the rules)
+Best practices for automated tax calculation in trading bots
+Integration patterns with tax software (TurboTax, CoinTracker, etc.)
