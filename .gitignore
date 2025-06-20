@@ -4246,3 +4246,66 @@ src-tauri/target/debug/.fingerprint/tauri-plugin-window-state-9ff31c465236df94/r
 src-tauri/gen/schemas/acl-manifests.json
 /src-tauri/target/release/.fingerprint
 /src-tauri/target/release/deps
+
+# ===== Nexlify Git Sanitizer Additions =====
+# Added by sanitizer on 2025-06-20 22:40:55
+
+# Build Artifacts
+target/
+*.pyc
+target/
+
+# Dependencies
+.venv
+
+# Temporary Files
+backup_*/
+diagnostic_report_*.txt
+
+# Archives
+archive/
+
+# Other patterns
+*.pyo
+*.pyd
+*.dylib
+*.dll
+*.class
+pip-log.txt
+pip-delete-this-directory.txt
+*~
+.classpath
+*.p12
+*.pfx
+*.cer
+*.der
+.env.local
+.env.*.local
+*.cover
+nosetests.xml
+coverage.xml
+*.lcov
+.nyc_output/
+*.sql
+~*
+Cargo.lock
+**/*.rs.bk
+*.pdb
+UNFUCK_REPORT_*.md
+src-tauri/target/
+src-tauri/gen/
+compose.yaml
+docker-compose.override.yml
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+.vuepress/dist/
+.serverless/
+.fusebox/
+.dynamodb/
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+npm-debug.log*
