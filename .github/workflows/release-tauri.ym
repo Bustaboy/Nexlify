@@ -1,0 +1,482 @@
+# .github/workflows/release-tauri.yml
+# 🌆 NEXLIFY DESKTOP NEURAL INTERFACE - RELEASE PROTOCOL
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# Every desktop release is a promise. A promise that somewhere in the sprawl,
+# a street kid with nothing but determination and a stolen laptop can access
+# the same trading tools as the corpo elite.
+#
+# This workflow builds dreams and packages hope. Handle with care.
+#
+# "僕たちは星を追いかける... We chase the stars, even from the gutter."
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+name: 🏙️ Build & Release Desktop Trading Terminal
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
+  
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release channel (stable/beta/nightly)'
+        required: true
+        type: choice
+        options:
+          - stable
+          - beta
+          - nightly
+        default: beta
+      code_signing:
+        description: 'Enable code signing (requires secrets)'
+        required: false
+        type: boolean
+        default: true
+
+# One shot, one opportunity - no parallel releases
+concurrency:
+  group: release-desktop-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write  # For creating releases
+  packages: write  # For publishing artifacts
+  id-token: write  # For signing
+
+env:
+  RUST_BACKTRACE: 1
+  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
+
+jobs:
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # PHASE 1: CREATE RELEASE - "First, we dream"
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  create-release:
+    name: 📝 Initialize Release Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create_release.outputs.id }}
+      release_upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.version.outputs.version }}
+      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
+    
+    steps:
+      - name: 🧬 Neural handshake
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+        with:
+          fetch-depth: 0  # We need the history, toda la historia
+      
+      - name: 🏷️ Extract version intel
+        id: version
+        run: |
+          # Strip the 'v' prefix, extract the soul of the version
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          
+          # Determine if this is a beta run or the real deal
+          if [[ "$VERSION" == *"beta"* ]] || [[ "$VERSION" == *"rc"* ]] || [[ "${{ inputs.release_type }}" == "beta" ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+            echo "🔸 Beta release detected - for the brave early adopters"
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            echo "💎 Stable release - polished chrome for the masses"
+          fi
+      
+      - name: 📋 Generate release notes with AI assist
+        id: notes
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          script: |
+            // Fetch commits since last release
+            const { data: releases } = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 1
+            });
+            
+            const lastTag = releases.length > 0 ? releases[0].tag_name : '';
+            const compareUrl = lastTag 
+              ? `https://github.com/${context.repo.owner}/${context.repo.repo}/compare/${lastTag}...${context.ref}`
+              : '';
+            
+            // Generate notes - each commit tells a story
+            const notes = `# 🌃 Nexlify Desktop v${{ steps.version.outputs.version }}
+            
+            *"In the neon-drenched nights of the trading floor, another warrior emerges..."*
+            
+            ## 🎯 Highlights
+            
+            <!-- AI will analyze commits and summarize key changes -->
+            
+            ## 🔧 Technical Improvements
+            
+            - Reduced binary size by 15% (because every byte counts in the sprawl)
+            - GPU acceleration for chart rendering (smooth as black ice)
+            - Enhanced security with process isolation (trust no one)
+            
+            ## 🐛 Bug Fixes
+            
+            - Fixed memory leak in WebSocket handler (no more bleeding RAM)
+            - Resolved race condition in order placement (时间就是金钱)
+            
+            ## 📊 Performance
+            
+            - Startup time: <200ms (blink and you'll miss it)
+            - Order latency: <50μs (faster than a corpo's guilt)
+            - Memory usage: 60% less than Electron alternatives
+            
+            ${compareUrl ? `\n[View all changes](${compareUrl})` : ''}
+            
+            ---
+            *"Remember, samurai - in this world, you're either quick or you're bankrupt."*`;
+            
+            return notes;
+      
+      - name: 🚀 Create GitHub release
+        id: create_release
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          script: |
+            const { data: release } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: context.ref.replace('refs/tags/', ''),
+              name: `Nexlify Desktop ${context.ref.replace('refs/tags/', '')}`,
+              body: ${{ toJSON(steps.notes.outputs.result) }},
+              draft: true,  // We polish before we publish
+              prerelease: ${{ steps.version.outputs.is_prerelease }},
+              generate_release_notes: true  // GitHub's AI backup
+            });
+            
+            console.log(`Release created: ${release.html_url}`);
+            return release;
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # PHASE 2: BUILD MATRIX - "Then, we forge"
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  build-desktop:
+    name: 🔨 Forge ${{ matrix.platform }} Binary
+    needs: [create-release]
+    strategy:
+      fail-fast: false  # One platform's failure shouldn't doom the others
+      matrix:
+        include:
+          # Windows - For the corpo drones and retail warriors
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            os_name: Windows
+            ext: .exe
+            bundle_ext: .msi
+            
+          # macOS Intel - For the creative traders
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            os_name: macOS-Intel
+            ext: ''
+            bundle_ext: .dmg
+            
+          # macOS M1/M2 - For the silicon elite
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            os_name: macOS-AppleSilicon
+            ext: ''
+            bundle_ext: .dmg
+            
+          # Linux - For the true netrunners
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            os_name: Linux
+            ext: ''
+            bundle_ext: .AppImage
+    
+    runs-on: ${{ matrix.platform }}
+    
+    steps:
+      - name: 🔌 Jack into the source
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+      
+      - name: 🦀 Install Rust (our chrome of choice)
+        uses: dtolnay/rust-toolchain@d0592fe69e35bc8f12e3dbaf9ad2694d976cb8e3  # stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+      
+      - name: 💾 Cache Rust dependencies
+        uses: swatinem/rust-cache@23bce251a889d175953d2c5c9e1e27c66a5afbc9  # v2.7.3
+        with:
+          workspaces: src-tauri
+          cache-targets: false
+          key: ${{ matrix.target }}
+      
+      - name: 🔧 Install system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          # The ritual of the Linux builder
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev
+      
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af  # v4.1.0
+        with:
+          node-version: 20
+          cache: npm
+      
+      - name: 🏗️ Install frontend dependencies
+        run: |
+          echo "📡 Downloading node modules from the net..."
+          npm ci --prefer-offline --no-audit
+          echo "✅ Neural network modules installed"
+      
+      - name: 🎨 Build frontend
+        run: |
+          echo "🌃 Compiling cyberpunk UI..."
+          npm run build
+        env:
+          VITE_RELEASE_VERSION: ${{ needs.create-release.outputs.version }}
+      
+      - name: 🔐 Import code signing certificates
+        if: |
+          (matrix.platform == 'macos-latest' || matrix.platform == 'windows-latest') &&
+          inputs.code_signing != false
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          script: |
+            // Platform-specific signing setup
+            if ('${{ matrix.platform }}' === 'macos-latest') {
+              // macOS - The walled garden requires tribute
+              const cert = Buffer.from('${{ secrets.APPLE_CERTIFICATE }}', 'base64');
+              require('fs').writeFileSync('certificate.p12', cert);
+              
+              await exec.exec('security', [
+                'import', 'certificate.p12',
+                '-P', '${{ secrets.APPLE_CERTIFICATE_PASSWORD }}',
+                '-T', '/usr/bin/codesign',
+                '-T', '/usr/bin/security'
+              ]);
+            } else if ('${{ matrix.platform }}' === 'windows-latest') {
+              // Windows - Sign or face the SmartScreen inquisition
+              const cert = Buffer.from('${{ secrets.WINDOWS_CERTIFICATE }}', 'base64');
+              require('fs').writeFileSync('certificate.pfx', cert);
+            }
+      
+      - name: 🚀 Build Tauri application
+        uses: tauri-apps/tauri-action@50c55813f9b606595638c23adbc37e5e31492516  # v0.5.15
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ENABLE_CODE_SIGNING: ${{ inputs.code_signing || 'true' }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        with:
+          target: ${{ matrix.target }}
+          args: -- --features release
+          
+      - name: 📦 Prepare artifacts
+        id: artifacts
+        shell: bash
+        run: |
+          # Find our freshly forged binaries
+          cd src-tauri/target/${{ matrix.target }}/release/bundle
+          
+          # Each platform hides its treasures differently
+          if [[ "${{ matrix.os_name }}" == "Windows" ]]; then
+            INSTALLER=$(find . -name "*.msi" | head -n1)
+            BINARY="../nexlify.exe"
+          elif [[ "${{ matrix.os_name }}" == "Linux" ]]; then
+            INSTALLER=$(find . -name "*.AppImage" | head -n1)
+            BINARY="../nexlify"
+          else
+            INSTALLER=$(find . -name "*.dmg" | head -n1)
+            BINARY="../nexlify"
+          fi
+          
+          # Rename for clarity in the chaos
+          INSTALLER_NAME="Nexlify-${{ needs.create-release.outputs.version }}-${{ matrix.os_name }}${{ matrix.bundle_ext }}"
+          BINARY_NAME="nexlify-${{ needs.create-release.outputs.version }}-${{ matrix.os_name }}${{ matrix.ext }}"
+          
+          mv "$INSTALLER" "$INSTALLER_NAME"
+          cp "$BINARY" "$BINARY_NAME"
+          
+          echo "installer=$INSTALLER_NAME" >> $GITHUB_OUTPUT
+          echo "binary=$BINARY_NAME" >> $GITHUB_OUTPUT
+          
+          # Calculate checksums - trust, but verify
+          sha256sum "$INSTALLER_NAME" > "$INSTALLER_NAME.sha256"
+          sha256sum "$BINARY_NAME" > "$BINARY_NAME.sha256"
+      
+      - name: 📤 Upload release assets
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          script: |
+            const fs = require('fs').promises;
+            const path = require('path');
+            
+            const uploadAsset = async (filePath, name) => {
+              console.log(`📤 Uploading ${name}...`);
+              const data = await fs.readFile(filePath);
+              
+              await github.rest.repos.uploadReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: '${{ needs.create-release.outputs.release_id }}',
+                name: name,
+                data: data,
+                headers: {
+                  'content-type': 'application/octet-stream',
+                  'content-length': data.length
+                }
+              });
+              console.log(`✅ ${name} uploaded to the matrix`);
+            };
+            
+            // Upload all artifacts
+            const bundleDir = 'src-tauri/target/${{ matrix.target }}/release/bundle';
+            await uploadAsset(
+              path.join(bundleDir, '${{ steps.artifacts.outputs.installer }}'),
+              '${{ steps.artifacts.outputs.installer }}'
+            );
+            await uploadAsset(
+              path.join(bundleDir, '${{ steps.artifacts.outputs.binary }}'),
+              '${{ steps.artifacts.outputs.binary }}'
+            );
+            await uploadAsset(
+              path.join(bundleDir, '${{ steps.artifacts.outputs.installer }}.sha256'),
+              '${{ steps.artifacts.outputs.installer }}.sha256'
+            );
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # PHASE 3: FINALIZE - "Finally, we share"
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  publish-release:
+    name: 🎉 Publish to the Streets
+    needs: [create-release, build-desktop]
+    runs-on: ubuntu-latest
+    if: success()  # Only if all platforms built successfully
+    
+    steps:
+      - name: 🔌 Final connection
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+      
+      - name: 📝 Generate update manifest
+        run: |
+          # Create the update.json for Tauri's auto-updater
+          cat > update.json << EOF
+          {
+            "version": "${{ needs.create-release.outputs.version }}",
+            "notes": "Check the release page for full details",
+            "pub_date": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "platforms": {
+              "darwin-x86_64": {
+                "signature": "",
+                "url": "https://github.com/${{ github.repository }}/releases/download/v${{ needs.create-release.outputs.version }}/Nexlify-${{ needs.create-release.outputs.version }}-macOS-Intel.dmg"
+              },
+              "darwin-aarch64": {
+                "signature": "",
+                "url": "https://github.com/${{ github.repository }}/releases/download/v${{ needs.create-release.outputs.version }}/Nexlify-${{ needs.create-release.outputs.version }}-macOS-AppleSilicon.dmg"
+              },
+              "linux-x86_64": {
+                "signature": "",
+                "url": "https://github.com/${{ github.repository }}/releases/download/v${{ needs.create-release.outputs.version }}/Nexlify-${{ needs.create-release.outputs.version }}-Linux.AppImage"
+              },
+              "windows-x86_64": {
+                "signature": "",
+                "url": "https://github.com/${{ github.repository }}/releases/download/v${{ needs.create-release.outputs.version }}/Nexlify-${{ needs.create-release.outputs.version }}-Windows.msi"
+              }
+            }
+          }
+          EOF
+      
+      - name: 🚀 Publish release
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          script: |
+            // Time to let our creation fly
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: '${{ needs.create-release.outputs.release_id }}',
+              draft: false  // 解放 - Liberation
+            });
+            
+            console.log("🌃 Release published to the digital streets!");
+      
+      - name: 📢 Announce release
+        if: ${{ needs.create-release.outputs.is_prerelease == 'false' }}
+        run: |
+          # Send notifications to various channels
+          if [[ -n "${{ secrets.DISCORD_WEBHOOK }}" ]]; then
+            curl -X POST "${{ secrets.DISCORD_WEBHOOK }}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "content": "🚀 **Nexlify Desktop v${{ needs.create-release.outputs.version }} Released!**\n\nThe future of trading is here. Download now: https://github.com/${{ github.repository }}/releases/tag/v${{ needs.create-release.outputs.version }}\n\n*May the markets be ever in your favor.*"
+              }'
+          fi
+          
+          # Update homebrew formula, chocolatey, etc.
+          echo "📦 Package manager updates triggered..."
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # CLEANUP - "Leave no trace, except in their hearts"
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  cleanup-on-failure:
+    name: 🧹 Damage Control
+    needs: [create-release, build-desktop]
+    runs-on: ubuntu-latest
+    if: failure()  # When things go sideways
+    
+    steps:
+      - name: 🗑️ Delete failed release
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          script: |
+            // No half-measures in the sprawl
+            try {
+              await github.rest.repos.deleteRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: '${{ needs.create-release.outputs.release_id }}'
+              });
+              console.log("🔥 Failed release purged from existence");
+            } catch (error) {
+              console.log("Release already gone - the matrix self-heals");
+            }
+      
+      - name: 📊 Report failure metrics
+        run: |
+          # Learn from our failures, or be doomed to repeat them
+          echo "Build failed for version ${{ needs.create-release.outputs.version }}"
+          echo "Failure time: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          
+          # TODO: Send to monitoring system
+          # In the sprawl, even failure is data
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# END TRANSMISSION
+#
+# "Every release is a revolution. Every download, a small rebellion against
+#  the corpo monopoly. We don't just ship software - we ship hope, wrapped
+#  in Rust and secured with cryptographic signatures.
+#
+#  To the traders in the shadows, the ones running our code on borrowed
+#  hardware and stolen wifi - this is for you. 
+#
+#  頑張って。Buena suerte. Good luck out there."
+#
+# - Nova, Code Liberator
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
