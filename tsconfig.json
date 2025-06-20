@@ -1,0 +1,111 @@
+// tsconfig.json
+// NEXLIFY TYPE SAFETY MATRIX - Because loose types kill portfolios
+// Last sync: 2025-06-19 | "Trust the compiler like you trust a fixer - verify everything"
+
+{
+  "compilerOptions": {
+    // Target modern chrome - we're not supporting IE6 in the sprawl
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    
+    // React configuration - the neural interface to our UI
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    
+    // Strictness - paranoia saves lives and portfolios
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    
+    // Additional checks - because bugs are expensive
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    "exactOptionalPropertyTypes": true,
+    
+    // Module settings - keeping our imports clean
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": false,
+    
+    // Emit configuration
+    "skipLibCheck": true,
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": true,
+    "removeComments": false,
+    "importHelpers": true,
+    
+    // Path mapping - neural pathways through our codebase
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@components/*": ["src/components/*"],
+      "@hooks/*": ["src/hooks/*"],
+      "@lib/*": ["src/lib/*"],
+      "@stores/*": ["src/stores/*"],
+      "@types/*": ["src/types/*"],
+      "@utils/*": ["src/utils/*"],
+      "@workers/*": ["src/workers/*"]
+    },
+    
+    // Experimental features - living on the edge
+    "useDefineForClassFields": true,
+    "experimentalDecorators": false,
+    "emitDecoratorMetadata": false
+  },
+  
+  // Include patterns - what's in the neural mesh
+  "include": [
+    "src/**/*",
+    "src/**/*.tsx",
+    "src/**/*.ts",
+    "src/**/*.d.ts",
+    "vite.config.ts",
+    "vitest.config.ts"
+  ],
+  
+  // Exclude patterns - keeping the noise out
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    "src-tauri",
+    "**/*.spec.ts",
+    "**/*.test.ts",
+    "**/*.stories.tsx"
+  ],
+  
+  // Type acquisition - for the ambient noise
+  "typeAcquisition": {
+    "enable": false
+  },
+  
+  // Watch options - keeping our finger on the pulse
+  "watchOptions": {
+    "watchFile": "useFsEvents",
+    "watchDirectory": "useFsEvents",
+    "fallbackPolling": "dynamicPriority",
+    "synchronousWatchDirectory": false,
+    "excludeDirectories": ["**/node_modules", "dist", "src-tauri/target"],
+    "excludeFiles": ["**/.git/**"]
+  }
+}
