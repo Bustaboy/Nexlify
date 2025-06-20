@@ -1,11 +1,14 @@
+// src-tauri/tauri.conf.json
+// NEXLIFY NEURAL CONFIG - Security capabilities & chrome settings
+// Last sync: 2025-06-19 | "Wake the f*ck up, samurai"
+
 {
-  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "productName": "Nexlify Terminal",
-  "version": "3.0.0",
-  "identifier": "com.nexlify.terminal",
+  "version": "4.0.0",
   "build": {
-    "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
     "devUrl": "http://localhost:5173",
     "frontendDist": "../dist"
   },
@@ -19,11 +22,14 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "identifier": "com.nexlify.terminal",
     "publisher": "Nexlify Collective",
     "copyright": "© 2025 Nexlify. Built for the digital underground.",
     "shortDescription": "Neural-enhanced crypto trading for the new flesh",
-    "longDescription": "High-frequency cryptocurrency trading terminal with cyberpunk aesthetics. Real-time market data, GPU-accelerated charts, and military-grade encryption.",
-    "resources": [],
+    "longDescription": "High-frequency cryptocurrency trading terminal with cyberpunk aesthetics. Real-time market data, GPU-accelerated charts, and military-grade encryption. Jack in and burn the markets.",
+    "resources": {
+      "externalBin": []
+    },
     "macOS": {
       "minimumSystemVersion": "10.15",
       "frameworks": [],
@@ -35,6 +41,7 @@
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
       "timestampUrl": "http://timestamp.digicert.com",
+      "tsp": false,
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
       }
@@ -67,12 +74,16 @@
         "worker-src": "'self' blob:"
       },
       "dangerousDisableAssetCspModification": false,
-      "freezePrototype": true
+      "freezePrototype": true,
+      "pattern": {
+        "use": "isolation"
+      }
     },
     "windows": [
       {
         "title": "NEXLIFY // NEURAL TERMINAL",
         "label": "main",
+        "url": "/",
         "width": 1600,
         "height": 1000,
         "minWidth": 1200,
@@ -87,9 +98,17 @@
         "focus": true,
         "acceptFirstMouse": false,
         "hiddenTitle": false,
+        "tabbingIdentifier": null,
+        "additionalBrowserArgs": null,
         "shadow": true,
         "dragDropEnabled": true,
-        "zoomHotkeysEnabled": false
+        "zoomHotkeysEnabled": false,
+        "theme": "dark",
+        "titleBarStyle": "overlay",
+        "windowEffects": {
+          "effects": ["mica"],
+          "state": "active"
+        }
       }
     ],
     "trayIcon": {
@@ -141,7 +160,10 @@
       "endpoints": ["https://releases.nexlify.com/{{target}}/{{arch}}/{{current_version}}"],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEMzNkUzNEJCREFCRTlBRTAKUldRWmNlcnJVL2wzNGJ1WDlLdnNKbFRKMDNWOHBpNmRqVzNWdlVZNEhlRWM5eE1oTWJ0VEhsZz0K"
     },
-    "windowState": {
+    "stronghold": {
+      "migrationPassword": null
+    },
+    "window-state": {
       "saveWindowState": true
     }
   }
