@@ -156,7 +156,7 @@ pub struct CacheStats {
 
 impl MarketCache {
     pub fn get_ticker(&self, symbol: &str) -> Option<Ticker> {
-        self.tickers.get(symbol).map(|entry| entry.clone())
+        self.tickers.get(symbol).map(|entry| entry.value().clone())
     }
 
     /// Boot up the neural cache

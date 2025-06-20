@@ -81,7 +81,7 @@ class NexlifyDiagnostics:
                 cmd_path = commands_path / cmd_file
                 if cmd_path.exists():
                     # Check if file has actual implementations (not just empty)
-                    content = cmd_path.read_text()
+                    content = cmd_path.read_text(encoding='utf-8')
                     if "todo!()" in content.lower() or "unimplemented!()" in content:
                         self.warnings.append(f"⚠️ {cmd_file} contains unimplemented functions")
                     elif len(content.strip()) < 100:
@@ -188,7 +188,7 @@ class NexlifyDiagnostics:
         
         # Save detailed report
         report_file = f"diagnostic_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-        with open(report_file, 'w') as f:
+        with open(report_file, 'w', encoding='utf-8') as f:
             f.write("NEXLIFY DIAGNOSTIC REPORT\n")
             f.write(f"Generated: {datetime.now()}\n")
             f.write("=" * 50 + "\n\n")

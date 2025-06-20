@@ -239,7 +239,7 @@ pub struct Order {
     pub metadata: HashMap<String, String>, // For that extra chrome
 }
 
-#[derive(Copy, Clone, Debug, , Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum OrderSide {
     Buy,
     Sell,

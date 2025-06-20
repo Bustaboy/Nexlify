@@ -6,8 +6,7 @@
 
 use std::sync::Arc;
 use parking_lot::RwLock;
-use tauri::{
-    generate_context, generate_handler,
+use tauri::{generate_handler,
     Manager, Runtime, State, WebviewWindow,
     async_runtime,
 };
@@ -256,7 +255,7 @@ fn spawn_performance_monitor() {
 
 /// Initialize WebSocket streams to the market matrix
 async fn initialize_market_streams(
-    app_handle: tauri::AppHandle,
+    _app_handle: tauri::AppHandle,
     market_cache: Arc<MarketCache>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -269,7 +268,7 @@ async fn initialize_market_streams(
     let (_, mut read) = ws_stream.split();
     
     // Subscribe to BTC-USD orderbook
-    let subscribe_msg = serde_json::json!({
+    let _subscribe_msg = serde_json::json!({
         "type": "subscribe",
         "channels": ["level2", "ticker"],
         "product_ids": ["BTC-USD", "ETH-USD"]

@@ -14,7 +14,7 @@ use base64::{Engine as _, engine::general_purpose};
 
 use crate::state::AppState;
 use super::{CommandResult, CommandError};
-use rand::{RngCore, Rng as RandRng};
+use rand::{Rng, thread_rng};
 
 // Security constants - learned these numbers the hard way
 const CREDENTIAL_ITERATIONS: u32 = 100_000; // PBKDF2 iterations - paranoia level: maximum
@@ -500,7 +500,7 @@ async fn simulate_credential_verification(exchange: &str) -> (bool, Vec<String>)
 /// Check exchange health
 async fn check_exchange_health(exchange: &str) -> ExchangeStatus {
     // Simulate health check
-    let latency = (rand::thread_rng().gen::<f32>() * 100.0) as i64 + 20;
+    let latency = (thread_rng().gen::<f32>() * 100.0) as i64 + 20;
     
     ExchangeStatus {
         exchange: exchange.to_string(),
@@ -523,7 +523,7 @@ async fn check_exchange_health(exchange: &str) -> ExchangeStatus {
 
 fn generate_session_id() -> String {
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-    let mut rng = rand::thread_rng();
+    let mut rng = thread_rng();
     let session_bytes: Vec<u8> = (0..32).map(|_| rng.gen::<u8>()).collect();
     BASE64.encode(&session_bytes)
 }
