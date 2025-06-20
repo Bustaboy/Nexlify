@@ -16,7 +16,6 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 mod commands;
 mod state;
-mod error;
 
 use commands::{market_data, trading, auth};
 use state::{AppState, MarketCache, TradingEngine};
@@ -106,29 +105,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         
         // Plugin initialization - extending our capabilities
-        .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_shell::Builder::new().build())
+        .plugin(tauri_plugin_process::Builder::new().build())
+        .plugin(tauri_plugin_os::Builder::new().build())
+        .plugin(tauri_plugin_http::Builder::new().build())
         .plugin(tauri_plugin_websocket::Builder::new().build())
-        .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_notification::Builder::new().build())
+        .plugin(tauri_plugin_dialog::Builder::new().build())
+        .plugin(tauri_plugin_fs::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::new().build())
-        .plugin(tauri_plugin_stronghold::Builder::new(|password| {
-                // Use tauri's built-in password hashing
-                use argon2::{Argon2, PasswordHasher};
-                use argon2::password_hash::{rand_core::OsRng, SaltString};
-                
-                let salt = SaltString::generate(&mut OsRng);
-                let argon2 = Argon2::default();
-                
-                argon2
-                    .hash_password(password.as_bytes(), &salt)
-                    .map(|hash| hash.to_string().into_bytes())
-                    .unwrap_or_else(|_| password.as_bytes().to_vec())
-            }).build())
+        .plugin(tauri_plugin_stronghold::Builder::new().build())
         
         // Run our neural terminal
         .run(tauri::generate_context!())

@@ -12,11 +12,6 @@ rust-version = "1.75"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-argon2 = "0.5"
-hex = "0.4"
-sha2 = "0.10"
-hmac = "0.12"
-rand = "0.8"
 # Core Tauri runtime
 tauri = { version = "2", features = ["tray-icon", "unstable"] }
 

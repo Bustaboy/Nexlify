@@ -155,10 +155,6 @@ pub struct CacheStats {
 }
 
 impl MarketCache {
-    pub fn get_ticker(&self, symbol: &str) -> Option<Ticker> {
-        self.tickers.get(symbol).map(|entry| entry.clone())
-    }
-
     /// Boot up the neural cache
     pub fn new() -> Arc<Self> {
         let cache = Arc::new(Self {

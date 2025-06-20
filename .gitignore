@@ -4243,3 +4243,6 @@ src-tauri/target/debug/.fingerprint/serialize-to-javascript-impl-cbe5ac319fa55b3
 src-tauri/target/debug/.fingerprint/serialize-to-javascript-impl-cbe5ac319fa55b36/lib-serialize_to_javascript_impl.json
 src-tauri/target/debug/.fingerprint/tauri-plugin-notification-24292599097f40c0/run-build-script-build-script-build.json
 src-tauri/target/debug/.fingerprint/tauri-plugin-window-state-9ff31c465236df94/run-build-script-build-script-build.json
+src-tauri/gen/schemas/acl-manifests.json
+/src-tauri/target/release/.fingerprint
+/src-tauri/target/release/deps
