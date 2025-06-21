@@ -19,8 +19,6 @@ mod error;
 
 use commands::{market_data, trading, auth};
 use state::{AppState, MarketCache, TradingEngine};
-use tauri::Emitter;
-use tauri::menu::Menu;
 
 /// Neural mesh initialization - where we jack into the matrix
 #[tokio::main]
@@ -301,7 +299,7 @@ async fn initialize_market_streams(
 
 /// Show neural diagnostic overlay - for when you need to peek under the chrome
 async fn show_neural_diagnostics() {
-    use tauri::AppHandle;
+    
     
     info!("🧠 Neural Diagnostics:");
     info!("├─ Uptime: {} seconds", get_uptime());

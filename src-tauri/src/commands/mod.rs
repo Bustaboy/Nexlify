@@ -7,9 +7,6 @@ pub mod trading;
 pub mod auth;
 
 // Re-export all command functions for cleaner imports in main.rs
-pub use market_data::*;
-pub use trading::*;
-pub use auth::*;
 
 /// Command result type - because every neural transmission can glitch
 pub type CommandResult<T> = Result<T, CommandError>;

@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc, Duration};
 use tracing::{debug, info, warn};
 
-use crate::state::{MarketCache, market_cache::{OrderBook, Trade, Ticker, Candle}};
+use crate::state::{MarketCache, market_cache::{OrderBook, Ticker, Candle}};
 use super::{CommandResult, CommandError, validation};
 
 /// Get orderbook snapshot - peering into the abyss of supply and demand
@@ -159,7 +159,7 @@ pub async fn subscribe_market_data(
         }
     }
     
-    let mut subscription_id = uuid::Uuid::new_v4().to_string();
+    let subscription_id = uuid::Uuid::new_v4().to_string();
     let mut rx = market_cache.subscribe(symbol.clone());
     
     info!("🔌 Neural link established for {} - types: {:?}", symbol, data_types);

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc, Duration};
-use tracing::{debug, info, warn, error};
+use tracing::{debug, info, warn};
 use ring::{rand, pbkdf2};
 use ring::rand::SecureRandom;
 use base64::{Engine as _, engine::general_purpose};

@@ -2,13 +2,12 @@
 // NEXLIFY MARKET CACHE - Real-time data flowing through the neural mesh
 // Last sync: 2025-06-19 | "Data flows like blood through chrome veins"
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::sync::Arc;
 use parking_lot::RwLock;
 use chrono::{DateTime, Utc, Duration};
 use serde::{Deserialize, Serialize};
 use dashmap::DashMap;
-use bytes::Bytes;
 use tokio::sync::broadcast;
 use tracing::{debug, warn};
 

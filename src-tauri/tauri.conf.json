@@ -20,7 +20,7 @@
       "icons/icon.ico"
     ],
     "publisher": "Nexlify Collective",
-    "copyright": "© 2025 Nexlify. Built for the digital underground.",
+    "copyright": "\u00a9 2025 Nexlify. Built for the digital underground.",
     "shortDescription": "Neural-enhanced crypto trading for the new flesh",
     "longDescription": "High-frequency cryptocurrency trading terminal with cyberpunk aesthetics. Real-time market data, GPU-accelerated charts, and military-grade encryption.",
     "resources": [],
@@ -103,8 +103,7 @@
   },
   "plugins": {
     "shell": {
-      "open": false,
-      "scope": []
+      "open": []
     },
     "http": {
       "scope": [
@@ -123,8 +122,14 @@
     },
     "fs": {
       "scope": {
-        "allow": ["$APPDATA/nexlify/*", "$APPCONFIG/nexlify/*"],
-        "deny": ["$HOME/.ssh/*", "$HOME/.gnupg/*"]
+        "allow": [
+          "$APPDATA/nexlify/*",
+          "$APPCONFIG/nexlify/*"
+        ],
+        "deny": [
+          "$HOME/.ssh/*",
+          "$HOME/.gnupg/*"
+        ]
       }
     },
     "process": {
@@ -138,7 +143,9 @@
       "all": true
     },
     "updater": {
-      "endpoints": ["https://releases.nexlify.com/{{target}}/{{arch}}/{{current_version}}"],
+      "endpoints": [
+        "https://releases.nexlify.com/{{target}}/{{arch}}/{{current_version}}"
+      ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEMzNkUzNEJCREFCRTlBRTAKUldRWmNlcnJVL2wzNGJ1WDlLdnNKbFRKMDNWOHBpNmRqVzNWdlVZNEhlRWM5eE1oTWJ0VEhsZz0K"
     },
     "windowState": {

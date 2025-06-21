@@ -7,12 +7,12 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
-use tracing::{debug, info, warn, error};
+use tracing::{info, warn, error};
 
 use crate::state::{
     AppState, TradingEngine, 
     Order, OrderSide, OrderType, OrderStatus,
-    Position, PositionSide
+    Position
 };
 use super::{CommandResult, CommandError, validation};
 
