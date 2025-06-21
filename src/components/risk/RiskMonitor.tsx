@@ -12,6 +12,7 @@ import {
   Gauge,
   Heart,
   Skull,
+  Shield,
   ShieldAlert,
   ShieldCheck,
   ShieldX,
@@ -25,7 +26,7 @@ import {
   Target
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-
+import Decimal from 'decimal.js';
 import { useTradingStore } from '@/stores/tradingStore';
 import { useMarketStore } from '@/stores/marketStore';
 

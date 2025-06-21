@@ -21,6 +21,7 @@
     "forceConsistentCasingInFileNames": true,
     "useDefineForClassFields": true,
     "baseUrl": ".",
+    "types": ["vite/client"], // Added
     "paths": {
       "@/*": ["src/*"],
       "@components/*": ["src/components/*"],

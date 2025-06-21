@@ -1,6 +1,6 @@
 // src/components/effects/NeuralBackground.tsx
 // NEXLIFY NEURAL BACKGROUND - The digital rain that drowns corpo dreams
-// Last sync: 2025-06-19 | "We are the ghost in their machine"
+// Last sync: 2025-06-21 | "We are the ghost in their machine"
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
@@ -29,10 +29,8 @@ interface Particle {
 /**
  * NEURAL BACKGROUND - Where cyberspace bleeds into reality
  * 
- * Built this after a 48-hour coding marathon fueled by synth-coffee
- * and pure spite. The corps wanted their sterile Bloomberg terminals.
- * We gave them this - a living, breathing representation of the data
- * streams that flow through the digital underground.
+ * Fixed the TypeScript matrix glitch. The drops now flow through
+ * proper memory channels, not hacked onto the canvas context.
  * 
  * Each effect tells a story:
  * - Matrix: Classic digital rain, because we're all living in it
@@ -57,6 +55,9 @@ export const NeuralBackground = ({
   const mouseRef = useRef({ x: 0, y: 0 });
   const [isHovered, setIsHovered] = useState(false);
   
+  // Matrix rain drops - stored properly now
+  const dropsRef = useRef<number[]>([]);
+  
   // Performance optimization - frame limiting
   const frameInterval = 1000 / fps;
   let then = Date.now();
@@ -80,53 +81,70 @@ export const NeuralBackground = ({
                     intensity === 'medium' ? 18 : 22;
     const columns = Math.floor(width / charSize);
     
-    // Initialize drops
-    if (!ctx.drops) {
-      ctx.drops = Array(columns).fill(0);
+    // Initialize drops if needed
+    if (dropsRef.current.length !== columns) {
+      dropsRef.current = Array(columns).fill(0);
     }
     
     // Fade effect - ghosting previous frames
-    ctx.fillStyle = `rgba(0, 0, 0, ${intensity === 'extreme' ? 0.02 : 0.05})`;
+    ctx.fillStyle = `rgba(0, 0, 0, ${intensity === 'extreme' ? 0.02 : 
+                                     intensity === 'high' ? 0.05 : 
+                                     intensity === 'medium' ? 0.08 : 0.1})`;
     ctx.fillRect(0, 0, width, height);
     
-    // Set text properties
-    ctx.font = `${charSize}px "Courier New", monospace`;
+    // Set text style
+    ctx.fillStyle = color;
+    ctx.font = `${charSize}px monospace`;
     ctx.textAlign = 'center';
     
     // Draw characters
-    for (let i = 0; i < ctx.drops.length; i++) {
+    for (let i = 0; i < dropsRef.current.length; i++) {
+      // Random character
       const char = chars[Math.floor(Math.random() * chars.length)];
       const x = i * charSize + charSize / 2;
-      const y = ctx.drops[i] * charSize;
+      const y = dropsRef.current[i] * charSize;
       
-      // Color variation based on position and interaction
-      const distToMouse = interactive ? 
-        Math.sqrt(Math.pow(x - mouseRef.current.x, 2) + 
-                  Math.pow(y - mouseRef.current.y, 2)) : Infinity;
+      // Brightness based on position
+      const brightness = 1 - (y / height) * 0.5;
+      ctx.globalAlpha = brightness;
       
-      const brightness = distToMouse < 100 ? 1 : 
-                        distToMouse < 200 ? 0.8 : 0.6;
-      
-      ctx.fillStyle = color.replace(')', `, ${brightness})`).replace('rgb', 'rgba');
-      ctx.fillText(char, x, y);
-      
-      // Reset drop when it reaches bottom or randomly
-      if (y > height || Math.random() > 0.98) {
-        ctx.drops[i] = 0;
+      // Interactive effect - brighter near mouse
+      if (interactive && mouseRef.current.x && mouseRef.current.y) {
+        const dist = Math.sqrt(
+          Math.pow(x - mouseRef.current.x, 2) + 
+          Math.pow(y - mouseRef.current.y, 2)
+        );
+        if (dist < 100) {
+          ctx.globalAlpha = 1;
+          ctx.shadowBlur = 20;
+          ctx.shadowColor = color;
+        }
       }
       
-      // Variable speed based on intensity
-      ctx.drops[i] += intensity === 'extreme' ? 1.5 :
-                     intensity === 'high' ? 1 :
-                     intensity === 'medium' ? 0.7 : 0.5;
+      ctx.fillText(char, x, y);
+      
+      // Reset shadow
+      ctx.shadowBlur = 0;
+      
+      // Move drop
+      if (y > height && Math.random() > 0.975) {
+        dropsRef.current[i] = 0;
+      }
+      
+      // Update position based on intensity
+      dropsRef.current[i] += intensity === 'extreme' ? 1.5 :
+                             intensity === 'high' ? 1.2 :
+                             intensity === 'medium' ? 1 : 0.8;
     }
+    
+    ctx.globalAlpha = 1;
   }, [color, intensity, interactive]);
   
   /**
-   * Circuit board effect - Neural pathways of profit
+   * Circuit effect - Neural pathways
    * 
-   * Each connection is a correlation, each node a decision point.
-   * Watch the signals propagate. Information is currency here.
+   * Each connection is a trade route, each node a decision point.
+   * The market is a circuit. Current flows where resistance is lowest.
    */
   const drawCircuit = useCallback((
     ctx: CanvasRenderingContext2D,
@@ -134,20 +152,26 @@ export const NeuralBackground = ({
     height: number,
     frame: number
   ) => {
-    ctx.clearRect(0, 0, width, height);
+    // Clear with fade
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+    ctx.fillRect(0, 0, width, height);
     
-    // Grid of nodes
-    const nodeSize = intensity === 'extreme' ? 30 : 50;
-    const nodes: Array<{x: number, y: number, active: boolean}> = [];
+    // Circuit parameters
+    const nodeCount = intensity === 'extreme' ? 30 :
+                     intensity === 'high' ? 20 :
+                     intensity === 'medium' ? 15 : 10;
+    const connectionDistance = 150;
     
-    for (let x = nodeSize; x < width; x += nodeSize * 2) {
-      for (let y = nodeSize; y < height; y += nodeSize * 2) {
-        nodes.push({
-          x: x + (Math.random() - 0.5) * nodeSize * 0.3,
-          y: y + (Math.random() - 0.5) * nodeSize * 0.3,
-          active: Math.random() > 0.7
-        });
-      }
+    // Generate nodes
+    const nodes = [];
+    for (let i = 0; i < nodeCount; i++) {
+      const angle = (i / nodeCount) * Math.PI * 2 + frame * 0.001;
+      const radius = 100 + Math.sin(angle * 3) * 50;
+      nodes.push({
+        x: width / 2 + Math.cos(angle) * radius,
+        y: height / 2 + Math.sin(angle) * radius,
+        pulse: Math.sin(frame * 0.05 + i) * 0.5 + 0.5
+      });
     }
     
     // Draw connections
@@ -155,82 +179,64 @@ export const NeuralBackground = ({
     ctx.lineWidth = 1;
     
     nodes.forEach((node, i) => {
-      if (!node.active) return;
-      
-      // Connect to nearby nodes
       nodes.forEach((other, j) => {
-        if (i === j || !other.active) return;
+        if (i >= j) return;
         
         const dist = Math.sqrt(
           Math.pow(node.x - other.x, 2) + 
           Math.pow(node.y - other.y, 2)
         );
         
-        if (dist < nodeSize * 3) {
+        if (dist < connectionDistance) {
+          const opacity = 1 - (dist / connectionDistance);
+          ctx.globalAlpha = opacity * 0.5;
+          
           ctx.beginPath();
           ctx.moveTo(node.x, node.y);
-          
-          // Circuit-style routing (90-degree angles)
-          if (Math.random() > 0.5) {
-            ctx.lineTo(node.x, other.y);
-            ctx.lineTo(other.x, other.y);
-          } else {
-            ctx.lineTo(other.x, node.y);
-            ctx.lineTo(other.x, other.y);
-          }
-          
+          ctx.lineTo(other.x, other.y);
           ctx.stroke();
+          
+          // Data packets
+          if (Math.random() < 0.01) {
+            const progress = (frame % 100) / 100;
+            const px = node.x + (other.x - node.x) * progress;
+            const py = node.y + (other.y - node.y) * progress;
+            
+            ctx.fillStyle = color;
+            ctx.globalAlpha = 1;
+            ctx.beginPath();
+            ctx.arc(px, py, 2, 0, Math.PI * 2);
+            ctx.fill();
+          }
         }
       });
     });
     
     // Draw nodes
     nodes.forEach(node => {
-      // Glow effect
-      if (node.active) {
-        const gradient = ctx.createRadialGradient(
-          node.x, node.y, 0,
-          node.x, node.y, 10
-        );
-        gradient.addColorStop(0, color);
-        gradient.addColorStop(1, 'transparent');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(node.x - 10, node.y - 10, 20, 20);
-      }
+      ctx.fillStyle = color;
+      ctx.globalAlpha = node.pulse;
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, 4 + node.pulse * 2, 0, Math.PI * 2);
+      ctx.fill();
       
-      // Node core
-      ctx.fillStyle = node.active ? color : color + '40';
-      ctx.fillRect(node.x - 3, node.y - 3, 6, 6);
+      // Node glow
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = node.pulse * 0.5;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, 8 + node.pulse * 4, 0, Math.PI * 2);
+      ctx.stroke();
     });
     
-    // Traveling pulses
-    const pulsePhase = (frame * 0.02) % 1;
-    ctx.shadowBlur = 20;
-    ctx.shadowColor = color;
-    
-    nodes.forEach((node, i) => {
-      if (node.active && Math.random() > 0.98) {
-        const targetNode = nodes[Math.floor(Math.random() * nodes.length)];
-        if (targetNode.active) {
-          const x = node.x + (targetNode.x - node.x) * pulsePhase;
-          const y = node.y + (targetNode.y - node.y) * pulsePhase;
-          
-          ctx.fillStyle = color;
-          ctx.beginPath();
-          ctx.arc(x, y, 3, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-    });
-    
-    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
   }, [color, intensity]);
   
   /**
-   * Glitch effect - Reality.exe has stopped responding
+   * Glitch effect - Reality breaking
    * 
-   * When the system breaks, we feast on the chaos.
-   * Each glitch is an opportunity, each error a doorway.
+   * Sometimes the system shows its true face. Fragmented. Broken.
+   * In those moments, fortunes are made by those who see clearly.
    */
   const drawGlitch = useCallback((
     ctx: CanvasRenderingContext2D,
@@ -238,76 +244,59 @@ export const NeuralBackground = ({
     height: number,
     frame: number
   ) => {
-    // Save current image data
-    const imageData = ctx.getImageData(0, 0, width, height);
-    
-    // Clear with slight fade
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-    ctx.fillRect(0, 0, width, height);
-    
-    // Glitch blocks
-    const glitchCount = intensity === 'extreme' ? 20 :
-                       intensity === 'high' ? 15 :
-                       intensity === 'medium' ? 10 : 5;
-    
-    for (let i = 0; i < glitchCount; i++) {
-      if (Math.random() > 0.3) continue;
+    // Random glitch intensity
+    if (Math.random() > 0.95) {
+      // Save current canvas
+      const imageData = ctx.getImageData(0, 0, width, height);
       
-      const blockWidth = Math.random() * width * 0.3;
-      const blockHeight = Math.random() * 50 + 5;
-      const x = Math.random() * width;
-      const y = Math.random() * height;
+      // Glitch parameters
+      const glitchHeight = Math.random() * 100 + 20;
+      const glitchY = Math.random() * (height - glitchHeight);
+      const offset = (Math.random() - 0.5) * 50;
       
-      // Color channel shift
-      const shift = Math.random() * 20 - 10;
+      // Shift section
+      ctx.putImageData(imageData, offset, 0);
       
-      ctx.fillStyle = `rgba(${
-        Math.random() > 0.5 ? '255, 0, 0' : '0, 255, 255'
-      }, ${Math.random() * 0.5})`;
+      // Color channel separation
+      if (Math.random() > 0.5) {
+        ctx.globalCompositeOperation = 'screen';
+        ctx.fillStyle = 'rgba(255, 0, 0, 0.1)';
+        ctx.fillRect(0, glitchY, width, glitchHeight);
+        ctx.fillStyle = 'rgba(0, 255, 255, 0.1)';
+        ctx.fillRect(offset * 2, glitchY, width, glitchHeight);
+      }
       
-      ctx.fillRect(x + shift, y, blockWidth, blockHeight);
+      ctx.globalCompositeOperation = 'source-over';
     }
     
-    // Scan lines
-    ctx.strokeStyle = color + '20';
+    // Scanlines
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
     ctx.lineWidth = 1;
     
     for (let y = 0; y < height; y += 4) {
-      if (Math.random() > 0.8) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
-        ctx.stroke();
-      }
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
     }
     
-    // Digital noise
-    if (intensity === 'high' || intensity === 'extreme') {
-      for (let i = 0; i < 1000; i++) {
+    // Noise
+    if (frame % 2 === 0) {
+      for (let i = 0; i < 100; i++) {
         const x = Math.random() * width;
         const y = Math.random() * height;
-        const brightness = Math.random();
+        const size = Math.random() * 2;
         
-        ctx.fillStyle = `rgba(0, 255, 255, ${brightness})`;
-        ctx.fillRect(x, y, 1, 1);
+        ctx.fillStyle = `rgba(${Math.random() * 255}, ${Math.random() * 255}, ${Math.random() * 255}, 0.5)`;
+        ctx.fillRect(x, y, size, size);
       }
     }
-    
-    // Corrupted text
-    if (Math.random() > 0.95) {
-      ctx.font = '20px monospace';
-      ctx.fillStyle = color;
-      const glitchText = ['ERROR', '0xDEADBEEF', 'SEGFAULT', 'PROFIT.EXE', '///'];
-      const text = glitchText[Math.floor(Math.random() * glitchText.length)];
-      
-      ctx.fillText(text, Math.random() * width, Math.random() * height);
-    }
-  }, [color, intensity]);
+  }, []);
   
   /**
-   * Wave effect - The tides of the market
+   * Wave effect - Market oscillations
    * 
-   * Bulls and bears, fear and greed, pump and dump.
+   * Bull runs, bear markets, sideways chop.
    * It all moves in waves. Ride them or drown.
    */
   const drawWaves = useCallback((
@@ -369,80 +358,60 @@ export const NeuralBackground = ({
                     intensity === 'high' ? 30 :
                     intensity === 'medium' ? 40 : 50;
     
-    // Perspective transform
-    const perspective = 400;
-    const centerX = width / 2;
-    const centerY = height / 2;
-    
-    ctx.strokeStyle = color + '40';
+    ctx.strokeStyle = color + '20';
     ctx.lineWidth = 1;
     
-    // Horizontal lines
-    for (let y = -height; y < height * 2; y += gridSize) {
+    // Perspective transform
+    const perspectiveY = height * 0.3;
+    const vanishingPoint = { x: width / 2, y: perspectiveY };
+    
+    // Horizontal lines with perspective
+    for (let y = perspectiveY; y < height; y += gridSize) {
+      const progress = (y - perspectiveY) / (height - perspectiveY);
+      const lineWidth = progress * width;
+      const startX = vanishingPoint.x - lineWidth / 2;
+      
+      ctx.globalAlpha = progress * 0.5;
       ctx.beginPath();
-      
-      for (let x = -width; x < width * 2; x += gridSize) {
-        const z = (y - centerY + frame * 2) % (height * 2);
-        const scale = perspective / (perspective + z);
-        
-        const projX = centerX + (x - centerX) * scale;
-        const projY = centerY + (y - centerY - frame * 2) * scale;
-        
-        if (x === -width) {
-          ctx.moveTo(projX, projY);
-        } else {
-          ctx.lineTo(projX, projY);
-        }
-      }
-      
+      ctx.moveTo(startX, y);
+      ctx.lineTo(startX + lineWidth, y);
       ctx.stroke();
     }
     
-    // Vertical lines
-    for (let x = -width; x < width * 2; x += gridSize) {
+    // Vertical lines with perspective
+    const verticalLines = 20;
+    for (let i = 0; i <= verticalLines; i++) {
+      const angle = (i / verticalLines - 0.5) * Math.PI;
+      const startX = vanishingPoint.x + Math.sin(angle) * width;
+      
       ctx.beginPath();
-      
-      for (let y = -height; y < height * 2; y += gridSize) {
-        const z = (y - centerY + frame * 2) % (height * 2);
-        const scale = perspective / (perspective + z);
-        
-        const projX = centerX + (x - centerX) * scale;
-        const projY = centerY + (y - centerY - frame * 2) * scale;
-        
-        if (y === -height) {
-          ctx.moveTo(projX, projY);
-        } else {
-          ctx.lineTo(projX, projY);
-        }
-      }
-      
+      ctx.moveTo(vanishingPoint.x, vanishingPoint.y);
+      ctx.lineTo(startX, height);
       ctx.stroke();
     }
     
-    // Glow at intersection with mouse
-    if (interactive && isHovered) {
-      const glowRadius = 100;
-      const gradient = ctx.createRadialGradient(
-        mouseRef.current.x, mouseRef.current.y, 0,
-        mouseRef.current.x, mouseRef.current.y, glowRadius
-      );
-      gradient.addColorStop(0, color + '80');
-      gradient.addColorStop(1, 'transparent');
-      
-      ctx.fillStyle = gradient;
-      ctx.fillRect(
-        mouseRef.current.x - glowRadius,
-        mouseRef.current.y - glowRadius,
-        glowRadius * 2,
-        glowRadius * 2
-      );
-    }
-  }, [color, intensity, interactive, isHovered]);
+    // Animated highlight
+    const highlightY = perspectiveY + (frame % 100) * ((height - perspectiveY) / 100);
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 1 - ((frame % 100) / 100);
+    ctx.lineWidth = 2;
+    
+    const highlightProgress = (highlightY - perspectiveY) / (height - perspectiveY);
+    const highlightWidth = highlightProgress * width;
+    const highlightStartX = vanishingPoint.x - highlightWidth / 2;
+    
+    ctx.beginPath();
+    ctx.moveTo(highlightStartX, highlightY);
+    ctx.lineTo(highlightStartX + highlightWidth, highlightY);
+    ctx.stroke();
+    
+    ctx.globalAlpha = 1;
+  }, [color, intensity]);
   
   /**
-   * Particle system - The atoms of profit and loss
+   * Particle system update - Digital life
    * 
-   * Each particle is a trade, a decision, a possibility.
+   * Each particle is a trader, a transaction, a dream.
    * Watch them connect, disconnect, live, die. Just like traders.
    */
   const updateParticles = useCallback((
@@ -631,69 +600,40 @@ export const NeuralBackground = ({
         style={{ 
           opacity: intensity === 'extreme' ? 0.8 :
                   intensity === 'high' ? 0.6 :
-                  intensity === 'medium' ? 0.4 : 0.3
+                  intensity === 'medium' ? 0.4 : 0.3,
+          mixBlendMode: 'screen'
         }}
       />
       
       {/* Overlay gradient for depth */}
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-gray-900/50 to-gray-900" />
-      
-      {/* Scanline effect */}
-      {(variant === 'glitch' || variant === 'circuit') && (
-        <motion.div
-          className="absolute inset-0 pointer-events-none"
-          animate={{
-            backgroundPosition: ['0% 0%', '0% 100%']
-          }}
-          transition={{
-            duration: 8,
-            repeat: Infinity,
-            ease: 'linear'
-          }}
-          style={{
-            backgroundImage: `repeating-linear-gradient(
-              0deg,
-              transparent,
-              transparent 2px,
-              ${color}10 2px,
-              ${color}10 4px
-            )`,
-            backgroundSize: '100% 4px'
-          }}
-        />
-      )}
+      <div 
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: `radial-gradient(circle at 50% 50%, transparent 0%, rgba(0,0,0,0.5) 100%)`
+        }}
+      />
     </div>
   );
 };
 
 /**
- * NEURAL BACKGROUND WISDOM:
+ * NEURAL BACKGROUND WISDOM - CYBERPUNK EDITION:
  * 
- * Every effect here serves a purpose beyond aesthetics:
+ * 1. Canvas context is read-only. Don't hack properties onto it.
+ *    Use refs, closures, or external state. The matrix has rules.
  * 
- * 1. Matrix rain reminds us we're all just data in someone else's
- *    algorithm. But we can learn to read the patterns.
+ * 2. Performance matters. 60 FPS keeps traders happy. 30 FPS makes
+ *    them nervous. Below that, they think your app is broken.
  * 
- * 2. Circuit boards show the connections. In trading, everything
- *    is connected. Miss one signal, lose the whole game.
+ * 3. Every effect has meaning. Matrix rain = data flow. Circuits =
+ *    connections. Glitches = opportunities. Choose wisely.
  * 
- * 3. Glitch effects represent opportunity. When systems break,
- *    smart traders profit from the chaos.
+ * 4. Interactive effects create engagement. When the background
+ *    responds to mouse movement, users feel connected to the data.
  * 
- * 4. Waves visualize market cycles. What goes up must come down.
- *    What crashes must bounce. Eventually.
+ * 5. Intensity levels let users choose their own adventure. Some
+ *    want subtle ambiance. Others want full cyberpunk overload.
  * 
- * 5. The grid is the underlying structure of the market. Hidden
- *    from retail, visible to those who know where to look.
- * 
- * 6. Interactive particles respond to your presence. Just like
- *    the market responds to your trades. You are never just an
- *    observer.
- * 
- * This isn't just eye candy, choom. It's a meditation on the nature
- * of digital finance. Stare long enough, and you'll see the patterns
- * that make millionaires.
- * 
- * "The street always wins. But sometimes, just sometimes, we can
- * ride along for a few blocks." - Night City Proverb
+ * Remember: The background sets the mood. Make it memorable,
+ * make it smooth, make it cyberpunk as fuck.
  */

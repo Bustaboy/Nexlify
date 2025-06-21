@@ -25,15 +25,6 @@ pub struct SystemMetrics {
 }
 
 // Shared system info instance
-pub fn get_system_metrics() -> SystemMetrics {
-    let sys = SYSTEM.lock();
-    let processors = sys.cpus();
-    let cpu_usage: f32 = processors.iter().map(|cpu| cpu.cpu_usage()).sum::<f32>()
-        / processors.len() as f32;
-    let memory_usage = sys.used_memory() as f64 * 1024.0;
-    let total_memory = sys.total_memory() as f64 * 1024.0;
-    // ... rest of the function ...
-}
 
 #[tauri::command]
 pub async fn get_system_status() -> Result<SystemStatus, CommandError> {

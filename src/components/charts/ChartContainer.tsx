@@ -1,6 +1,6 @@
 // src/components/charts/ChartContainer.tsx
 // NEXLIFY WEBGL CHART ENGINE - Where patterns become prophecy
-// Last sync: 2025-06-19 | "The market speaks in candlesticks and volume bars"
+// Last sync: 2025-06-21 | "Time is money, and we've fixed both"
 
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
 import { 
@@ -10,7 +10,10 @@ import {
   ColorType,
   CrosshairMode,
   LineStyle,
-  PriceScaleMode
+  PriceScaleMode,
+  Time,
+  UTCTimestamp,
+  IPriceLine
 } from 'lightweight-charts';
 import { motion } from 'framer-motion';
 import { 
@@ -41,12 +44,13 @@ interface ChartContainerProps {
 /**
  * CHART CONTAINER - The crystal ball of the digital age
  * 
- * This component? It's seen more price action than a Bangkok street market.
- * Built it after watching traders squint at TradingView on 13" laptops,
- * missing signals because they couldn't see shit.
+ * Fixed the time paradox. TradingView wanted seconds, we were giving
+ * milliseconds. Like showing up to a street race in a DeLorean set
+ * to the wrong year. Now we're synced with the matrix.
  * 
- * WebGL rendering because Canvas is for amateurs. When BTC drops 10%
- * in 5 minutes, you need every frame. Every. Single. Frame.
+ * Price lines? We track them ourselves now. Every position, every order,
+ * stored in refs like ammunition clips. When the market moves, we
+ * reload instantly.
  */
 export const ChartContainer = memo(({
   symbol,
@@ -62,6 +66,9 @@ export const ChartContainer = memo(({
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
+  
+  // Price line management - manual tracking because the API won't do it for us
+  const priceLinesRef = useRef<IPriceLine[]>([]);
   
   // WebGL renderer for advanced graphics
   const webglRendererRef = useRef<ChartWebGLRenderer | null>(null);
@@ -95,13 +102,12 @@ export const ChartContainer = memo(({
     dark: {
       layout: {
         background: { type: ColorType.Solid, color: '#0a0a0a' },
-        textColor: '#d1d5db',
-        fontSize: 11,
-        fontFamily: 'JetBrains Mono, monospace'
+        textColor: '#9ca3af',
+        fontSize: 11
       },
       grid: {
-        vertLines: { color: '#1f2937', style: LineStyle.Dashed },
-        horzLines: { color: '#1f2937', style: LineStyle.Dashed }
+        vertLines: { color: '#1f2937', style: LineStyle.Solid },
+        horzLines: { color: '#1f2937', style: LineStyle.Solid }
       },
       candle: {
         upColor: '#10b981',
@@ -114,34 +120,32 @@ export const ChartContainer = memo(({
     },
     neon: {
       layout: {
-        background: { type: ColorType.Solid, color: '#0a0a0f' },
+        background: { type: ColorType.Solid, color: '#000000' },
         textColor: '#0dd9ff',
-        fontSize: 11,
-        fontFamily: 'Orbitron, monospace'
+        fontSize: 11
       },
       grid: {
-        vertLines: { color: '#0dd9ff15', style: LineStyle.Solid },
-        horzLines: { color: '#0dd9ff15', style: LineStyle.Solid }
+        vertLines: { color: '#0dd9ff20', style: LineStyle.Dotted },
+        horzLines: { color: '#0dd9ff20', style: LineStyle.Dotted }
       },
       candle: {
-        upColor: '#00ff88',
-        downColor: '#ff0066',
-        borderUpColor: '#00ffaa',
-        borderDownColor: '#ff0088',
-        wickUpColor: '#00ff8855',
-        wickDownColor: '#ff006655'
+        upColor: '#0dd9ff',
+        downColor: '#ff0080',
+        borderUpColor: '#0dd9ff',
+        borderDownColor: '#ff0080',
+        wickUpColor: '#0dd9ff80',
+        wickDownColor: '#ff008080'
       }
     },
     matrix: {
       layout: {
         background: { type: ColorType.Solid, color: '#000000' },
         textColor: '#00ff00',
-        fontSize: 10,
-        fontFamily: 'Courier New, monospace'
+        fontSize: 10
       },
       grid: {
-        vertLines: { color: '#00ff0020', style: LineStyle.Dotted },
-        horzLines: { color: '#00ff0020', style: LineStyle.Dotted }
+        vertLines: { color: '#00ff0020', style: LineStyle.Solid },
+        horzLines: { color: '#00ff0020', style: LineStyle.Solid }
       },
       candle: {
         upColor: '#00ff00',
@@ -155,26 +159,34 @@ export const ChartContainer = memo(({
   };
   
   /**
-   * Initialize chart - birth of a visual oracle
+   * Clear all price lines - nuclear option for chart cleanup
+   */
+  const clearAllPriceLines = useCallback(() => {
+    priceLinesRef.current.forEach(line => {
+      candleSeriesRef.current?.removePriceLine(line);
+    });
+    priceLinesRef.current = [];
+  }, []);
+  
+  /**
+   * Initialize chart - birth of the visualization
    */
   useEffect(() => {
     if (!chartContainerRef.current) return;
     
-    console.log(`📊 Initializing ${theme} chart for ${symbol}`);
-    
     const currentTheme = themes[theme];
     
-    // Create chart with WebGL renderer
+    // Create the chart
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
       height: chartContainerRef.current.clientHeight,
       layout: currentTheme.layout,
       grid: currentTheme.grid,
       crosshair: {
-        mode: CrosshairMode.Magnet,
+        mode: CrosshairMode.Normal,
         vertLine: {
           width: 1,
-          color: currentTheme.layout.textColor,
+          color: theme === 'neon' ? '#0dd9ff' : currentTheme.candle.upColor,
           style: LineStyle.Dashed,
           labelBackgroundColor: theme === 'neon' ? '#0dd9ff' : currentTheme.candle.upColor
         },
@@ -226,8 +238,7 @@ export const ChartContainer = memo(({
     const volumeSeries = chart.addHistogramSeries({
       color: theme === 'neon' ? '#0dd9ff40' : '#6b728040',
       priceFormat: { type: 'volume' },
-      priceScaleId: 'volume',
-      scaleMargins: { top: 0.8, bottom: 0 }
+      priceScaleId: 'volume'
     });
     
     // Store refs
@@ -236,9 +247,18 @@ export const ChartContainer = memo(({
     volumeSeriesRef.current = volumeSeries;
     
     // Initialize WebGL renderer for advanced features
-    if (window.WebGLRenderingContext) {
+    if (window.WebGLRenderingContext && chartContainerRef.current) {
+      // Create a canvas element for WebGL renderer
+      const canvas = document.createElement('canvas');
+      canvas.style.position = 'absolute';
+      canvas.style.top = '0';
+      canvas.style.left = '0';
+      canvas.style.pointerEvents = 'none';
+      canvas.style.zIndex = '10';
+      chartContainerRef.current.appendChild(canvas);
+      
       webglRendererRef.current = new ChartWebGLRenderer(
-        chartContainerRef.current,
+        canvas,
         theme
       );
     }
@@ -257,8 +277,12 @@ export const ChartContainer = memo(({
     
     // Click handler for price levels
     chart.subscribeClick((param) => {
-      if (param.point && param.seriesPrices.size > 0) {
-        const price = param.seriesPrices.values().next().value;
+      if (param.point && param.seriesData && param.seriesData.size > 0) {
+        // Get the first series' data
+        const seriesData = param.seriesData.values().next().value;
+        // Extract price from the data (handles both line and candlestick data)
+        const price = seriesData?.value || seriesData?.close;
+        
         if (onPriceClick && typeof price === 'number') {
           onPriceClick(price);
           
@@ -275,10 +299,11 @@ export const ChartContainer = memo(({
     // Cleanup - leave no trace
     return () => {
       window.removeEventListener('resize', handleResize);
+      clearAllPriceLines();
       chart.remove();
       webglRendererRef.current?.destroy();
     };
-  }, [symbol, theme, onPriceClick]);
+  }, [symbol, theme, onPriceClick, clearAllPriceLines]);
   
   /**
    * Update chart data - feeding the beast
@@ -296,9 +321,9 @@ export const ChartContainer = memo(({
       return;
     }
     
-    // Transform data for TradingView format
+    // Transform data for TradingView format - THE FIX IS HERE
     const tvData = candleData.map(candle => ({
-      time: candle.timestamp.getTime() / 1000,
+      time: Math.floor(candle.timestamp.getTime() / 1000) as UTCTimestamp, // Convert to seconds and cast
       open: candle.open,
       high: candle.high,
       low: candle.low,
@@ -306,7 +331,7 @@ export const ChartContainer = memo(({
     }));
     
     const volumeData = candleData.map(candle => ({
-      time: candle.timestamp.getTime() / 1000,
+      time: Math.floor(candle.timestamp.getTime() / 1000) as UTCTimestamp, // Same fix for volume
       value: candle.volume,
       color: candle.close >= candle.open 
         ? themes[theme].candle.upColor + '60'
@@ -336,16 +361,16 @@ export const ChartContainer = memo(({
     const position = positions[symbol];
     const orders = Object.values(activeOrders).filter(o => o.symbol === symbol);
     
-    // Clear existing lines
-    candleSeriesRef.current.removeAllPriceLines();
+    // Clear existing lines - FIXED METHOD
+    clearAllPriceLines();
     
     // Draw position line - where we stand
     if (position) {
-      const profitColor = position.unrealizedPnl.gte(0) 
+      const profitColor = position.unrealizedPnL.gte(0) 
         ? themes[theme].candle.upColor 
         : themes[theme].candle.downColor;
       
-      candleSeriesRef.current.createPriceLine({
+      const positionLine = candleSeriesRef.current.createPriceLine({
         price: position.entryPrice.toNumber(),
         color: profitColor,
         lineWidth: 2,
@@ -354,9 +379,11 @@ export const ChartContainer = memo(({
         title: `Position: ${position.quantity} @ ${position.entryPrice}`
       });
       
+      priceLinesRef.current.push(positionLine);
+      
       // Liquidation price if exists - the danger zone
       if (position.liquidationPrice) {
-        candleSeriesRef.current.createPriceLine({
+        const liquidationLine = candleSeriesRef.current.createPriceLine({
           price: position.liquidationPrice.toNumber(),
           color: '#ff0000',
           lineWidth: 2,
@@ -364,6 +391,8 @@ export const ChartContainer = memo(({
           axisLabelVisible: true,
           title: 'LIQUIDATION'
         });
+        
+        priceLinesRef.current.push(liquidationLine);
       }
     }
     
@@ -374,7 +403,7 @@ export const ChartContainer = memo(({
           ? themes[theme].candle.upColor 
           : themes[theme].candle.downColor;
         
-        candleSeriesRef.current!.createPriceLine({
+        const orderLine = candleSeriesRef.current!.createPriceLine({
           price: order.price.toNumber(),
           color: color,
           lineWidth: 1,
@@ -382,10 +411,12 @@ export const ChartContainer = memo(({
           axisLabelVisible: true,
           title: `${order.side.toUpperCase()} ${order.quantity}`
         });
+        
+        priceLinesRef.current.push(orderLine);
       }
     });
     
-  }, [positions, activeOrders, symbol, theme]);
+  }, [positions, activeOrders, symbol, theme, clearAllPriceLines]);
   
   /**
    * Performance monitoring - because lag kills
@@ -508,27 +539,28 @@ export const ChartContainer = memo(({
 ChartContainer.displayName = 'ChartContainer';
 
 /**
- * CHART WISDOM (earned through screen-burned retinas):
+ * CHART WISDOM - CYBERPUNK EDITION:
  * 
- * 1. WebGL > Canvas. When shit hits the fan and everyone's
- *    refreshing charts, WebGL keeps you ahead of the pack.
+ * 1. Time is a flat circle, but TradingView wants it in seconds.
+ *    We convert milliseconds to seconds because that's how the
+ *    matrix measures decay.
  * 
- * 2. Those FPS stats? Not just for show. Below 30 FPS and
- *    you're trading on delayed information. Might as well
- *    use carrier pigeons.
+ * 2. Price lines are like memories - you have to track them yourself
+ *    or they vanish into the digital void. Store refs, manage state,
+ *    never trust the API to remember.
  * 
- * 3. Price lines for positions are CRITICAL. I've seen
- *    traders forget they had positions because the chart
- *    didn't show them. Now they're reminded every tick.
+ * 3. TypeScript is your netrunner - it catches bugs before they
+ *    crash your chrome. Cast types explicitly, the compiler is
+ *    your friend in the dark.
  * 
- * 4. The liquidation line? That's not a warning, it's a
- *    promise. Respect it or the market will teach you.
+ * 4. When the market glitches and candles update 1000x/second,
+ *    your chart needs to keep up. WebGL isn't optional, it's
+ *    survival gear.
  * 
- * 5. Click-to-set-price seems simple but it's saved more
- *    bad orders than any other feature. Fat fingers on
- *    number pads have cost fortunes.
+ * 5. Every millisecond of lag is credits lost. Optimize render
+ *    loops, batch updates, and always monitor FPS. In the sprawl,
+ *    speed is the only currency that matters.
  * 
- * Remember: The chart doesn't lie, but it doesn't tell
- * the whole truth either. It shows what was, not what
- * will be. Trade accordingly.
+ * Remember: The chart shows the past, the trader sees the future,
+ * and the code bridges the gap between them.
  */
