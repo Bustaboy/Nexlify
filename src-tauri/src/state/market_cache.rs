@@ -156,7 +156,17 @@ pub struct CacheStats {
 
 impl MarketCache {
     pub fn get_ticker(&self, symbol: &str) -> Option<Ticker> {
-        self.tickers.get(symbol).map(|entry| entry.value().clone())
+        // DashMap stores Arc<RwLock<T>>, we need to extract T
+        self.tickers.get(symbol)
+            .and_then(|entry| {
+                // entry is a RefMulti which derefs to Arc<RwLock<Ticker>>
+                // We need to clone the Arc, then try to read the lock
+                let arc_clone = entry.clone();
+                drop(entry); // Release the DashMap lock
+                
+                // Now try to read the RwLock
+                arc_clone.try_read().map(|guard| guard.clone())
+            })
     }
 
     /// Boot up the neural cache
@@ -418,3 +428,4 @@ impl MarketCache {
         }
     }
 }
+

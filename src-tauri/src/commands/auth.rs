@@ -14,7 +14,8 @@ use base64::{Engine as _, engine::general_purpose};
 
 use crate::state::AppState;
 use super::{CommandResult, CommandError};
-use rand::{Rng, thread_rng};
+use ::rand::Rng;
+use ::rand::thread_rng;
 
 // Security constants - learned these numbers the hard way
 const CREDENTIAL_ITERATIONS: u32 = 100_000; // PBKDF2 iterations - paranoia level: maximum
