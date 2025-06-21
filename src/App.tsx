@@ -151,10 +151,10 @@ function App() {
   if (loading) {
     return (
       <div className="h-screen w-screen bg-black flex items-center justify-center">
-        <NeuralBackground intensity={0.3} />
-        <CyberpunkLoader 
+        <NeuralBackground intensity="medium" />
+        <CyberpunkLoader />
           message={neuralSyncActive ? "Syncing neural pathways..." : "Initializing systems..."} 
-        />
+        {'>'}
       </div>
     );
   }
@@ -163,7 +163,7 @@ function App() {
   if (error) {
     return (
       <div className="h-screen w-screen bg-black flex items-center justify-center">
-        <NeuralBackground intensity={0.1} />
+        <NeuralBackground intensity="low" />
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -192,7 +192,7 @@ function App() {
   return (
     <div className="h-screen w-screen bg-gray-950 text-gray-100 overflow-hidden">
       {/* Neural background - our signature aesthetic */}
-      <NeuralBackground intensity={isAuthenticated ? 0.2 : 0.4} />
+      <NeuralBackground intensity={isAuthenticated ? "low" : "medium"} />
       
       {/* System status bar - always know your vitals */}
       <div className="absolute top-0 left-0 right-0 h-8 bg-black/80 backdrop-blur-sm border-b border-cyan-900/50 flex items-center px-4 text-xs font-mono">

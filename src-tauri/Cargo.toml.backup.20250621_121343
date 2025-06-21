@@ -16,12 +16,12 @@ argon2 = "0.5"
 hex = "0.4"
 sha2 = "0.10"
 hmac = "0.12"
-rand = "0.8"
+rand = { version = "0.8", features =
 lazy_static = "1.4"
 parking_lot = "0.12"
 sysinfo = "0.30"
 tokio-tungstenite = "0.21"
-futures-util = "0.3"
+futures-util = "0.3"["std", "std_rng"] }
 # Core Tauri runtime
 tauri = { version = "2", features = ["tray-icon", "unstable"] }
 
@@ -39,8 +39,10 @@ bincode = "1.3"
 # State management
 arc-swap = "1.7"
 dashmap = "6.1"
+parking_lot = "0.12"
 
 # WebSocket client
+tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
 
 # Logging
 tracing = "0.1"
@@ -61,6 +63,7 @@ ring = "0.17"
 base64 = "0.22"
 
 # Performance monitoring
+sysinfo = "0.33"
 
 # Tauri plugins - USING ACTUAL VERSIONS
 tauri-plugin-shell = "2"
@@ -79,6 +82,7 @@ tauri-plugin-stronghold = "2"
 uuid = { version = "1.11", features = ["v4", "serde"] }
 once_cell = "1.21"
 bytes = "1.9"
+futures-util = "0.3.31"
 regex = "1.11.1"
 
 [features]

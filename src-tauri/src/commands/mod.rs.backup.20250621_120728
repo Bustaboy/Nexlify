@@ -5,7 +5,6 @@
 pub mod market_data;
 pub mod trading;
 pub mod auth;
-pub mod system;
 
 // Re-export all command functions for cleaner imports in main.rs
 

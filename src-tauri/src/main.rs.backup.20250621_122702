@@ -16,7 +16,7 @@ mod state;
 mod error;
 
 use commands::{market_data, trading, auth};
-use commands::system::{get_system_status, get_system_metrics};
+use commands::system::{commands::system::get_system_status, get_system_metrics};
 use state::{AppState, MarketCache, TradingEngine};
 
 /// Neural mesh initialization - where we jack into the matrix
@@ -306,6 +306,8 @@ async fn show_neural_diagnostics() {
 }
 
 // System command handlers - the neural pathways
+
+#[tauri::command]
 
 #[tauri::command]
 async fn check_neural_health() -> Result<String, String> {

@@ -11,12 +11,10 @@ use tracing::{info, error, warn, debug};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 mod commands;
-mod websocket;
 mod state;
 mod error;
 
 use commands::{market_data, trading, auth};
-use commands::system::{get_system_status, get_system_metrics};
 use state::{AppState, MarketCache, TradingEngine};
 
 /// Neural mesh initialization - where we jack into the matrix
@@ -68,7 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             auth::rotate_keys,
 
             // System commands - managing our neural pathways
-            commands::system::get_system_metrics,
+            get_system_metrics,
             check_neural_health,
             trigger_garbage_collection,
             export_diagnostics,
@@ -223,7 +221,7 @@ fn spawn_performance_monitor() {
             sys.refresh_cpu_usage();
             sys.refresh_memory();
 
-            let cpu_usage = sys.global_cpu_info().cpu_usage();
+            let cpu_usage = sys.global_cpu_usage();
             let memory_used = sys.used_memory();
             let memory_total = sys.total_memory();
             let memory_percent = (memory_used as f32 / memory_total as f32) * 100.0;
@@ -306,6 +304,22 @@ async fn show_neural_diagnostics() {
 }
 
 // System command handlers - the neural pathways
+
+#[tauri::command]
+async fn get_system_metrics(
+    state: State<'_, Arc<RwLock<AppState>>>,
+) -> Result<serde_json::Value, String> {
+    let app_state = state.read();
+
+    Ok(serde_json::json!({
+        "uptime": app_state.get_uptime(),
+        "memory_usage": app_state.get_memory_usage(),
+        "cpu_usage": app_state.get_cpu_usage(),
+        "active_streams": app_state.get_active_stream_count(),
+        "cache_size": app_state.get_cache_size(),
+        "neural_health": "optimal"
+    }))
+}
 
 #[tauri::command]
 async fn check_neural_health() -> Result<String, String> {

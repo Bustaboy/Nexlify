@@ -5,7 +5,6 @@
 pub mod market_data;
 pub mod trading;
 pub mod auth;
-pub mod system;
 
 // Re-export all command functions for cleaner imports in main.rs
 
@@ -69,6 +68,7 @@ impl CommandError {
 
 /// Common validation functions - trust no input from the sprawl
 pub mod validation {
+pub mod system;
     use super::CommandError;
     
     /// Validate a trading symbol - no shitcoins in our neural mesh

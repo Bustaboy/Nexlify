@@ -161,7 +161,7 @@ export const useMarketStore = create<MarketState>()(
             }>('subscribe_market_data', {
               symbol,
               dataTypes: types,
-              window: window
+              // window: window  // REMOVED - Tauri cannot serialize window objects
             });
             
             // Set up event listener for this symbol

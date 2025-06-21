@@ -42,17 +42,23 @@ interface Order {
 }
 
 interface Position {
+  id: string;
   symbol: string;
   side: 'long' | 'short';
   quantity: Decimal;
   entryPrice: Decimal;
   currentPrice: Decimal;
-  unrealizedPnl: Decimal;
-  realizedPnl: Decimal;
-  marginUsed: Decimal;
+  unrealizedPnL: Decimal;
+  realizedPnL: Decimal;
+  margin: Decimal;
+  leverage: number;
   liquidationPrice?: Decimal;
+  openTime: Date;
   openedAt: Date;
   lastUpdated: Date;
+  stopLoss?: Decimal;
+  takeProfit?: Decimal;
+  pnlPercentage: Decimal;
 }
 
 interface TradeHistory {
@@ -116,6 +122,8 @@ interface TradingState {
   isPlacingOrder: boolean;
   isLoadingPositions: boolean;
   lastError: string | null;
+  
+  modifyPosition: (symbol: string, updates: Partial<Pick<Position, 'stopLoss' | 'takeProfit'>>) => Promise<void>; // Added
   
   // Actions - our arsenal
   placeOrder: (params: PlaceOrderParams) => Promise<Order>;
@@ -194,6 +202,91 @@ export const useTradingStore = create<TradingState>()(
         isLoadingPositions: false,
         lastError: null,
         
+		refreshPositions: async () => {
+          set((draft) => {
+            draft.isLoadingPositions = true;
+          });
+
+          try {
+            const response = await invoke<any>('get_positions', {});
+
+            set((draft) => {
+              draft.positions = {};
+
+              response.positions.forEach((pos: any) => {
+                const position: Position = {
+                  id: pos.position.id || pos.position.symbol, // Ensure ID is provided
+                  symbol: pos.position.symbol,
+                  side: pos.position.side.toLowerCase() as 'long' | 'short',
+                  quantity: new Decimal(pos.position.quantity),
+                  entryPrice: new Decimal(pos.position.entry_price),
+                  currentPrice: new Decimal(pos.position.current_price),
+                  unrealizedPnL: new Decimal(pos.position.unrealized_pnl),
+                  realizedPnL: new Decimal(pos.position.realized_pnl),
+                  margin: new Decimal(pos.position.margin_used),
+                  leverage: pos.position.leverage || 1, // Default to 1 if not provided
+                  liquidationPrice: pos.risk_metrics.liquidation_price
+                    ? new Decimal(pos.risk_metrics.liquidation_price)
+                    : undefined,
+                  openTime: new Date(pos.position.opened_at), // Added
+                  openedAt: new Date(pos.position.opened_at),
+                  lastUpdated: new Date(pos.position.last_updated),
+                  stopLoss: pos.position.stop_loss
+                    ? new Decimal(pos.position.stop_loss)
+                    : undefined, // Added
+                  takeProfit: pos.position.take_profit
+                    ? new Decimal(pos.position.take_profit)
+                    : undefined, // Added
+                  pnlPercentage: new Decimal(pos.position.pnl_percentage || 0), // Added
+                };
+                draft.positions[position.symbol] = position;
+              });
+
+              draft.isLoadingPositions = false;
+            });
+
+            get().updateRiskMetrics();
+          } catch (error) {
+            set((draft) => {
+              draft.isLoadingPositions = false;
+              draft.lastError = error instanceof Error ? error.message : 'Failed to load positions';
+            });
+            throw error;
+          }
+        },
+		
+		modifyPosition: async (symbol: string, updates: Partial<Pick<Position, 'stopLoss' | 'takeProfit'>>) => {
+          const position = get().positions[symbol];
+          if (!position) {
+            throw new Error(`No position found for ${symbol}`);
+          }
+
+          try {
+            await invoke('modify_position', {
+              symbol,
+              stopLoss: updates.stopLoss?.toString(),
+              takeProfit: updates.takeProfit?.toString(),
+            });
+
+            set((draft) => {
+              if (draft.positions[symbol]) {
+                if (updates.stopLoss !== undefined) {
+                  draft.positions[symbol].stopLoss = updates.stopLoss;
+                }
+                if (updates.takeProfit !== undefined) {
+                  draft.positions[symbol].takeProfit = updates.takeProfit;
+                }
+                draft.positions[symbol].lastUpdated = new Date();
+              }
+            });
+
+            console.log(`✏️ Modified position ${symbol}:`, updates);
+          } catch (error) {
+            console.error(`Failed to modify position ${symbol}:`, error);
+            throw error;
+          }
+        },
+		
         /**
          * Place an order - pulling the trigger
          * 
