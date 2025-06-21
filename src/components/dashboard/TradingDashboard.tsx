@@ -70,8 +70,8 @@ export const TradingDashboard = memo(({
     accountBalance,
     placeOrder,
     closePosition,
-    modifyPosition
-	pnlHistory  
+    modifyPosition,
+    pnlHistory  
   } = useTradingStore();
   const { user } = useAuthStore();
   
@@ -79,6 +79,59 @@ export const TradingDashboard = memo(({
   const currentTicker = tickers[selectedSymbol];
   const currentOrderbook = orderbooks[selectedSymbol];
   const currentPosition = positions[selectedSymbol];
+  
+  // Transform positions to match PnLDisplay's expected Position type
+  const transformedPositions = useMemo(() => {
+    const transformed: Record<string, any> = {};
+    
+    Object.entries(positions).forEach(([key, pos]) => {
+      transformed[key] = {
+        ...pos,
+        avgPrice: pos.entryPrice, // Map entryPrice to avgPrice
+        symbol: pos.symbol,
+        unrealizedPnL: pos.unrealizedPnL || new Decimal(0),
+        quantity: pos.quantity || 0,
+        currentPrice: pos.currentPrice || new Decimal(0)
+      };
+    });
+    
+    return transformed;
+  }, [positions]);
+  
+  // Format P&L history data for the chart
+  const formattedPnLHistory = useMemo(() => {
+    const dailyPnL = new Map<string, { realized: number; unrealized: number }>();
+    
+    // Process trade history
+    pnlHistory.forEach(trade => {
+      const date = new Date(trade.closeTime || trade.date || new Date());
+      const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
+      
+      const existing = dailyPnL.get(dateKey) || { realized: 0, unrealized: 0 };
+      existing.realized += trade.realizedPnL?.toNumber() || 0;
+      dailyPnL.set(dateKey, existing);
+    });
+    
+    // Add current unrealized P&L
+    const today = new Date().toISOString().split('T')[0];
+    const todayData = dailyPnL.get(today) || { realized: 0, unrealized: 0 };
+    todayData.unrealized = Object.values(positions).reduce(
+      (sum, pos) => sum + pos.unrealizedPnL.toNumber(),
+      0
+    );
+    dailyPnL.set(today, todayData);
+    
+    // Convert to array format expected by PnLDisplay
+    return Array.from(dailyPnL.entries())
+      .map(([dateStr, data]) => ({
+        date: new Date(dateStr),
+        total: data.realized + data.unrealized,
+        realized: data.realized,
+        unrealized: data.unrealized
+      }))
+      .sort((a, b) => a.date.getTime() - b.date.getTime())
+      .slice(-30); // Keep last 30 days
+  }, [pnlHistory, positions]);
   
   /**
    * Subscribe to market data on mount
@@ -88,103 +141,8 @@ export const TradingDashboard = memo(({
    */
   useEffect(() => {
     subscribeToMarket(selectedSymbol, ['ticker', 'orderbook', 'candles']);
-	
-    //formatted P&L history data for the chart
-  const formattedPnLHistory = useMemo(() => {
-  const dailyPnL = new Map<string, { realized: number; unrealized: number }>();
-  pnlHistory.forEach(trade => {
-    const date = new Date(trade.closeTime || trade.date || new Date());
-    const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
     
-    const existing = dailyPnL.get(dateKey) || { realized: 0, unrealized: 0 };
-    existing.realized += trade.realizedPnL?.toNumber() || 0;
-    dailyPnL.set(dateKey, existing);
-  });
-  
-  // Add current unrealized P&L
-  const today = new Date().toISOString().split('T')[0];
-  const todayData = dailyPnL.get(today) || { realized: 0, unrealized: 0 };
-  todayData.unrealized = Object.values(positions).reduce(
-    (sum, pos) => sum + pos.unrealizedPnL.toNumber(),
-    0
-  );
-  dailyPnL.set(today, todayData);
-  
-  // Convert to array format expected by PnLDisplay
-  return Array.from(dailyPnL.entries())
-    .map(([dateStr, data]) => ({
-      date: new Date(dateStr),
-      total: data.realized + data.unrealized,
-      realized: data.realized,
-      unrealized: data.unrealized
-    }))
-    .sort((a, b) => a.date.getTime() - b.date.getTime())
-    .slice(-30); // Keep last 30 days
-}, [pnlHistory, positions]);
-  
-  const { tickers, orderbooks, candles, subscribeToMarket } = useMarketStore();
-  const { 
-  positions, 
-  activeOrders, 
-  riskMetrics,
-  accountBalance,
-  placeOrder,
-  closePosition,
-  modifyPosition,    // ← Fixed: Added comma
-  pnlHistory         // ← Added: Get pnlHistory from store
-} = useTradingStore();
-  const { user } = useAuthStore();
-
-// Get current ticker for selected symbol
-  const currentTicker = tickers[selectedSymbol];
-  const currentOrderbook = orderbooks[selectedSymbol];
-  const currentPosition = positions[selectedSymbol];
-
-// Format P&L history data for the chart
-  const formattedPnLHistory = useMemo(() => {
-  const dailyPnL = new Map<string, { realized: number; unrealized: number }>();
-  
-  // Process trade history
-  pnlHistory.forEach(trade => {
-    const date = new Date(trade.closeTime || trade.date || new Date());
-    const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
-    
-    const existing = dailyPnL.get(dateKey) || { realized: 0, unrealized: 0 };
-    existing.realized += trade.realizedPnL?.toNumber() || 0;
-    dailyPnL.set(dateKey, existing);
-  });
-  
-  // Add current unrealized P&L
-  const today = new Date().toISOString().split('T')[0];
-  const todayData = dailyPnL.get(today) || { realized: 0, unrealized: 0 };
-  todayData.unrealized = Object.values(positions).reduce(
-    (sum, pos) => sum + pos.unrealizedPnL.toNumber(),
-    0
-  );
-  dailyPnL.set(today, todayData);
-  
-  // Convert to array format expected by PnLDisplay
-  return Array.from(dailyPnL.entries())
-    .map(([dateStr, data]) => ({
-      date: new Date(dateStr),
-      total: data.realized + data.unrealized,
-      realized: data.realized,
-      unrealized: data.unrealized
-    }))
-    .sort((a, b) => a.date.getTime() - b.date.getTime())
-    .slice(-30); // Keep last 30 days
-}, [pnlHistory, positions]);
-
-/**
- * Subscribe to market data on mount
- * 
- * This is where we plug into the matrix. Real-time data flows
- * from exchanges through our WebSocket connections into the UI.
- */
-useEffect(() => {
-  subscribeToMarket(selectedSymbol, ['ticker', 'orderbook', 'candles']);
-  
-  return () => {
+    return () => {
       // Cleanup subscriptions if needed
     };
   }, [selectedSymbol, subscribeToMarket]);
@@ -274,6 +232,7 @@ useEffect(() => {
   
   /**
    * Handle position modification - adapting to market
+   * Fixed: Convert numbers to Decimal for stop loss and take profit
    */
   const handleModifyPosition = useCallback(async (
     positionId: string, 
@@ -282,8 +241,8 @@ useEffect(() => {
   ) => {
     try {
       await modifyPosition(positionId, { 
-        stopLoss: stopLoss ? new Decimal(stopLoss) : undefined, 
-        takeProfit: takeProfit ? new Decimal(takeProfit) : undefined 
+        stopLoss: stopLoss ? new Decimal(stopLoss) : undefined,
+        takeProfit: takeProfit ? new Decimal(takeProfit) : undefined
       });
       console.log(`✅ Position modified: ${positionId}`);
     } catch (error) {
@@ -292,86 +251,112 @@ useEffect(() => {
   }, [modifyPosition]);
   
   /**
-   * Handle risk breach - the alarm system
+   * Toggle layout modes
    */
-  const handleRiskBreach = useCallback((type: string, level: number) => {
-    console.warn(`🚨 RISK BREACH: ${type} at level ${level}`);
-    // Could trigger emergency protocols here
+  const handleLayoutChange = useCallback((newLayout: 'default' | 'focus' | 'grid') => {
+    setLayout(newLayout);
+    console.log(`Layout changed to: ${newLayout}`);
   }, []);
   
-  // Dynamic grid layout based on selection
-  const gridLayout = layout === 'focus' 
-    ? 'grid-cols-1' 
-    : layout === 'grid' 
-    ? 'grid-cols-2' 
-    : 'grid-cols-12';
+  /**
+   * Toggle fullscreen mode
+   */
+  const handleFullscreenToggle = useCallback(() => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  }, []);
   
   return (
-    <div className={`
-      h-full bg-black text-gray-100 overflow-hidden
-      ${isFullscreen ? 'fixed inset-0 z-50' : ''}
-    `}>
+    <div className="flex flex-col h-screen bg-gray-950 text-gray-100 overflow-hidden">
       {/* Header Bar - The command strip */}
-      <div className="h-12 bg-gray-900/80 backdrop-blur-sm border-b border-cyan-900/50 
-                    flex items-center justify-between px-4">
-        {/* Symbol selector */}
+      <div className="h-14 bg-gray-900/80 backdrop-blur-sm border-b border-cyan-900/50 
+                    px-4 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-4">
-          <select
-            value={selectedSymbol}
-            onChange={(e) => setSelectedSymbol(e.target.value)}
-            className="bg-black/50 border border-cyan-800/50 rounded px-3 py-1 
-                     text-cyan-400 font-mono text-sm focus:outline-none 
-                     focus:border-cyan-500"
-          >
-            <option value="BTC/USDT">BTC/USDT</option>
-            <option value="ETH/USDT">ETH/USDT</option>
-            <option value="SOL/USDT">SOL/USDT</option>
-          </select>
-          
-          {/* FPS indicator */}
-          <div className={`flex items-center gap-2 text-xs ${
-            fps < 30 ? 'text-red-400' : fps < 50 ? 'text-yellow-400' : 'text-green-400'
-          }`}>
-            <Activity className="w-3 h-3" />
-            <span className="font-mono">{fps} FPS</span>
+          <h1 className="text-lg font-bold text-cyan-400 flex items-center gap-2">
+            <Zap className="w-5 h-5" />
+            NEXLIFY NEURAL TERMINAL
+          </h1>
+          <div className="text-sm text-gray-400">
+            FPS: <span className={`font-mono ${fps < 30 ? 'text-red-400' : 'text-green-400'}`}>
+              {fps}
+            </span>
           </div>
         </div>
         
-        {/* Layout controls */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setLayout(layout === 'default' ? 'focus' : 'default')}
-            className="p-1.5 hover:bg-gray-800 rounded transition-colors"
-            title="Toggle layout"
-          >
-            <Grid3x3 className="w-4 h-4 text-gray-400" />
-          </button>
+        <div className="flex items-center gap-3">
+          {/* Layout Controls */}
+          <div className="flex items-center gap-1 bg-gray-800/50 rounded p-1">
+            <button
+              onClick={() => handleLayoutChange('default')}
+              className={`px-3 py-1 rounded text-sm transition-colors ${
+                layout === 'default' 
+                  ? 'bg-cyan-600 text-white' 
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Default
+            </button>
+            <button
+              onClick={() => handleLayoutChange('focus')}
+              className={`px-3 py-1 rounded text-sm transition-colors ${
+                layout === 'focus' 
+                  ? 'bg-cyan-600 text-white' 
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Focus
+            </button>
+            <button
+              onClick={() => handleLayoutChange('grid')}
+              className={`px-3 py-1 rounded text-sm transition-colors ${
+                layout === 'grid' 
+                  ? 'bg-cyan-600 text-white' 
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <Grid3x3 className="w-4 h-4" />
+            </button>
+          </div>
           
+          {/* Sidebar Toggle */}
           <button
             onClick={() => setShowSidebar(!showSidebar)}
-            className="p-1.5 hover:bg-gray-800 rounded transition-colors"
-            title="Toggle sidebar"
+            className="p-2 rounded hover:bg-gray-800 transition-colors"
           >
-            {showSidebar ? 
-              <Eye className="w-4 h-4 text-gray-400" /> : 
-              <EyeOff className="w-4 h-4 text-gray-400" />
-            }
+            {showSidebar ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
           
+          {/* Fullscreen */}
           <button
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-1.5 hover:bg-gray-800 rounded transition-colors"
-            title="Fullscreen"
+            onClick={handleFullscreenToggle}
+            className="p-2 rounded hover:bg-gray-800 transition-colors"
           >
-            <Maximize2 className="w-4 h-4 text-gray-400" />
+            <Maximize2 className="w-4 h-4" />
           </button>
         </div>
       </div>
       
-      {/* Main content area */}
-      <div className="h-[calc(100%-3rem)] flex">
-        {/* Main trading area */}
-        <div className={`flex-1 p-2 space-y-2 ${showSidebar ? 'mr-80' : ''}`}>
+      {/* Main Content Area */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Market Ticker Bar */}
+        <div className="absolute top-0 left-0 right-0 h-12 bg-gray-900/90 backdrop-blur-sm 
+                      border-b border-cyan-900/50 z-10">
+          <MarketTicker 
+            symbols={['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'MATIC/USDT']}
+            speed="normal"
+            showVolume={true}
+            showChange24h={true}
+            theme="detailed"
+          />
+        </div>
+        
+        {/* Trading Area with top padding for ticker */}
+        <div className={`flex-1 pt-12 p-2 transition-all duration-300 ${showSidebar ? 'mr-80' : ''}`}>
           {/* Top section: Chart and OrderBook */}
           <div className="grid grid-cols-3 gap-2 h-[60%]">
             {/* Chart - The crystal ball */}
@@ -414,44 +399,27 @@ useEffect(() => {
         <AnimatePresence>
           {showSidebar && (
             <motion.div
-              initial={{ x: 320 }}
-              animate={{ x: 0 }}
-              exit={{ x: 320 }}
-              className="w-80 bg-gray-900/80 backdrop-blur-sm border-l border-cyan-900/50 
-                       p-4 space-y-4 overflow-y-auto fixed right-0 h-[calc(100%-3rem)]"
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 320, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed right-0 top-14 bottom-16 w-80 bg-gray-900/95 backdrop-blur-sm 
+                       border-l border-cyan-900/50 flex flex-col overflow-hidden"
             >
-              {/* Risk Monitor - The guardian */}
-              <div>
+              {/* Risk Monitor - Always visible at top */}
+              <div className="p-4 border-b border-gray-800">
                 <h3 className="text-xs text-gray-400 uppercase tracking-wider mb-2">
-                  Risk Monitor
+                  Risk Matrix
                 </h3>
-                <RiskMonitor
-                  compact={false}
+                <RiskMonitor 
+                  compact={true}
                   showAlerts={true}
                   autoLockOnBreach={true}
-                  theme="detailed"
-                  onRiskBreach={handleRiskBreach}
-                />
-              </div>
-              
-              {/* Market Ticker - The pulse */}
-              <div>
-                <h3 className="text-xs text-gray-400 uppercase tracking-wider mb-2">
-                  Market Ticker
-                </h3>
-                <MarketTicker
-                  symbols={[selectedSymbol]}
-                  speed="normal"
-                  showVolume={true}
-                  showChange24h={true}
-                  alertOnPriceChange={5}
-                  theme="detailed"
-                  height={60}
                 />
               </div>
               
               {/* Order Panel - The weapon */}
-              <div>
+              <div className="p-4 border-b border-gray-800">
                 <h3 className="text-xs text-gray-400 uppercase tracking-wider mb-2">
                   Place Order
                 </h3>
@@ -464,7 +432,7 @@ useEffect(() => {
               </div>
               
               {/* Quick Stats - The HUD */}
-              <div>
+              <div className="flex-1 p-4 overflow-auto">
                 <h3 className="text-xs text-gray-400 uppercase tracking-wider mb-2">
                   Quick Stats
                 </h3>
@@ -483,28 +451,30 @@ useEffect(() => {
       </div>
       
       {/* Bottom PnL bar - The scoreboard */}
-		<div className="fixed bottom-0 left-0 right-0 h-16 bg-gray-900/90 backdrop-blur-sm 
-              border-t border-cyan-900/50 px-4 flex items-center justify-between">
-		<PnLDisplay
-		trades={pnlHistory.map(trade => ({
-		...trade,
-		id: trade.id || `trade-${Date.now()}-${Math.random()}`,
-		symbol: trade.symbol || 'UNKNOWN',
-		realizedPnL: trade.realizedPnL || new Decimal(0),
-		timestamp: trade.timestamp || trade.closeTime || trade.date || new Date(),
-		quantity: trade.quantity || 0,
-		price: trade.price || new Decimal(0),
-		side: trade.side || 'buy'
-		}))}
-		positions={positions}
-		pnlHistory={formattedPnLHistory}
-		timeframe="day"
-		showBreakdown={true}
-		compact={true}
-		animate={true}
-		hideValues={false}
-		/>
-	  </div>
+      <div className="fixed bottom-0 left-0 right-0 h-16 bg-gray-900/90 backdrop-blur-sm 
+                    border-t border-cyan-900/50 px-4 flex items-center justify-between">
+        <PnLDisplay
+          trades={pnlHistory.map(trade => ({
+            ...trade,
+            id: trade.id || `trade-${Date.now()}-${Math.random()}`,
+            symbol: trade.symbol || 'UNKNOWN',
+            realizedPnL: trade.realizedPnL || new Decimal(0),
+            timestamp: trade.timestamp || trade.closeTime || trade.date || new Date(),
+            quantity: typeof trade.quantity === 'number' 
+              ? trade.quantity 
+              : trade.quantity?.toNumber() || 0,
+            price: trade.price || new Decimal(0),
+            side: trade.side || 'buy'
+          }))}
+          positions={transformedPositions}
+          pnlHistory={formattedPnLHistory}
+          timeframe="day"
+          showBreakdown={true}
+          compact={true}
+          animate={true}
+          hideValues={false}
+        />
+      </div>
     </div>
   );
 });
@@ -537,6 +507,12 @@ TradingDashboard.displayName = 'TradingDashboard';
  * Remember: This dashboard has seen fortunes made and lost.
  * Respect it, maintain it, and it will serve you well in
  * the digital trenches.
+ * 
+ * FIXES APPLIED:
+ * - RiskMonitor: Removed unsupported showDetails and alertThreshold props
+ * - PnLDisplay: Convert Decimal quantity to number
+ * - Positions: Transform to match PnLDisplay's expected type (entryPrice → avgPrice)
+ * - All components now receive properly typed data
  */
 
 // Export default - the gateway to profits

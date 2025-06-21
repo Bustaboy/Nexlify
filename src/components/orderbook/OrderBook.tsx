@@ -1,6 +1,6 @@
 // src/components/orderbook/OrderBook.tsx
 // NEXLIFY ORDERBOOK - Where supply meets demand in the digital bazaar
-// Last sync: 2025-06-19 | "The orderbook never lies, but it doesn't tell the whole truth"
+// Last sync: 2025-06-21 | "The orderbook never lies, but it doesn't tell the whole truth"
 
 import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -173,17 +173,26 @@ export const OrderBook = memo(({
     const isPriceNearPosition = currentPosition && 
       Math.abs(order.price - currentPosition.entryPrice.toNumber()) < 10;
     
+    // Create motion props conditionally
+    const motionProps = animateChanges ? {
+      initial: { opacity: 0, x: side === 'bid' ? -20 : 20 },
+      animate: { opacity: 1, x: 0 },
+      exit: { opacity: 0, x: side === 'bid' ? -20 : 20 },
+      transition: { duration: 0.2, delay: index * 0.01 }
+    } : {
+      initial: false,
+      animate: { opacity: 1, x: 0 }
+    };
+    
     return (
       <motion.div
         key={`${side}-${order.price}`}
-        initial={animateChanges ? { opacity: 0, x: side === 'bid' ? -20 : 20 } : false}
-        animate={{ opacity: 1, x: 0 }}
-        exit={animateChanges ? { opacity: 0, x: side === 'bid' ? -20 : 20 } : false}
-        transition={{ duration: 0.2, delay: index * 0.01 }}
+        {...motionProps}
         className={`
           relative flex items-center justify-between px-2 py-1 
           cursor-pointer transition-all duration-200
-          hover:bg-gray-800/50
+          hover:bg-gray-800/50 hover:border-l-2
+          ${side === 'bid' ? 'hover:border-l-green-400' : 'hover:border-l-red-400'}
           ${isPriceNearPosition ? 'ring-1 ring-yellow-500/50' : ''}
           ${order.isSpoofCandidate ? 'opacity-60' : ''}
         `}
@@ -193,7 +202,7 @@ export const OrderBook = memo(({
         <div
           className={`
             absolute inset-0 opacity-20
-            ${side === 'bid' ? 'bg-green-500' : 'bg-red-500'}
+            ${side === 'bid' ? 'bg-gradient-to-r from-transparent to-green-500' : 'bg-gradient-to-r from-transparent to-red-500'}
           `}
           style={{ width: `${percentage}%` }}
         />
@@ -202,7 +211,7 @@ export const OrderBook = memo(({
         <div className={`
           relative z-10 font-mono text-sm
           ${side === 'bid' ? 'text-green-400' : 'text-red-400'}
-          ${isLargeOrder && highlightLarge ? 'font-bold' : ''}
+          ${isLargeOrder && highlightLarge ? 'font-bold text-glow' : ''}
         `}>
           {order.price.toFixed(2)}
         </div>
@@ -219,11 +228,14 @@ export const OrderBook = memo(({
           </div>
         )}
         
-        {/* Spoof warning */}
+        {/* Spoof warning - Fixed with wrapper span */}
         {order.isSpoofCandidate && (
-          <div className="relative z-10 ml-1">
-            <AlertTriangle className="w-3 h-3 text-yellow-500" title="Potential spoof" />
-          </div>
+          <span 
+            className="relative z-10 ml-1 inline-flex items-center"
+            title="Potential spoof - Large order far from market"
+          >
+            <AlertTriangle className="w-3 h-3 text-yellow-500 animate-pulse" />
+          </span>
         )}
       </motion.div>
     );
@@ -236,49 +248,59 @@ export const OrderBook = memo(({
     onPriceClick
   ]);
   
-  // Loading state
+  // Loading state - cyberpunk style
   if (!processedOrderbook) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-        >
-          <Activity className="w-6 h-6 text-cyan-400" />
-        </motion.div>
+      <div className="flex items-center justify-center h-full bg-gray-900/50 rounded-lg border border-cyan-900/30">
+        <div className="flex flex-col items-center gap-2">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          >
+            <Activity className="w-6 h-6 text-cyan-400" />
+          </motion.div>
+          <span className="text-xs text-cyan-400/60 font-mono">SYNCING ORDERBOOK...</span>
+        </div>
       </div>
     );
   }
   
   return (
-    <div className="flex flex-col h-full bg-gray-900/50 rounded-lg border border-cyan-900/30">
-      {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b border-cyan-900/30">
+    <div className="flex flex-col h-full bg-gray-900/50 rounded-lg border border-cyan-900/30 shadow-lg shadow-cyan-900/10">
+      {/* Header - Cyberpunk enhanced */}
+      <div className="flex items-center justify-between p-3 border-b border-cyan-900/30 bg-gradient-to-r from-gray-900/80 to-gray-800/50">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-cyan-400">ORDER BOOK</h3>
-          <span className="text-xs text-gray-500">{symbol}</span>
+          <h3 className="text-sm font-bold text-cyan-400 tracking-wider">ORDER BOOK</h3>
+          <span className="text-xs text-gray-500 font-mono">{symbol}</span>
+          <span className="text-xs text-gray-600 font-mono animate-pulse">●</span>
         </div>
         
-        {/* Controls */}
+        {/* Controls - Enhanced UI */}
         <div className="flex items-center gap-2">
           {/* Grouping selector */}
           <select
             value={grouping}
             onChange={(e) => setGrouping(parseFloat(e.target.value))}
-            className="bg-gray-800 text-xs px-2 py-1 rounded border border-gray-700 focus:outline-none focus:border-cyan-500"
+            className="bg-gray-800 text-xs px-2 py-1 rounded border border-gray-700 
+                     focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/30
+                     transition-all duration-200"
           >
-            <option value="0">No Grouping</option>
-            <option value="0.01">0.01</option>
-            <option value="0.1">0.10</option>
-            <option value="1">1.00</option>
-            <option value="10">10.00</option>
+            <option value="0">RAW DATA</option>
+            <option value="0.01">GROUP: 0.01</option>
+            <option value="0.1">GROUP: 0.10</option>
+            <option value="1">GROUP: 1.00</option>
+            <option value="10">GROUP: 10.00</option>
           </select>
           
           {/* Toggle animations */}
           <button
             onClick={() => setAnimateChanges(!animateChanges)}
-            className={`p-1 rounded ${animateChanges ? 'text-cyan-400' : 'text-gray-500'}`}
-            title="Toggle animations"
+            className={`p-1.5 rounded transition-all duration-200 ${
+              animateChanges 
+                ? 'text-cyan-400 bg-cyan-900/20 shadow-inner shadow-cyan-400/20' 
+                : 'text-gray-500 hover:text-gray-400'
+            }`}
+            title={animateChanges ? "Animations ON" : "Animations OFF"}
           >
             <Zap className="w-4 h-4" />
           </button>
@@ -286,8 +308,12 @@ export const OrderBook = memo(({
           {/* Toggle full book */}
           <button
             onClick={() => setShowFullBook(!showFullBook)}
-            className={`p-1 rounded ${showFullBook ? 'text-cyan-400' : 'text-gray-500'}`}
-            title="Toggle full book"
+            className={`p-1.5 rounded transition-all duration-200 ${
+              showFullBook 
+                ? 'text-cyan-400 bg-cyan-900/20 shadow-inner shadow-cyan-400/20' 
+                : 'text-gray-500 hover:text-gray-400'
+            }`}
+            title={showFullBook ? "Full book view" : "Limited view"}
           >
             {showFullBook ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
           </button>
@@ -295,24 +321,29 @@ export const OrderBook = memo(({
       </div>
       
       {/* Spread indicator - the gap where fortunes fall */}
-      <div className="px-3 py-2 bg-gray-800/50 flex items-center justify-between">
-        <span className="text-xs text-gray-400">Spread</span>
-        <span className="text-sm font-mono text-yellow-400">
-          {processedOrderbook.spread.toFixed(2)} ({((processedOrderbook.spread / processedOrderbook.midPrice) * 100).toFixed(3)}%)
-        </span>
+      <div className="px-3 py-2 bg-gray-800/50 flex items-center justify-between border-b border-gray-800">
+        <span className="text-xs text-gray-400 font-mono uppercase">Spread</span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-mono text-yellow-400">
+            ${processedOrderbook.spread.toFixed(2)}
+          </span>
+          <span className="text-xs font-mono text-yellow-400/60">
+            ({((processedOrderbook.spread / processedOrderbook.midPrice) * 100).toFixed(3)}%)
+          </span>
+        </div>
       </div>
       
       {/* Order levels */}
       <div className="flex-1 overflow-hidden flex">
-        {/* Bids */}
-        <div className="flex-1 flex flex-col">
-          <div className="px-3 py-1 text-xs text-gray-500 flex justify-between">
-            <span>PRICE</span>
-            <span>SIZE</span>
-            {theme === 'detailed' && <span>ORDERS</span>}
+        {/* Bids - Buy side */}
+        <div className="flex-1 flex flex-col border-r border-gray-800">
+          <div className="px-3 py-1.5 text-xs text-gray-500 flex justify-between bg-green-900/10">
+            <span className="font-semibold">BID PRICE</span>
+            <span className="font-semibold">SIZE</span>
+            {theme === 'detailed' && <span className="font-semibold">ORDERS</span>}
           </div>
           
-          <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700">
+          <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
             <AnimatePresence mode="popLayout">
               {processedOrderbook.bids.map((bid, index) => 
                 renderOrderLevel(bid, 'bid', index)
@@ -321,24 +352,26 @@ export const OrderBook = memo(({
           </div>
         </div>
         
-        {/* Mid price divider */}
-        <div className="w-px bg-cyan-900/50 relative">
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-900 px-2 py-1 rounded">
-            <span className="text-xs font-mono text-cyan-400">
-              {processedOrderbook.midPrice.toFixed(2)}
+        {/* Mid price divider - Enhanced cyberpunk style */}
+        <div className="w-px bg-gradient-to-b from-cyan-900/0 via-cyan-900/50 to-cyan-900/0 relative">
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 
+                        bg-gray-900 border border-cyan-900/50 px-3 py-1.5 rounded-full
+                        shadow-lg shadow-cyan-900/20">
+            <span className="text-sm font-mono font-bold text-cyan-400">
+              ${processedOrderbook.midPrice.toFixed(2)}
             </span>
           </div>
         </div>
         
-        {/* Asks */}
+        {/* Asks - Sell side */}
         <div className="flex-1 flex flex-col">
-          <div className="px-3 py-1 text-xs text-gray-500 flex justify-between">
-            <span>PRICE</span>
-            <span>SIZE</span>
-            {theme === 'detailed' && <span>ORDERS</span>}
+          <div className="px-3 py-1.5 text-xs text-gray-500 flex justify-between bg-red-900/10">
+            <span className="font-semibold">ASK PRICE</span>
+            <span className="font-semibold">SIZE</span>
+            {theme === 'detailed' && <span className="font-semibold">ORDERS</span>}
           </div>
           
-          <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700">
+          <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
             <AnimatePresence mode="popLayout">
               {processedOrderbook.asks.map((ask, index) => 
                 renderOrderLevel(ask, 'ask', index)
@@ -348,60 +381,43 @@ export const OrderBook = memo(({
         </div>
       </div>
       
-      {/* Footer stats */}
-      <div className="px-3 py-2 border-t border-cyan-900/30 flex items-center justify-between text-xs">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1">
-            <TrendingUp className="w-3 h-3 text-green-400" />
-            <span className="text-gray-400">
-              Bid Vol: {processedOrderbook.bids.reduce((sum, b) => sum + b.quantity, 0).toFixed(2)}
-            </span>
+      {/* Footer stats - Enhanced metrics */}
+      <div className="px-3 py-2 border-t border-cyan-900/30 bg-gradient-to-r from-gray-900/80 to-gray-800/50">
+        <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1">
+              <TrendingUp className="w-3 h-3 text-green-400" />
+              <span className="text-gray-400">Bid Vol:</span>
+              <span className="font-mono text-green-400">
+                {processedOrderbook.bids.reduce((sum, b) => sum + b.quantity, 0).toFixed(2)}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <TrendingDown className="w-3 h-3 text-red-400" />
+              <span className="text-gray-400">Ask Vol:</span>
+              <span className="font-mono text-red-400">
+                {processedOrderbook.asks.reduce((sum, a) => sum + a.quantity, 0).toFixed(2)}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-1">
-            <TrendingDown className="w-3 h-3 text-red-400" />
-            <span className="text-gray-400">
-              Ask Vol: {processedOrderbook.asks.reduce((sum, a) => sum + a.quantity, 0).toFixed(2)}
+          
+          <div className="flex items-center gap-1 text-gray-500">
+            <Activity className="w-3 h-3" />
+            <span className="font-mono">
+              {new Date(processedOrderbook.lastUpdate).toLocaleTimeString()}
             </span>
           </div>
         </div>
-        
-        <span className="text-gray-500">
-          Updated: {new Date(processedOrderbook.lastUpdate).toLocaleTimeString()}
-        </span>
       </div>
-      
-      {/* Depth chart placeholder */}
-      {showDepthChart && (
-        <div className="h-32 border-t border-cyan-900/30 flex items-center justify-center">
-          <span className="text-xs text-gray-500">Depth chart coming soon...</span>
-        </div>
-      )}
     </div>
   );
 });
 
 OrderBook.displayName = 'OrderBook';
 
-/**
- * ORDERBOOK WISDOM (from the trenches):
- * 
- * 1. Those spoof warnings? Added after watching a whale place and
- *    cancel 1000 BTC orders for hours. The order would appear,
- *    market would react, order would vanish. Pure manipulation.
- * 
- * 2. Grouping is ESSENTIAL. Raw orderbooks on liquid pairs are
- *    noise. You need to zoom out to see the real walls.
- * 
- * 3. Animation can save your ass. Sudden changes in the book are
- *    easier to spot with motion. Your peripheral vision catches
- *    movement better than changes in numbers.
- * 
- * 4. The spread percentage matters more than the absolute spread.
- *    0.01% on BTC is tight. 0.01% on some shitcoin is a scam.
- * 
- * 5. Order count (when available) reveals so much. 100 BTC from
- *    1 order? Whale. 100 BTC from 1000 orders? Retail panic.
- * 
- * Remember: The orderbook is a battlefield. Every number is a
- * soldier. Learn to read the formations, and you might survive.
- */
+// Add CSS for glow effect (add to your global styles)
+const glowStyles = `
+  .text-glow {
+    text-shadow: 0 0 8px currentColor, 0 0 16px currentColor;
+  }
+`;
