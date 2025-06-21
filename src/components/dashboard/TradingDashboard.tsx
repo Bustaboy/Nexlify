@@ -71,6 +71,7 @@ export const TradingDashboard = memo(({
     placeOrder,
     closePosition,
     modifyPosition
+	pnlHistory  
   } = useTradingStore();
   const { user } = useAuthStore();
   
@@ -87,7 +88,40 @@ export const TradingDashboard = memo(({
    */
   useEffect(() => {
     subscribeToMarket(selectedSymbol, ['ticker', 'orderbook', 'candles']);
+	
+    //formatted P&L history data for the chart
+  const formattedPnLHistory = useMemo(() => {
+  const dailyPnL = new Map<string, { realized: number; unrealized: number }>();
+  pnlHistory.forEach(trade => {
+    const date = new Date(trade.closeTime || trade.date || new Date());
+    const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
     
+    const existing = dailyPnL.get(dateKey) || { realized: 0, unrealized: 0 };
+    existing.realized += trade.realizedPnL?.toNumber() || 0;
+    dailyPnL.set(dateKey, existing);
+  });
+  
+  // Add current unrealized P&L
+  const today = new Date().toISOString().split('T')[0];
+  const todayData = dailyPnL.get(today) || { realized: 0, unrealized: 0 };
+  todayData.unrealized = Object.values(positions).reduce(
+    (sum, pos) => sum + pos.unrealizedPnL.toNumber(),
+    0
+  );
+  dailyPnL.set(today, todayData);
+  
+  // Convert to array format expected by PnLDisplay
+  return Array.from(dailyPnL.entries())
+    .map(([dateStr, data]) => ({
+      date: new Date(dateStr),
+      total: data.realized + data.unrealized,
+      realized: data.realized,
+      unrealized: data.unrealized
+    }))
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .slice(-30); // Keep last 30 days
+}, [pnlHistory, positions]);
+  
     return () => {
       // Cleanup subscriptions if needed
     };
