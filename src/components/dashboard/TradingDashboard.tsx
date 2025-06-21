@@ -122,7 +122,69 @@ export const TradingDashboard = memo(({
     .slice(-30); // Keep last 30 days
 }, [pnlHistory, positions]);
   
-    return () => {
+  const { tickers, orderbooks, candles, subscribeToMarket } = useMarketStore();
+  const { 
+  positions, 
+  activeOrders, 
+  riskMetrics,
+  accountBalance,
+  placeOrder,
+  closePosition,
+  modifyPosition,    // ← Fixed: Added comma
+  pnlHistory         // ← Added: Get pnlHistory from store
+} = useTradingStore();
+  const { user } = useAuthStore();
+
+// Get current ticker for selected symbol
+  const currentTicker = tickers[selectedSymbol];
+  const currentOrderbook = orderbooks[selectedSymbol];
+  const currentPosition = positions[selectedSymbol];
+
+// Format P&L history data for the chart
+  const formattedPnLHistory = useMemo(() => {
+  const dailyPnL = new Map<string, { realized: number; unrealized: number }>();
+  
+  // Process trade history
+  pnlHistory.forEach(trade => {
+    const date = new Date(trade.closeTime || trade.date || new Date());
+    const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
+    
+    const existing = dailyPnL.get(dateKey) || { realized: 0, unrealized: 0 };
+    existing.realized += trade.realizedPnL?.toNumber() || 0;
+    dailyPnL.set(dateKey, existing);
+  });
+  
+  // Add current unrealized P&L
+  const today = new Date().toISOString().split('T')[0];
+  const todayData = dailyPnL.get(today) || { realized: 0, unrealized: 0 };
+  todayData.unrealized = Object.values(positions).reduce(
+    (sum, pos) => sum + pos.unrealizedPnL.toNumber(),
+    0
+  );
+  dailyPnL.set(today, todayData);
+  
+  // Convert to array format expected by PnLDisplay
+  return Array.from(dailyPnL.entries())
+    .map(([dateStr, data]) => ({
+      date: new Date(dateStr),
+      total: data.realized + data.unrealized,
+      realized: data.realized,
+      unrealized: data.unrealized
+    }))
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .slice(-30); // Keep last 30 days
+}, [pnlHistory, positions]);
+
+/**
+ * Subscribe to market data on mount
+ * 
+ * This is where we plug into the matrix. Real-time data flows
+ * from exchanges through our WebSocket connections into the UI.
+ */
+useEffect(() => {
+  subscribeToMarket(selectedSymbol, ['ticker', 'orderbook', 'candles']);
+  
+  return () => {
       // Cleanup subscriptions if needed
     };
   }, [selectedSymbol, subscribeToMarket]);
@@ -421,16 +483,28 @@ export const TradingDashboard = memo(({
       </div>
       
       {/* Bottom PnL bar - The scoreboard */}
-      <div className="fixed bottom-0 left-0 right-0 h-16 bg-gray-900/90 backdrop-blur-sm 
-                    border-t border-cyan-900/50 px-4 flex items-center justify-between">
-        <PnLDisplay
-          timeframe="day"
-          showBreakdown={true}
-          compact={true}
-          animate={true}
-          hideValues={false}
-        />
-      </div>
+		<div className="fixed bottom-0 left-0 right-0 h-16 bg-gray-900/90 backdrop-blur-sm 
+              border-t border-cyan-900/50 px-4 flex items-center justify-between">
+		<PnLDisplay
+		trades={pnlHistory.map(trade => ({
+		...trade,
+		id: trade.id || `trade-${Date.now()}-${Math.random()}`,
+		symbol: trade.symbol || 'UNKNOWN',
+		realizedPnL: trade.realizedPnL || new Decimal(0),
+		timestamp: trade.timestamp || trade.closeTime || trade.date || new Date(),
+		quantity: trade.quantity || 0,
+		price: trade.price || new Decimal(0),
+		side: trade.side || 'buy'
+		}))}
+		positions={positions}
+		pnlHistory={formattedPnLHistory}
+		timeframe="day"
+		showBreakdown={true}
+		compact={true}
+		animate={true}
+		hideValues={false}
+		/>
+	  </div>
     </div>
   );
 });
