@@ -1,4 +1,4 @@
-// src-tauri/src/main.rs
+﻿// src-tauri/src/main.rs
 // NEXLIFY NEURAL CORE - Where chrome meets flesh
 // Last sync: 2025-06-19 | "The street finds its own uses for things"
 
@@ -6,10 +6,7 @@
 
 use std::sync::Arc;
 use parking_lot::RwLock;
-use tauri::{generate_handler,
-    Manager, Runtime, State, WebviewWindow,
-    async_runtime,
-};
+use tauri::{generate_handler, Manager, Runtime, State, WebviewWindow, async_runtime};
 use tracing::{info, error, warn, debug};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
@@ -25,26 +22,26 @@ use state::{AppState, MarketCache, TradingEngine};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize our neural logging system - gotta track those signals in the noise
     init_neural_logger();
-    
+
     info!("🌃 NEXLIFY NEURAL TERMINAL v4.0.0 - Booting up...");
     info!("⚡ Initializing quantum trading cores...");
-    
+
     // Create our shared state - the collective consciousness of our trading engine
     let app_state = Arc::new(RwLock::new(AppState::new()));
-    let market_cache = Arc::new(MarketCache::new());
-    let trading_engine = Arc::new(RwLock::new(TradingEngine::new()));
-    
+    let market_cache = MarketCache::new(); // Fix: Use Arc<MarketCache> from MarketCache::new()
+    let trading_engine = Arc::new(RwLock::new(TradingEngine::new())); // Fix: Add trading_engine
+
     // Performance monitoring - keeping tabs on our chrome
     spawn_performance_monitor();
-    
+
     info!("🔌 Jacking into the market matrix...");
-    
+
     tauri::Builder::default()
         // Inject our neural state into the app
         .manage(app_state.clone())
         .manage(market_cache.clone())
         .manage(trading_engine.clone())
-        
+
         // Wire up our IPC command handlers - the synapses of our system
         .invoke_handler(generate_handler![
             // Market data commands - real-time neural feed
@@ -53,55 +50,55 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             market_data::subscribe_market_data,
             market_data::unsubscribe_market_data,
             market_data::get_historical_candles,
-            
+
             // Trading commands - where we strike in the shadows
             trading::place_order,
             trading::cancel_order,
             trading::get_positions,
             trading::get_order_history,
             trading::calculate_pnl,
-            
+
             // Auth commands - keeping our secrets in the vault
             auth::unlock_stronghold,
             auth::store_api_credentials,
             auth::verify_credentials,
             auth::get_exchange_status,
             auth::rotate_keys,
-            
+
             // System commands - managing our neural pathways
             get_system_metrics,
             check_neural_health,
             trigger_garbage_collection,
             export_diagnostics,
         ])
-        
+
         // Setup hook - final neural calibrations
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();
-            
+			println!("Window created: {:?}", window);
+
             // Apply our cyberpunk chrome
             setup_window_effects(&window);
-            
+
             // Initialize market data streams
             let app_handle = app.handle().clone();
-            let market_cache = app.state::<Arc<MarketCache>>().inner().clone();
-            
+
             async_runtime::spawn(async move {
                 match initialize_market_streams(app_handle, market_cache).await {
                     Ok(_) => info!("✅ Market neural link established"),
                     Err(e) => error!("❌ Failed to jack into markets: {}", e),
                 }
             });
-            
+
             // System tray setup for background monitoring
             setup_system_tray(app)?;
-            
+
             info!("🚀 NEXLIFY TERMINAL - Ready to burn the markets");
             info!("💀 Remember: In the sprawl, speed is survival");
-            
+
             Ok(())
         })
-        
+
         // Plugin initialization - extending our capabilities
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
@@ -114,23 +111,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_stronghold::Builder::new(|password| {
-                // Use tauri's built-in password hashing
-                use argon2::{Argon2, PasswordHasher};
-                use argon2::password_hash::{rand_core::OsRng, SaltString};
-                
-                let salt = SaltString::generate(&mut OsRng);
-                let argon2 = Argon2::default();
-                
-                argon2
-                    .hash_password(password.as_bytes(), &salt)
-                    .map(|hash| hash.to_string().into_bytes())
-                    .unwrap_or_else(|_| password.as_bytes().to_vec())
-            }).build())
-        
+            // Use tauri's built-in password hashing
+            use argon2::{Argon2, PasswordHasher};
+            use argon2::password_hash::{rand_core::OsRng, SaltString};
+
+            let salt = SaltString::generate(&mut OsRng);
+            let argon2 = Argon2::default();
+
+            argon2
+                .hash_password(password.as_bytes(), &salt)
+                .map(|hash| hash.to_string().into_bytes())
+                .unwrap_or_else(|_| password.as_bytes().to_vec())
+        }).build())
+
         // Run our neural terminal
         .run(tauri::generate_context!())
         .expect("Failed to run NEXLIFY terminal - matrix rejection");
-    
+
     Ok(())
 }
 
@@ -138,7 +135,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn init_neural_logger() {
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("info,nexlify=debug"));
-    
+
     tracing_subscriber::registry()
         .with(fmt::layer()
             .with_thread_ids(true)
@@ -153,13 +150,13 @@ fn init_neural_logger() {
 }
 
 /// Apply our signature cyberpunk window effects
-fn setup_window_effects<R: Runtime>(window: &WebviewWindow<R>) {
+fn setup_window_effects<R: Runtime>(_window: &WebviewWindow<R>) {
     #[cfg(target_os = "windows")]
     {
         // Mica effect for that translucent chrome feel
         // Window effects removed - not available in current Tauri version.ok();
     }
-    
+
     #[cfg(target_os = "macos")]
     {
         // macOS vibrancy for the neural aesthetic
@@ -173,14 +170,14 @@ fn setup_system_tray<R: Runtime>(app: &tauri::App<R>) -> Result<(), Box<dyn std:
         menu::{Menu, MenuItem},
         tray::TrayIconBuilder,
     };
-    
+
     let show = MenuItem::with_id(app, "show", "Show Terminal", true, None::<&str>)?;
     let neural_status = MenuItem::with_id(app, "status", "Neural Status", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Jack Out", true, None::<&str>)?;
-    
+
     let menu = Menu::with_items(app, &[&show, &neural_status, &quit])?;
-    
-    let tray = TrayIconBuilder::new()
+
+    let _tray = TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
         .menu(&menu)
         .tooltip("NEXLIFY - Neural Trading Active")
@@ -204,7 +201,7 @@ fn setup_system_tray<R: Runtime>(app: &tauri::App<R>) -> Result<(), Box<dyn std:
             _ => {}
         })
         .build(app)?;
-    
+
     Ok(())
 }
 
@@ -212,23 +209,23 @@ fn setup_system_tray<R: Runtime>(app: &tauri::App<R>) -> Result<(), Box<dyn std:
 fn spawn_performance_monitor() {
     use sysinfo::{System, RefreshKind, CpuRefreshKind, MemoryRefreshKind};
     use std::time::Duration;
-    
+
     async_runtime::spawn(async move {
         let mut sys = System::new_with_specifics(
             RefreshKind::everything()
                 .with_cpu(CpuRefreshKind::everything())
                 .with_memory(MemoryRefreshKind::everything())
         );
-        
+
         loop {
             sys.refresh_cpu_usage();
             sys.refresh_memory();
-            
+
             let cpu_usage = sys.global_cpu_usage();
             let memory_used = sys.used_memory();
             let memory_total = sys.total_memory();
             let memory_percent = (memory_used as f32 / memory_total as f32) * 100.0;
-            
+
             debug!(
                 "⚡ Neural load: CPU {:.1}% | RAM {:.1}% ({:.2} GB / {:.2} GB)",
                 cpu_usage,
@@ -236,16 +233,16 @@ fn spawn_performance_monitor() {
                 memory_used as f64 / 1_073_741_824.0,
                 memory_total as f64 / 1_073_741_824.0
             );
-            
+
             // Alert if we're redlining
             if cpu_usage > 80.0 {
-                warn!("⚠️ CPU running hot: {:.1}% - neural cores overclocking", cpu_usage);
+                warn!("⚠ CPU running hot: {:.1}% - neural cores overclocking", cpu_usage);
             }
-            
+
             if memory_percent > 85.0 {
-                warn!("⚠️ Memory pressure high: {:.1}% - consider neural optimization", memory_percent);
+                warn!("⚠ Memory pressure high: {:.1}% - consider neural optimization", memory_percent);
             }
-            
+
             tokio::time::sleep(Duration::from_secs(30)).await;
         }
     });
@@ -258,22 +255,22 @@ async fn initialize_market_streams(
 ) -> Result<(), Box<dyn std::error::Error>> {
     use tokio_tungstenite::{connect_async, tungstenite::Message};
     use futures_util::stream::StreamExt;
-    
+
     let coinbase_url = std::env::var("COINBASE_WS_URL")
         .unwrap_or_else(|_| "wss://ws-feed.exchange.coinbase.com".to_string());
-    
+
     let (ws_stream, _) = connect_async(&coinbase_url).await?;
     let (_, mut read) = ws_stream.split();
-    
+
     // Subscribe to BTC-USD orderbook
     let _subscribe_msg = serde_json::json!({
         "type": "subscribe",
         "channels": ["level2", "ticker"],
         "product_ids": ["BTC-USD", "ETH-USD"]
     });
-    
+
     info!("📡 Subscribing to market neural feed...");
-    
+
     while let Some(msg) = read.next().await {
         match msg? {
             Message::Text(text) => {
@@ -293,14 +290,12 @@ async fn initialize_market_streams(
             _ => {}
         }
     }
-    
+
     Ok(())
 }
 
 /// Show neural diagnostic overlay - for when you need to peek under the chrome
 async fn show_neural_diagnostics() {
-    
-    
     info!("🧠 Neural Diagnostics:");
     info!("├─ Uptime: {} seconds", get_uptime());
     info!("├─ Active connections: {}", get_active_connections());
@@ -315,7 +310,7 @@ async fn get_system_metrics(
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<serde_json::Value, String> {
     let app_state = state.read();
-    
+
     Ok(serde_json::json!({
         "uptime": app_state.get_uptime(),
         "memory_usage": app_state.get_memory_usage(),

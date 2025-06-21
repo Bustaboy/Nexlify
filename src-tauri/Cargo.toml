@@ -104,3 +104,7 @@ inherits = "release"
 opt-level = 3
 lto = "thin"
 codegen-units = 16
+
+[[bin]]
+name = "debug_closure"
+path = "src/debug_closure.rs"

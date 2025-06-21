@@ -1,155 +1,69 @@
 {
-  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Nexlify Terminal",
-  "version": "3.0.0",
-  "identifier": "com.nexlify.terminal",
-  "build": {
-    "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build",
-    "devUrl": "http://localhost:5173",
-    "frontendDist": "../dist"
-  },
-  "bundle": {
-    "active": true,
-    "targets": "all",
-    "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
-    ],
-    "publisher": "Nexlify Collective",
-    "copyright": "\u00a9 2025 Nexlify. Built for the digital underground.",
-    "shortDescription": "Neural-enhanced crypto trading for the new flesh",
-    "longDescription": "High-frequency cryptocurrency trading terminal with cyberpunk aesthetics. Real-time market data, GPU-accelerated charts, and military-grade encryption.",
-    "resources": [],
-    "macOS": {
-      "minimumSystemVersion": "10.15",
-      "frameworks": [],
-      "exceptionDomain": null,
-      "signingIdentity": null,
-      "entitlements": null
-    },
-    "windows": {
-      "certificateThumbprint": null,
-      "digestAlgorithm": "sha256",
-      "timestampUrl": "http://timestamp.digicert.com",
-      "webviewInstallMode": {
-        "type": "downloadBootstrapper"
-      }
-    },
-    "linux": {
-      "appimage": {
-        "bundleMediaFramework": true
-      },
-      "deb": {
-        "section": "finance",
-        "priority": "optional",
-        "depends": []
-      }
-    }
-  },
-  "app": {
-    "security": {
-      "csp": {
-        "default-src": "'self' customprotocol: asset:",
-        "script-src": "'self' 'unsafe-eval' 'wasm-unsafe-eval'",
-        "style-src": "'self' 'unsafe-inline'",
-        "img-src": "'self' asset: https://api.nexlify.com data: blob:",
-        "font-src": "'self'",
-        "connect-src": "'self' wss://stream.nexlify.com https://api.nexlify.com https://api.coinbase.com https://api.binance.com",
-        "media-src": "'self'",
-        "object-src": "'none'",
-        "base-uri": "'self'",
-        "form-action": "'self'",
-        "frame-ancestors": "'none'",
-        "worker-src": "'self' blob:"
-      },
-      "dangerousDisableAssetCspModification": false,
-      "freezePrototype": true
-    },
-    "windows": [
-      {
-        "title": "NEXLIFY // NEURAL TERMINAL",
-        "label": "main",
-        "width": 1600,
-        "height": 1000,
-        "minWidth": 1200,
-        "minHeight": 800,
-        "resizable": true,
-        "fullscreen": false,
-        "alwaysOnTop": false,
-        "skipTaskbar": false,
-        "decorations": true,
-        "transparent": false,
-        "center": true,
-        "focus": true,
-        "acceptFirstMouse": false,
-        "hiddenTitle": false,
-        "shadow": true,
-        "dragDropEnabled": true,
-        "zoomHotkeysEnabled": false
-      }
-    ],
-    "trayIcon": {
-      "iconPath": "icons/tray-icon.png",
-      "iconAsTemplate": true,
-      "menuOnLeftClick": false,
-      "title": "NEXLIFY",
-      "tooltip": "Neural Trading Active"
-    },
-    "macOSPrivateApi": false
-  },
-  "plugins": {
-    "shell": {
-      "open": []
-    },
-    "http": {
-      "scope": [
-        "https://api.nexlify.com/*",
-        "https://api.coinbase.com/*",
-        "https://api.binance.com/*",
-        "https://api.kraken.com/*"
-      ]
-    },
-    "websocket": {
-      "connect": [
-        "wss://stream.nexlify.com",
-        "wss://ws-feed.exchange.coinbase.com",
-        "wss://stream.binance.com:9443/*"
-      ]
-    },
-    "fs": {
-      "scope": {
-        "allow": [
-          "$APPDATA/nexlify/*",
-          "$APPCONFIG/nexlify/*"
-        ],
-        "deny": [
-          "$HOME/.ssh/*",
-          "$HOME/.gnupg/*"
-        ]
-      }
-    },
-    "process": {
-      "exit": true,
-      "relaunch": true
-    },
-    "dialog": {
-      "all": true
-    },
-    "notification": {
-      "all": true
-    },
-    "updater": {
-      "endpoints": [
-        "https://releases.nexlify.com/{{target}}/{{arch}}/{{current_version}}"
-      ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEMzNkUzNEJCREFCRTlBRTAKUldRWmNlcnJVL2wzNGJ1WDlLdnNKbFRKMDNWOHBpNmRqVzNWdlVZNEhlRWM5eE1oTWJ0VEhsZz0K"
-    },
-    "windowState": {
-      "saveWindowState": true
-    }
-  }
+    "productName":  "Nexlify Terminal",
+    "version":  "3.0.0",
+    "identifier":  "com.nexlify.terminal",
+    "build":  {
+                  "beforeDevCommand":  "pnpm dev",
+                  "devUrl":  "http://localhost:5173",
+                  "beforeBuildCommand":  "pnpm build",
+                  "frontendDist":  "../dist"
+              },
+    "app":  {
+                "windows":  [
+                                {
+                                    "title":  "NEXLIFY Neural Terminal v3.0",
+                                    "label":  "main",
+                                    "url":  "/",
+                                    "width":  1400,
+                                    "height":  900,
+                                    "minWidth":  1200,
+                                    "minHeight":  700,
+                                    "resizable":  true,
+                                    "fullscreen":  false,
+                                    "decorations":  true,
+                                    "transparent":  false,
+                                    "skipTaskbar":  false,
+                                    "center":  true,
+                                    "focus":  true,
+                                    "alwaysOnTop":  false
+                                }
+                            ],
+                "security":  {
+                                 "csp":  "default-src \u0027self\u0027; script-src \u0027self\u0027 \u0027unsafe-inline\u0027 \u0027unsafe-eval\u0027; style-src \u0027self\u0027 \u0027unsafe-inline\u0027; img-src \u0027self\u0027 data: https:; connect-src \u0027self\u0027 http://localhost:* ws://localhost:* wss://ws-feed.exchange.coinbase.com https://*.coinbase.com",
+                                 "freezePrototype":  false
+                             },
+                "trayIcon":  {
+                                 "iconPath":  "icons/icon.png",
+                                 "iconAsTemplate":  true,
+                                 "menuOnLeftClick":  false
+                             }
+            },
+    "bundle":  {
+                   "active":  true,
+                   "targets":  "all",
+                   "icon":  [
+                                "icons/32x32.png",
+                                "icons/128x128.png",
+                                "icons/128x128@2x.png",
+                                "icons/icon.icns",
+                                "icons/icon.ico"
+                            ],
+                   "windows":  {
+                                   "certificateThumbprint":  null,
+                                   "digestAlgorithm":  "sha256",
+                                   "timestampUrl":  "",
+                                   "webviewInstallMode":  {
+                                                              "type":  "embedBootstrapper"
+                                                          }
+                               }
+               },
+    "plugins":  {
+                    "shell":  {
+                                  "open":  true
+                              },
+                    "updater":  {
+                                    "active":  false,
+                                    "pubkey":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpbXBsZSBzYW1wbGUgS2V5IDAxCnJ3c2Fwc2VjdXJpdHkuY29tL2RvbWFpbiBzaWduYXR1cmUga2V5CnB1YmxpYyBrZXk6IDAxMjM0NTY3ODkwMTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNAo="
+                                }
+                }
 }
