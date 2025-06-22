@@ -1,508 +1,665 @@
-// src-tauri/src/commands/market_data.rs
-// NEXLIFY MARKET DATA COMMANDS - The pulse of the digital bazaar
-// Last sync: 2025-06-22 | "Information is ammunition in the war of profit"
+// Location: C:\Nexlify\src-tauri\src\commands\market_data.rs
+// Purpose: NEXLIFY MARKET DATA NEURAL INTERFACE - Where we peek into the market's soul
+// Last sync: 2025-06-19 | "The market whispers secrets to those who listen"
 
 use tauri::State;
 use std::sync::Arc;
-use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
-use tracing::{debug, info, warn, error};
+use chrono::{DateTime, Utc, Duration};
+use tracing::{debug, info, warn};
+use rand::Rng;
 
-use crate::state::{
-    AppState, MarketCache, TradingEngine,
-    OrderBook as StateOrderBook,
-    Ticker as StateTicker,
-    Trade as StateTrade,
-    Candle as StateCandle,
-    OrderStatus
-};
+use crate::state::{MarketCache, market_cache::{OrderBook, Trade, Ticker, Candle, PriceLevel}};
 use super::{CommandResult, CommandError, validation};
 
-/// Get orderbook data - see the battlefield before you charge
+// ─────────────────────────────────────────────────────────────
+// MARKET DATA STRUCTURES
+// ─────────────────────────────────────────────────────────────
+
+/// Response structure for orderbook queries
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OrderbookResponse {
+    pub orderbook: OrderBook,
+    pub spread: Option<f64>,
+    pub mid_price: Option<f64>,
+    pub depth_returned: usize,
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Response structure for ticker data
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TickerResponse {
+    pub ticker: Ticker,
+    pub momentum_score: f64,
+    pub cache_hit: bool,
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Response structure for recent trades
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TradesResponse {
+    pub symbol: String,
+    pub trades: Vec<Trade>,
+    pub count: usize,
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Response for market data subscription
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SubscriptionResponse {
+    pub subscribed_symbols: Vec<String>,
+    pub subscription_id: String,
+    pub websocket_url: String,
+    pub message: String,
+}
+
+/// Response for unsubscribe operation
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UnsubscribeResponse {
+    pub unsubscribed: Vec<UnsubscribeResult>,
+    pub failed: Vec<UnsubscribeResult>,
+    pub active_subscriptions: usize,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UnsubscribeResult {
+    pub symbol: String,
+    pub success: bool,
+    pub message: String,
+}
+
+/// Response for historical data
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HistoricalDataResponse {
+    pub symbol: String,
+    pub timeframe: String,
+    pub candles: Vec<Candle>,
+    pub count: usize,
+    pub start_time: DateTime<Utc>,
+    pub end_time: DateTime<Utc>,
+}
+
+// ─────────────────────────────────────────────────────────────
+// COMMAND: get_orderbook - Peer into supply and demand
+// ─────────────────────────────────────────────────────────────
+
+/// Get orderbook snapshot - peering into the abyss of supply and demand
 /// 
-/// The orderbook is truth. It shows you where the bodies are buried
-/// (limit orders) and where the next massacre might happen (big walls).
-/// I've seen 10k BTC walls vanish in seconds. Never trust, always verify.
+/// You know, hermano, watching an orderbook is like watching the city breathe.
+/// Each bid, each ask - it's someone's hope, someone's fear, crystallized in numbers.
+/// I've seen fortunes made and dreams shattered in these price levels.
 #[tauri::command]
 pub async fn get_orderbook(
     symbol: String,
-    depth: Option<u32>,
-    market_cache: State<'_, Arc<RwLock<MarketCache>>>,
-) -> CommandResult<OrderBookResponse> {
+    depth: Option<usize>,
+    market_cache: State<'_, Arc<MarketCache>>,
+) -> CommandResult<OrderbookResponse> {
+    // Validate input - never trust data from the streets
     validation::validate_symbol(&symbol)?;
     
-    let depth = depth.unwrap_or(20).min(100); // Cap at 100 for performance
+    let depth = depth.unwrap_or(50).min(100); // Cap at 100 - too much data melts chrome
     
-    let cache = market_cache.read();
-    let orderbook = cache.get_orderbook(&symbol)
-        .ok_or_else(|| CommandError::MarketDataError(
-            format!("No orderbook data for {}. The market ghosts are silent.", symbol)
-        ))?;
+    debug!("📊 Fetching orderbook for {} with depth {}", symbol, depth);
     
-    // Calculate some chrome-plated metrics
-    let total_bid_volume: f64 = orderbook.bids.iter().take(depth as usize).map(|o| o.quantity).sum();
-    let total_ask_volume: f64 = orderbook.asks.iter().take(depth as usize).map(|o| o.quantity).sum();
-    let mid_price = if !orderbook.bids.is_empty() && !orderbook.asks.is_empty() {
-        (orderbook.bids[0].price + orderbook.asks[0].price) / 2.0
-    } else {
-        0.0
-    };
-    
-    let imbalance = if total_bid_volume + total_ask_volume > 0.0 {
-        (total_bid_volume - total_ask_volume) / (total_bid_volume + total_ask_volume)
-    } else {
-        0.0
-    };
-    
-    debug!("📊 Orderbook for {} - Depth: {}, Imbalance: {:.2}%", 
-           symbol, depth, imbalance * 100.0);
-    
-    Ok(OrderBookResponse {
-        symbol: symbol.clone(),
-        bids: orderbook.bids.iter().take(depth as usize).cloned().collect(),
-        asks: orderbook.asks.iter().take(depth as usize).cloned().collect(),
-        timestamp: orderbook.timestamp,
-        mid_price,
-        spread: orderbook.asks.first().map(|a| a.price).unwrap_or(0.0) - 
-                orderbook.bids.first().map(|b| b.price).unwrap_or(0.0),
-        imbalance,
-        total_bid_volume,
-        total_ask_volume,
-    })
+    match market_cache.get_orderbook(&symbol) {
+        Some(mut orderbook) => {
+            // Trim to requested depth - sometimes less is more, ¿verdad?
+            orderbook.bids.truncate(depth);
+            orderbook.asks.truncate(depth);
+            
+            // Calculate spread - the gap between dreams and reality
+            let spread = if !orderbook.asks.is_empty() && !orderbook.bids.is_empty() {
+                Some(orderbook.asks[0].price - orderbook.bids[0].price)
+            } else {
+                None
+            };
+            
+            // Mid price - where the market finds its center
+            let mid_price = if let Some(spread) = spread {
+                Some(orderbook.bids[0].price + spread / 2.0)
+            } else {
+                None
+            };
+            
+            info!("✅ Orderbook retrieved for {} - {} bids, {} asks", 
+                  symbol, orderbook.bids.len(), orderbook.asks.len());
+            
+            Ok(OrderbookResponse {
+                orderbook,
+                spread,
+                mid_price,
+                depth_returned: depth,
+                timestamp: Utc::now(),
+            })
+        }
+        None => {
+            warn!("❌ No orderbook data for {} - the market ghosts us", symbol);
+            Err(CommandError::MarketDataError(
+                format!("No orderbook data available for {}. The market keeps its secrets.", symbol)
+            ))
+        }
+    }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct OrderBookResponse {
-    pub symbol: String,
-    pub bids: Vec<crate::state::OrderBookLevel>,
-    pub asks: Vec<crate::state::OrderBookLevel>,
-    pub timestamp: DateTime<Utc>,
-    pub mid_price: f64,
-    pub spread: f64,
-    pub imbalance: f64, // -1 to 1, negative = sell pressure
-    pub total_bid_volume: f64,
-    pub total_ask_volume: f64,
-}
+// ─────────────────────────────────────────────────────────────
+// COMMAND: get_ticker - The market's heartbeat
+// ─────────────────────────────────────────────────────────────
 
-/// Get ticker data - the heartbeat of the market
+/// Get current ticker data - the heartbeat of the market
 /// 
-/// Tickers are like vital signs. When they flatline, something's wrong.
-/// When they spike, something's happening. Learn to read the rhythm.
+/// Mierda, I remember when BTC first hit 10k. We thought we were kings.
+/// Now look at us, handling these numbers like they're pocket change.
+/// The market teaches humility faster than any street fight.
 #[tauri::command]
 pub async fn get_ticker(
     symbol: String,
-    market_cache: State<'_, Arc<RwLock<MarketCache>>>,
+    market_cache: State<'_, Arc<MarketCache>>,
 ) -> CommandResult<TickerResponse> {
     validation::validate_symbol(&symbol)?;
     
-    let cache = market_cache.read();
-    let ticker = cache.get_ticker(&symbol)
-        .ok_or_else(|| CommandError::MarketDataError(
-            format!("No ticker data for {}. Market's gone dark.", symbol)
-        ))?;
+    let cache_stats = market_cache.get_stats();
+    debug!("📈 Cache stats - Hits: {}, Misses: {}", cache_stats.cache_hits, cache_stats.cache_misses);
     
-    // Calculate momentum (simple but effective)
-    let momentum = if ticker.last_price > 0.0 && ticker.open_24h > 0.0 {
-        ((ticker.last_price - ticker.open_24h) / ticker.open_24h) * 100.0
+    // First, try to get fresh ticker data
+    if let Some(ticker) = market_cache.get_ticker(&symbol) {
+        // Calculate momentum indicators - my secret sauce from the old days
+        let momentum_score = calculate_momentum(&ticker);
+        
+        Ok(TickerResponse {
+            ticker,
+            momentum_score,
+            cache_hit: true,
+            timestamp: Utc::now(),
+        })
     } else {
-        0.0
-    };
-    
-    // Volatility indicator (high-low spread)
-    let volatility = if ticker.high_24h > 0.0 && ticker.low_24h > 0.0 {
-        ((ticker.high_24h - ticker.low_24h) / ticker.low_24h) * 100.0
-    } else {
-        0.0
-    };
-    
-    Ok(TickerResponse {
-        symbol: ticker.symbol.clone(),
-        bid: ticker.bid,
-        ask: ticker.ask,
-        last_price: ticker.last_price,
-        volume_24h: ticker.volume_24h,
-        change_24h: ticker.change_24h,
-        change_percent_24h: ticker.change_percent_24h,
-        high_24h: ticker.high_24h,
-        low_24h: ticker.low_24h,
-        open_24h: ticker.open_24h,
-        timestamp: ticker.timestamp,
-        momentum,
-        volatility,
-        health_status: match volatility {
-            v if v > 20.0 => "EXTREME - Cyber-storm detected! 🌪️".to_string(),
-            v if v > 10.0 => "HIGH - Market's running hot 🔥".to_string(),
-            v if v > 5.0 => "MODERATE - Normal chaos levels 📊".to_string(),
-            _ => "LOW - Eerily quiet... too quiet 🤫".to_string(),
-        },
-    })
+        // Fallback to orderbook data - when Plan A fails, adapt
+        if let Some(orderbook) = market_cache.get_orderbook(&symbol) {
+            let ticker = derive_ticker_from_orderbook(&symbol, &orderbook);
+            
+            info!("📊 Derived ticker from orderbook for {} - improvise, adapt, overcome", symbol);
+            
+            Ok(TickerResponse {
+                ticker,
+                momentum_score: 0.0, // No historical data for momentum
+                cache_hit: false,
+                timestamp: Utc::now(),
+            })
+        } else {
+            Err(CommandError::MarketDataError(
+                format!("No market data for {}. Even the data brokers are dry.", symbol)
+            ))
+        }
+    }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TickerResponse {
-    pub symbol: String,
-    pub bid: f64,
-    pub ask: f64,
-    pub last_price: f64,
-    pub volume_24h: f64,
-    pub change_24h: f64,
-    pub change_percent_24h: f64,
-    pub high_24h: f64,
-    pub low_24h: f64,
-    pub open_24h: f64,
-    pub timestamp: DateTime<Utc>,
-    pub momentum: f64,
-    pub volatility: f64,
-    pub health_status: String,
-}
+// ─────────────────────────────────────────────────────────────
+// COMMAND: get_recent_trades - Watch the money flow
+// ─────────────────────────────────────────────────────────────
 
-/// Get recent trades - watch the money flow
+/// Get recent trades - watching the blood flow through the market's veins
 /// 
-/// Every trade tells a story. Big trades are whales moving. Small trades
-/// are retail getting chopped. The tape never lies, but it sure loves to
-/// mislead.
+/// Every trade tells a story. Was it fear? Greed? Desperation?
+/// In my barrio, we learned to read people. Here, we read the tape.
+/// Same game, different arena.
 #[tauri::command]
 pub async fn get_recent_trades(
     symbol: String,
-    limit: Option<u32>,
-    market_cache: State<'_, Arc<RwLock<MarketCache>>>,
-) -> CommandResult<RecentTradesResponse> {
+    limit: Option<usize>,
+    market_cache: State<'_, Arc<MarketCache>>,
+) -> CommandResult<TradesResponse> {
     validation::validate_symbol(&symbol)?;
     
-    let limit = limit.unwrap_or(50).min(100);
+    let limit = limit.unwrap_or(100).min(1000); // Cap at 1000 - memory is precious
     
-    let cache = market_cache.read();
-    let trades = cache.get_recent_trades(&symbol, limit as usize);
-    
-    if trades.is_empty() {
-        return Err(CommandError::MarketDataError(
-            format!("No trade data for {}. Market's frozen in time.", symbol)
-        ));
+    match market_cache.get_recent_trades(&symbol, limit) {
+        Some(trades) => {
+            info!("📜 Retrieved {} recent trades for {}", trades.len(), symbol);
+            
+            Ok(TradesResponse {
+                symbol: symbol.clone(),
+                trades,
+                count: limit,
+                timestamp: Utc::now(),
+            })
+        }
+        None => {
+            warn!("❌ No trade history for {} - market gone dark", symbol);
+            Err(CommandError::MarketDataError(
+                format!("No trade data for {}. The tape has gone silent.", symbol)
+            ))
+        }
     }
-    
-    // Analyze the flow
-    let buy_volume: f64 = trades.iter()
-        .filter(|t| t.is_buyer_maker)
-        .map(|t| t.quantity)
-        .sum();
-    
-    let sell_volume: f64 = trades.iter()
-        .filter(|t| !t.is_buyer_maker)
-        .map(|t| t.quantity)
-        .sum();
-    
-    let avg_trade_size = trades.iter()
-        .map(|t| t.quantity)
-        .sum::<f64>() / trades.len() as f64;
-    
-    let large_trades = trades.iter()
-        .filter(|t| t.quantity > avg_trade_size * 5.0)
-        .count();
-    
-    Ok(RecentTradesResponse {
-        symbol,
-        trades: trades.into_iter().map(|t| TradeInfo {
-            id: t.id,
-            price: t.price,
-            quantity: t.quantity,
-            timestamp: t.timestamp,
-            is_buyer_maker: t.is_buyer_maker,
-            is_large: t.quantity > avg_trade_size * 5.0,
-        }).collect(),
-        buy_volume,
-        sell_volume,
-        volume_ratio: if sell_volume > 0.0 { buy_volume / sell_volume } else { 0.0 },
-        avg_trade_size,
-        large_trades,
-        flow_analysis: match buy_volume / (buy_volume + sell_volume) {
-            r if r > 0.7 => "BULLISH - Buyers in control 🟢".to_string(),
-            r if r > 0.55 => "LEAN BULLISH - Slight buy pressure 📈".to_string(),
-            r if r > 0.45 => "NEUTRAL - Balanced flow ⚖️".to_string(),
-            r if r > 0.3 => "LEAN BEARISH - Sellers emerging 📉".to_string(),
-            _ => "BEARISH - Sellers dominating 🔴".to_string(),
-        },
-    })
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RecentTradesResponse {
-    pub symbol: String,
-    pub trades: Vec<TradeInfo>,
-    pub buy_volume: f64,
-    pub sell_volume: f64,
-    pub volume_ratio: f64,
-    pub avg_trade_size: f64,
-    pub large_trades: usize,
-    pub flow_analysis: String,
-}
+// ─────────────────────────────────────────────────────────────
+// COMMAND: subscribe_market_data - Jack into the feed
+// ─────────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TradeInfo {
-    pub id: String,
-    pub price: f64,
-    pub quantity: f64,
-    pub timestamp: DateTime<Utc>,
-    pub is_buyer_maker: bool,
-    pub is_large: bool,
-}
-
-/// Subscribe to market data - jack into the matrix
+/// Subscribe to real-time market data - jacking into the neural feed
 /// 
-/// Real-time data is the lifeblood of trading. Miss a tick, miss an opportunity.
-/// But be careful - too much data can overwhelm. Filter the signal from the noise.
+/// This is where we plug directly into the market's nervous system.
+/// Real-time data flowing like electricity through our chrome.
+/// Once you jack in, there's no going back. You feel every tick, every trade.
 #[tauri::command]
 pub async fn subscribe_market_data(
-    symbol: String,
-    data_types: Vec<String>,
-    app_state: State<'_, Arc<RwLock<AppState>>>,
+    symbols: Vec<String>,
+    feed_types: Vec<String>,
+    market_cache: State<'_, Arc<MarketCache>>,
 ) -> CommandResult<SubscriptionResponse> {
-    validation::validate_symbol(&symbol)?;
+    // Validate all symbols - no garbage in the neural stream
+    for symbol in &symbols {
+        validation::validate_symbol(symbol)?;
+    }
     
-    if data_types.is_empty() {
-        return Err(CommandError::MarketDataError(
-            "No data types specified. Need to know what chrome you want.".to_string()
+    if symbols.is_empty() {
+        return Err(CommandError::ValidationError(
+            "No symbols provided. Can't jack into nothing, choom.".to_string()
         ));
     }
     
-    // Validate data types
-    let valid_types = vec!["ticker", "orderbook", "trades", "candles"];
-    for dt in &data_types {
-        if !valid_types.contains(&dt.as_str()) {
-            return Err(CommandError::MarketDataError(
-                format!("Invalid data type: {}. Choose from: {:?}", dt, valid_types)
-            ));
-        }
+    // Subscribe to each symbol
+    let subscription_id = uuid::Uuid::new_v4().to_string();
+    let mut subscribed = vec![];
+    
+    for symbol in symbols {
+        // In production, this would establish WebSocket connections
+        // For now, we simulate subscription
+        market_cache.add_subscription(&symbol, &subscription_id);
+        subscribed.push(symbol);
+        
+        info!("🔌 Neural link established for {}", subscribed.last().unwrap());
     }
     
-    info!("🔌 Subscribing to {} - Types: {:?}", symbol, data_types);
-    
-    // In production, this would establish WebSocket subscriptions
-    // For now, we'll simulate the subscription
-    let subscription_id = format!("SUB-{}-{}", symbol, uuid::Uuid::new_v4());
-    
-    // Update app state
-    let mut state = app_state.write();
-    state.active_subscriptions.insert(
-        subscription_id.clone(),
-        (symbol.clone(), data_types.clone())
-    );
-    
-    Ok(SubscriptionResponse {
-        subscription_id,
-        symbol,
-        data_types,
-        status: "active".to_string(),
-        message: "Jacked in. Data stream active. 🔌".to_string(),
-        timestamp: Utc::now(),
-    })
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SubscriptionResponse {
-    pub subscription_id: String,
-    pub symbol: String,
-    pub data_types: Vec<String>,
-    pub status: String,
-    pub message: String,
-    pub timestamp: DateTime<Utc>,
-}
-
-/// Get market overview - bird's eye view of the battlefield
-/// 
-/// Sometimes you need to zoom out. See the whole market, not just your
-/// little corner. The big picture often reveals what the details hide.
-#[tauri::command]
-pub async fn get_market_overview(
-    market_cache: State<'_, Arc<RwLock<MarketCache>>>,
-) -> CommandResult<MarketOverview> {
-    let cache = market_cache.read();
-    
-    // Collect all tickers
-    let mut market_caps: Vec<(String, f64)> = Vec::new();
-    let mut gainers: Vec<(String, f64)> = Vec::new();
-    let mut losers: Vec<(String, f64)> = Vec::new();
-    let mut volume_leaders: Vec<(String, f64)> = Vec::new();
-    
-    // This is a simplified version - in production, we'd have proper market data
-    for symbol in ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "XRP/USDT"] {
-        if let Some(ticker) = cache.get_ticker(symbol) {
-            // Market cap (simplified - would need circulating supply)
-            market_caps.push((symbol.to_string(), ticker.last_price * ticker.volume_24h));
-            
-            // Gainers/Losers
-            if ticker.change_percent_24h > 0.0 {
-                gainers.push((symbol.to_string(), ticker.change_percent_24h));
-            } else {
-                losers.push((symbol.to_string(), ticker.change_percent_24h));
-            }
-            
-            // Volume leaders
-            volume_leaders.push((symbol.to_string(), ticker.volume_24h));
-        }
-    }
-    
-    // Sort and limit
-    gainers.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-    losers.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-    volume_leaders.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-    
-    let total_volume: f64 = volume_leaders.iter().map(|(_, v)| v).sum();
-    let avg_change: f64 = (gainers.iter().map(|(_, c)| c).sum::<f64>() + 
-                           losers.iter().map(|(_, c)| c).sum::<f64>()) / 
-                          (gainers.len() + losers.len()) as f64;
-    
-    Ok(MarketOverview {
-        total_market_cap: market_caps.iter().map(|(_, mc)| mc).sum(),
-        total_24h_volume: total_volume,
-        btc_dominance: 42.5, // Would calculate from real data
-        market_sentiment: match avg_change {
-            c if c > 5.0 => "EUPHORIC - Peak greed detected! 🚀".to_string(),
-            c if c > 2.0 => "BULLISH - Green across the board 📈".to_string(),
-            c if c > -2.0 => "NEUTRAL - Market catching its breath 😴".to_string(),
-            c if c > -5.0 => "BEARISH - Red wedding in progress 📉".to_string(),
-            _ => "PANIC - Blood in the streets! 🩸".to_string(),
-        },
-        top_gainers: gainers.into_iter().take(5).collect(),
-        top_losers: losers.into_iter().take(5).collect(),
-        volume_leaders: volume_leaders.into_iter().take(5).collect(),
-        timestamp: Utc::now(),
-    })
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct MarketOverview {
-    pub total_market_cap: f64,
-    pub total_24h_volume: f64,
-    pub btc_dominance: f64,
-    pub market_sentiment: String,
-    pub top_gainers: Vec<(String, f64)>,
-    pub top_losers: Vec<(String, f64)>,
-    pub volume_leaders: Vec<(String, f64)>,
-    pub timestamp: DateTime<Utc>,
-}
-
-/// Process market update and check for triggered stops
-/// 
-/// This is where the rubber meets the road. Every price update could
-/// trigger a cascade of stop orders. Handle with care.
-#[tauri::command]
-pub async fn process_price_update(
-    symbol: String,
-    price: f64,
-    trading_engine: State<'_, Arc<RwLock<TradingEngine>>>,
-) -> CommandResult<Vec<String>> {
-    validation::validate_symbol(&symbol)?;
-    validation::validate_price(price)?;
-    
-    // Check for triggered stop orders
-    let triggered_orders = {
-        let engine = trading_engine.read();
-        engine.check_stop_orders(&symbol, price)
+    // Determine WebSocket URL based on feed types
+    let websocket_url = if feed_types.contains(&"binary".to_string()) {
+        "wss://nexlify.market/binary".to_string()
+    } else {
+        "wss://nexlify.market/json".to_string()
     };
     
-    if !triggered_orders.is_empty() {
-        info!("⚡ {} stop orders triggered for {} at ${}", 
-              triggered_orders.len(), symbol, price);
-    }
+    info!("⚡ Market neural feed active - {} symbols online", subscribed.len());
     
-    // Activate triggered orders
-    let mut activated = Vec::new();
-    for order_id in triggered_orders {
-        let mut engine = trading_engine.write();
-        match engine.activate_stop_order(&order_id) {
-            Ok(()) => {
-                activated.push(order_id.clone());
-                // In production, submit to exchange here
-                // For now, simulate execution
-                let engine_clone = trading_engine.inner().clone();
-                tokio::spawn(simulate_stop_execution(order_id, engine_clone));
-            },
-            Err(e) => {
-                error!("Failed to activate stop order {}: {}", order_id, e);
-            }
-        }
-    }
-    
-    Ok(activated)
+    Ok(SubscriptionResponse {
+        subscribed_symbols: subscribed,
+        subscription_id,
+        websocket_url,
+        message: "Neural link established. Data flowing. Stay sharp.".to_string(),
+    })
 }
 
-/// Handle market data update from WebSocket
+// ─────────────────────────────────────────────────────────────
+// COMMAND: unsubscribe_market_data - Disconnect from the feed
+// ─────────────────────────────────────────────────────────────
+
+/// Unsubscribe from real-time market data streams
 /// 
-/// The firehose of data. Every update matters, but not every update
-/// needs action. Filter, process, decide.
-pub async fn handle_market_update(
-    update_type: String,
-    symbol: String,
-    data: serde_json::Value,
-    market_cache: State<'_, Arc<RwLock<MarketCache>>>,
-    trading_engine: State<'_, Arc<RwLock<TradingEngine>>>,
-) -> CommandResult<()> {
-    match update_type.as_str() {
-        "ticker" => {
-            if let Ok(ticker) = serde_json::from_value::<StateTicker>(data) {
-                let mut cache = market_cache.write();
-                let price = ticker.last_price;
-                cache.update_ticker(symbol.clone(), ticker);
-                
-                // Check stop orders on price update
-                drop(cache); // Release write lock
-                process_price_update(symbol, price, trading_engine).await?;
+/// Cut the neural link to specific market feeds. Sometimes you gotta
+/// disconnect to stay sane. Too much data can fry your chrome.
+#[tauri::command]
+pub async fn unsubscribe_market_data(
+    symbols: Vec<String>,
+    exchange: Option<String>,
+    market_cache: State<'_, Arc<MarketCache>>,
+) -> CommandResult<UnsubscribeResponse> {
+    info!("🔌 Disconnecting from market feeds: {:?}", symbols);
+    
+    // Validate inputs
+    if symbols.is_empty() {
+        return Err(CommandError::ValidationError(
+            "No symbols specified. What are we unsubscribing from?".to_string()
+        ));
+    }
+    
+    // Validate all symbols
+    for symbol in &symbols {
+        validation::validate_symbol(symbol)?;
+    }
+    
+    // If exchange specified, validate it
+    if let Some(ref exch) = exchange {
+        validation::validate_exchange(exch)?;
+    }
+    
+    let mut unsubscribed = vec![];
+    let mut failed = vec![];
+    
+    // Process each symbol
+    for symbol in symbols {
+        match market_cache.remove_subscription(&symbol, exchange.as_deref()) {
+            Ok(_) => {
+                info!("✅ Unsubscribed from {}", symbol);
+                unsubscribed.push(UnsubscribeResult {
+                    symbol: symbol.clone(),
+                    success: true,
+                    message: "Neural link severed".to_string(),
+                });
             }
-        },
-        "orderbook" => {
-            if let Ok(orderbook) = serde_json::from_value::<StateOrderBook>(data) {
-                let mut cache = market_cache.write();
-                cache.update_orderbook(symbol, orderbook);
+            Err(e) => {
+                warn!("❌ Failed to unsubscribe from {}: {}", symbol, e);
+                failed.push(UnsubscribeResult {
+                    symbol: symbol.clone(),
+                    success: false,
+                    message: e.to_string(),
+                });
             }
-        },
-        "trade" => {
-            if let Ok(trade) = serde_json::from_value::<StateTrade>(data) {
-                let mut cache = market_cache.write();
-                let price = trade.price;
-                cache.add_trade(symbol.clone(), trade);
-                
-                // Check stop orders on trade
-                drop(cache); // Release write lock
-                process_price_update(symbol, price, trading_engine).await?;
-            }
-        },
-        _ => {
-            warn!("Unknown market update type: {}", update_type);
         }
     }
     
-    Ok(())
+    // Get remaining active subscriptions
+    let active_subscriptions = market_cache.get_active_subscriptions();
+    
+    Ok(UnsubscribeResponse {
+        unsubscribed,
+        failed,
+        active_subscriptions,
+        message: format!(
+            "Disconnected from {} feeds. {} still active. {}",
+            unsubscribed.len(),
+            active_subscriptions,
+            if failed.is_empty() { 
+                "Clean disconnect." 
+            } else { 
+                "Some connections refused to die." 
+            }
+        ),
+    })
 }
 
-/// Simulate stop order execution
-async fn simulate_stop_execution(
-    order_id: String,
-    trading_engine: Arc<RwLock<TradingEngine>>
-) {
-    // Simulate network delay to exchange
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+// ─────────────────────────────────────────────────────────────
+// COMMAND: get_historical_data - Learn from the past
+// ─────────────────────────────────────────────────────────────
+
+/// Get historical candle data - because those who forget the past are doomed to repeat it
+/// 
+/// I've seen too many traders ignore history, thinking "this time is different."
+/// Spoiler alert: it never is. The market has patterns, cycles, rhythms.
+/// Learn them, or get rekt. Simple as that.
+#[tauri::command]
+pub async fn get_historical_data(
+    symbol: String,
+    timeframe: String,
+    start_time: Option<DateTime<Utc>>,
+    end_time: Option<DateTime<Utc>>,
+    limit: Option<usize>,
+    market_cache: State<'_, Arc<MarketCache>>,
+) -> CommandResult<HistoricalDataResponse> {
+    validation::validate_symbol(&symbol)?;
     
-    // Execute the order
-    let mut engine = trading_engine.write();
-    if let Some(mut order) = engine.active_orders.get_mut(&order_id) {
-        let execution_price = match order.order_type {
-            crate::state::OrderType::Stop | crate::state::OrderType::StopLoss => {
-                // Market order - execute at current price (simplified)
-                order.stop_price.unwrap_or(50000.0) * 1.001 // 0.1% slippage
-            },
-            crate::state::OrderType::StopLimit => {
-                // Limit order - use the limit price
-                order.price.unwrap_or(order.stop_price.unwrap_or(50000.0))
-            },
-            _ => order.price.unwrap_or(50000.0),
+    // Validate timeframe
+    let valid_timeframes = vec!["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w"];
+    if !valid_timeframes.contains(&timeframe.as_str()) {
+        return Err(CommandError::ValidationError(
+            format!("Invalid timeframe: {}. Stick to the standards.", timeframe)
+        ));
+    }
+    
+    let limit = limit.unwrap_or(500).min(5000);
+    let end_time = end_time.unwrap_or_else(Utc::now);
+    let start_time = start_time.unwrap_or_else(|| end_time - Duration::days(7));
+    
+    debug!("📈 Fetching historical data for {} - {} from {} to {}", 
+           symbol, timeframe, start_time, end_time);
+    
+    // In production, this would fetch from database or external API
+    // For now, we'll get from cache or generate mock data
+    let candles = market_cache.get_candles(&symbol, &timeframe, start_time, end_time, limit)
+        .unwrap_or_else(|| {
+            warn!("No historical data in cache for {}, generating mock data", symbol);
+            generate_mock_candles(&symbol, &timeframe, start_time, end_time, limit)
+        });
+    
+    info!("📊 Retrieved {} candles for {} - {}", candles.len(), symbol, timeframe);
+    
+    Ok(HistoricalDataResponse {
+        symbol,
+        timeframe,
+        count: candles.len(),
+        candles,
+        start_time,
+        end_time,
+    })
+}
+
+// ─────────────────────────────────────────────────────────────
+// HELPER FUNCTIONS - The tools of the trade
+// ─────────────────────────────────────────────────────────────
+
+/// Calculate momentum score based on ticker data
+fn calculate_momentum(ticker: &Ticker) -> f64 {
+    // Simple momentum calculation - could be much more sophisticated
+    let price_change_impact = ticker.change_24h_percent.abs() / 100.0 * 50.0;
+    let volume_impact = (ticker.volume_24h / 1_000_000.0).min(50.0);
+    
+    price_change_impact + volume_impact
+}
+
+/// Derive ticker from orderbook when direct ticker data isn't available
+fn derive_ticker_from_orderbook(symbol: &str, orderbook: &OrderBook) -> Ticker {
+    let best_bid = orderbook.bids.get(0).map(|b| b.price).unwrap_or(0.0);
+    let best_ask = orderbook.asks.get(0).map(|a| a.price).unwrap_or(0.0);
+    let mid_price = if best_bid > 0.0 && best_ask > 0.0 {
+        (best_bid + best_ask) / 2.0
+    } else {
+        0.0
+    };
+    
+    Ticker {
+        symbol: symbol.to_string(),
+        exchange: orderbook.exchange.clone(),
+        bid: best_bid,
+        ask: best_ask,
+        last: mid_price, // Use mid as last price approximation
+        volume_24h: 0.0, // Unknown from orderbook
+        change_24h: 0.0,
+        change_24h_percent: 0.0,
+        high_24h: 0.0,
+        low_24h: 0.0,
+        timestamp: orderbook.last_update,
+    }
+}
+
+/// Generate mock historical candles for testing
+fn generate_mock_candles(
+    symbol: &str,
+    timeframe: &str,
+    start_time: DateTime<Utc>,
+    end_time: DateTime<Utc>,
+    limit: usize,
+) -> Vec<Candle> {
+    let mut candles = Vec::new();
+    let mut current_time = start_time;
+    let interval = match timeframe {
+        "1m" => Duration::minutes(1),
+        "5m" => Duration::minutes(5),
+        "15m" => Duration::minutes(15),
+        "30m" => Duration::minutes(30),
+        "1h" => Duration::hours(1),
+        "4h" => Duration::hours(4),
+        "1d" => Duration::days(1),
+        "1w" => Duration::weeks(1),
+        _ => Duration::minutes(1),
+    };
+    
+    let mut rng = rand::thread_rng();
+    let mut price = 50000.0; // Starting price
+    
+    while current_time < end_time && candles.len() < limit {
+        // Generate realistic OHLCV data with some randomness
+        let change = (rng.gen::<f64>() - 0.5) * 1000.0;
+        let high = price + rng.gen::<f64>() * 500.0;
+        let low = price - rng.gen::<f64>() * 500.0;
+        let close = price + change;
+        let volume = rng.gen::<f64>() * 1000.0;
+        
+        candles.push(Candle {
+            symbol: symbol.to_string(),
+            timeframe: timeframe.to_string(),
+            timestamp: current_time,
+            open: price,
+            high,
+            low,
+            close,
+            volume,
+            trades: (volume * 10.0) as u32,
+            closed: current_time < Utc::now(),
+        });
+        
+        price = close;
+        current_time = current_time + interval;
+    }
+    
+    candles
+}
+
+// ─────────────────────────────────────────────────────────────
+// MARKET CACHE EXTENSION METHODS
+// ─────────────────────────────────────────────────────────────
+
+/// Extension methods for MarketCache to support our commands
+impl MarketCache {
+    /// Get cache statistics
+    pub fn get_stats(&self) -> crate::state::market_cache::CacheStats {
+        self.stats.read().clone()
+    }
+    
+    /// Get orderbook from cache
+    pub fn get_orderbook(&self, symbol: &str) -> Option<OrderBook> {
+        self.orderbooks.get(symbol).map(|ob| ob.read().clone())
+    }
+    
+    /// Get ticker from cache
+    pub fn get_ticker(&self, symbol: &str) -> Option<Ticker> {
+        self.tickers.get(symbol).map(|t| t.read().clone())
+    }
+    
+    /// Get recent trades from cache
+    pub fn get_recent_trades(&self, symbol: &str, limit: usize) -> Option<Vec<Trade>> {
+        self.recent_trades.get(symbol).map(|trades| {
+            let trades = trades.read();
+            trades.iter().take(limit).cloned().collect()
+        })
+    }
+    
+    /// Get historical candles from cache
+    pub fn get_candles(
+        &self, 
+        symbol: &str, 
+        timeframe: &str,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+        limit: usize
+    ) -> Option<Vec<Candle>> {
+        // Note: CandleKey should be defined in market_cache.rs as:
+        // #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+        // pub struct CandleKey {
+        //     pub symbol: String,
+        //     pub timeframe: String,
+        // }
+        
+        let key = format!("{}:{}", symbol, timeframe); // Simplified for now
+        
+        // In production, this would access the candles DashMap
+        // For now, return None to indicate no cached data
+        None
+    }
+    
+    /// Add a market data subscription
+    pub fn add_subscription(&self, symbol: &str, subscription_id: &str) {
+        // In production, this would manage WebSocket subscriptions
+        // For now, we just track it
+        debug!("Added subscription {} for {}", subscription_id, symbol);
+    }
+    
+    /// Remove a market data subscription
+    pub fn remove_subscription(
+        &self,
+        symbol: &str,
+        exchange: Option<&str>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        // Remove from active subscriptions
+        let key = if let Some(exch) = exchange {
+            format!("{}:{}", exch, symbol)
+        } else {
+            symbol.to_string()
         };
         
-        order.status = OrderStatus::Filled;
-        order.filled_quantity = order.quantity;
-        order.average_fill_price = Some(execution_price);
-        order.updated_at = Utc::now();
+        // Remove from orderbook cache
+        self.orderbooks.remove(&key);
         
-        info!("✅ Stop order {} executed @ ${:.2}", order_id, execution_price);
+        // Remove from ticker cache
+        self.tickers.remove(&key);
+        
+        // In production, would also:
+        // - Close WebSocket connection for this symbol
+        // - Clean up any pending requests
+        // - Update subscription count
+        
+        info!("🔌 Removed subscription for {}", key);
+        Ok(())
+    }
+    
+    /// Get count of active subscriptions
+    pub fn get_active_subscriptions(&self) -> usize {
+        // Count unique symbols across all caches
+        let orderbook_symbols: std::collections::HashSet<_> = 
+            self.orderbooks.iter().map(|e| e.key().clone()).collect();
+        let ticker_symbols: std::collections::HashSet<_> = 
+            self.tickers.iter().map(|e| e.key().clone()).collect();
+        
+        orderbook_symbols.union(&ticker_symbols).count()
     }
 }
+
+// ─────────────────────────────────────────────────────────────
+// TESTS - Trust but verify in the digital wasteland
+// ─────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_momentum_calculation() {
+        let ticker = Ticker {
+            symbol: "BTC/USDT".to_string(),
+            exchange: "binance".to_string(),
+            bid: 50000.0,
+            ask: 50010.0,
+            last: 50005.0,
+            volume_24h: 500_000.0,
+            change_24h: 2500.0,
+            change_24h_percent: 5.0,
+            high_24h: 52000.0,
+            low_24h: 48000.0,
+            timestamp: Utc::now(),
+        };
+        
+        let momentum = calculate_momentum(&ticker);
+        assert!(momentum > 0.0 && momentum <= 100.0);
+    }
+    
+    #[test]
+    fn test_mock_candle_generation() {
+        let candles = generate_mock_candles(
+            "BTC/USDT",
+            "1h",
+            Utc::now() - Duration::days(1),
+            Utc::now(),
+            24,
+        );
+        
+        assert_eq!(candles.len(), 24);
+        for candle in candles {
+            assert!(candle.high >= candle.low);
+            assert!(candle.open >= candle.low && candle.open <= candle.high);
+            assert!(candle.close >= candle.low && candle.close <= candle.high);
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// END OF MARKET DATA MODULE
+// Remember: In the market, like in the streets, information is power.
+// Stay connected, stay informed, stay alive. 🌃💹
+// ─────────────────────────────────────────────────────────────
