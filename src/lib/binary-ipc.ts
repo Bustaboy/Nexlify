@@ -94,7 +94,7 @@ export class BinaryIPC {
    */
   encode<T extends MessageType>(
     type: T,
-    data: MessageSchemas[T]
+    data: extends keyof MessageSchemas ? MessageSchemas[T] : any
   ): ArrayBuffer {
     const buffer = new ArrayBuffer(1024 * 10); // 10KB pre-allocated
     const view = new DataView(buffer);
@@ -424,7 +424,7 @@ export class BinaryIPC {
    */
   subscribe<T extends MessageType>(
     type: T,
-    handler: (data: MessageSchemas[T], sequence: number) => void
+    handler: (data: T extends keyof MessageSchemas ? MessageSchemas[T] : any, sequence: number) => void
   ): () => void {
     if (!this.messageHandlers.has(type)) {
       this.messageHandlers.set(type, new Set());
@@ -459,7 +459,7 @@ export class BinaryIPC {
    */
   async send<T extends MessageType>(
     type: T,
-    data: MessageSchemas[T]
+    data: T extends keyof MessageSchemas ? MessageSchemas[T] : any
   ): Promise<ArrayBuffer> {
     const buffer = this.encode(type, data);
     

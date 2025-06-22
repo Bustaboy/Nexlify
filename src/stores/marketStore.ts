@@ -256,9 +256,16 @@ export const useMarketStore = create<MarketState>()(
             };
             // Update marketData
             draft.marketData[symbol] = {
-              price: data.last,
-              volume: data.volume24h,
-            };
+              price,
+			  volume,
+			  previousPrice: draft.marketData[symbol]?.previousPrice || price,
+			  lastUpdate: new Date(),
+			  changePercent24h: draft.marketData[symbol]?.changePercent24h || 0,
+			  volume24h: draft.marketData[symbol]?.volume24h || volume,
+			  high24h: draft.marketData[symbol]?.high24h || price,
+			  low24h: draft.marketData[symbol]?.low24h || price,
+			  avgVolume: draft.marketData[symbol]?.avgVolume || volume
+			};
             // Update totalVolume24h
             draft.totalVolume24h = Object.values(draft.tickers).reduce(
               (sum, ticker) => sum + ticker.volume24h,

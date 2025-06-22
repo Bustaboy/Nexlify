@@ -1,7 +1,6 @@
 // src/components/trading/OrderPanel.tsx
-// NEXLIFY ORDER PANEL - Where decisions become destiny
+// NEXLIFY NEURAL ORDER MATRIX - Where decisions become destiny
 // Last sync: 2025-06-22 | "Every trade is a bet against the future"
-// ENHANCED ORDER PANEL WITH ALL ORDER TYPES
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -20,18 +19,21 @@ import {
   Target,
   Calculator,
   Brain,
-  Gauge
+  Gauge,
+  Terminal,
+  Cpu,
+  Activity
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import { useMarketStore } from '@/stores/marketStore';
-import { useTradingStore, Position, OrderType } from '@/stores/tradingStore';
+import { useTradingStore, Position } from '@/stores/tradingStore';
+import type { OrderType } from '@/stores/tradingStore';
 import { useAuthStore } from '@/stores/authStore';
 
-// Type definitions for the neural trading interface
-type FormOrderType = 'market' | 'limit' | 'stop' | 'stop_limit';
-type BackendOrderType = 'market' | 'limit' | 'stop_loss' | 'take_profit';
-
+// ═══════════════════════════════════════════════════════════════
+// INTERFACE DEFINITIONS - Neural Protocol Types
+// ═══════════════════════════════════════════════════════════════
 
 interface OrderPanelProps {
   symbol: string;
@@ -39,7 +41,7 @@ interface OrderPanelProps {
   price?: number;
   onOrderPlaced?: (orderId: string) => void;
   compact?: boolean;
-  position?: Position;  // If provided, shows position protection options
+  position?: Position;
 }
 
 interface OrderFormData {
@@ -64,20 +66,9 @@ interface RiskMetrics {
   liquidationPrice: number;
 }
 
-/**
- * ORDER PANEL - The cockpit of fortune
- * 
- * Built this after watching "Fast Fingers" Freddy fat-finger a million
- * dollar order. He meant to buy 100 BTC, typed 1000. The slippage alone
- * cost him his house. That's why we have:
- * - Order confirmation for large sizes
- * - Visual risk indicators that scream danger
- * - Position size calculator based on risk tolerance
- * - One-click emergency close (the panic button)
- * 
- * Remember: The market is a machine that transfers wealth from the
- * impatient to the patient, from the reckless to the prepared.
- */
+// ═══════════════════════════════════════════════════════════════
+// MAIN COMPONENT - The Cyberpunk Trading Terminal
+// ═══════════════════════════════════════════════════════════════
 
 export const OrderPanel = ({
   symbol,
@@ -85,30 +76,31 @@ export const OrderPanel = ({
   price: initialPrice,
   onOrderPlaced,
   compact = false,
-  position  // NEW: position prop for protection orders
+  position
 }: OrderPanelProps) => {
-  // Determine available order types based on context
+  
+  // ─────────────────────────────────────────────────────────────
+  // NEURAL STATE MANAGEMENT
+  // ─────────────────────────────────────────────────────────────
+  
   const availableOrderTypes = useMemo(() => {
     if (position) {
-      // When managing a position, show protection orders
       return [
-        { value: 'market', label: 'Market Close' },
-        { value: 'limit', label: 'Limit Close' },
-        { value: 'stop_loss', label: 'Stop Loss', icon: Shield },
-        { value: 'take_profit', label: 'Take Profit', icon: Target }
+        { value: 'market', label: 'EMERGENCY FLATLINE', icon: Zap },
+        { value: 'limit', label: 'PRECISION EXIT', icon: Target },
+        { value: 'stop_loss', label: 'DEFENSE PROTOCOL', icon: Shield },
+        { value: 'take_profit', label: 'HARVEST SEQUENCE', icon: DollarSign }
       ];
     } else {
-      // For new orders, show standalone types
       return [
-        { value: 'market', label: 'Market' },
-        { value: 'limit', label: 'Limit' },
-        { value: 'stop', label: 'Stop' },
-        { value: 'stop_limit', label: 'Stop Limit' }
+        { value: 'market', label: 'INSTANT EXECUTION', icon: Zap },
+        { value: 'limit', label: 'SNIPER MODE', icon: Target },
+        { value: 'stop', label: 'TRAP CARD', icon: ShieldAlert },
+        { value: 'stop_limit', label: 'ADVANCED TRAP', icon: Brain }
       ];
     }
   }, [position]);
 
-  // Form state
   const [formData, setFormData] = useState<OrderFormData>({
     symbol,
     side: position ? (position.side === 'long' ? 'sell' : 'buy') : (initialSide || 'buy'),
@@ -121,187 +113,176 @@ export const OrderPanel = ({
     reduceOnly: !!position
   });
 
-  // UI state
   const [showRiskCalculator, setShowRiskCalculator] = useState(false);
-  const [riskPercentage, setRiskPercentage] = useState('1'); // 1% default risk
+  const [riskPercentage, setRiskPercentage] = useState('1');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [neuralActivity, setNeuralActivity] = useState(0);
 
-  // Get current market data
+  // ─────────────────────────────────────────────────────────────
+  // MARKET DATA INTEGRATION
+  // ─────────────────────────────────────────────────────────────
+  
   const { getSymbolData } = useMarketStore();
   const { 
     accountBalance, 
     positions, 
     riskLimits,
-    dailyPnL,  // Added for daily loss checks
+    dailyPnL,
     placeOrder,
     calculatePositionSize 
   } = useTradingStore();
   
   const symbolData = getSymbolData(symbol);
-  const currentPrice = symbolData?.price || 0; // Fixed: was lastPrice
+  const currentPrice = symbolData?.price || 0;
   const currentPosition = positions[symbol];
-  
-  // Auto-update price for limit orders
+
+  // Neural activity simulation
   useEffect(() => {
-    if (formData.orderType === 'limit' && !formData.price && currentPrice) {
-      setFormData(prev => ({ 
-        ...prev, 
-        price: currentPrice.toString() 
-      }));
-    }
-  }, [currentPrice, formData.orderType, formData.price]);
+    const interval = setInterval(() => {
+      setNeuralActivity(prev => (prev + 1) % 100);
+    }, 100);
+    return () => clearInterval(interval);
+  }, []);
 
-  // Validate stop prices based on order type and side
-  const validateStopPrice = useCallback((): { valid: boolean; error?: string } => {
-    const stopPrice = parseFloat(formData.stopPrice);
-    
-    if (!stopPrice || stopPrice <= 0) {
-      return { valid: false, error: 'Invalid stop price' };
-    }
-
-    // Different validation for different order types
-    switch (formData.orderType) {
-      case 'stop':
-      case 'stop_limit':
-        // Standalone stops: buy stops above market, sell stops below
-        if (formData.side === 'buy' && stopPrice <= currentPrice) {
-          return { valid: false, error: 'Buy stop must be above current price' };
-        }
-        if (formData.side === 'sell' && stopPrice >= currentPrice) {
-          return { valid: false, error: 'Sell stop must be below current price' };
-        }
-        break;
-        
-      case 'stop_loss':
-        // Stop loss: opposite of position, protective direction
-        if (position) {
-          if (position.side === 'long' && stopPrice >= currentPrice) {
-            return { valid: false, error: 'Long stop loss must be below current price' };
-          }
-          if (position.side === 'short' && stopPrice <= currentPrice) {
-            return { valid: false, error: 'Short stop loss must be above current price' };
-          }
-        }
-        break;
-    }
-
-    // For stop limit, also validate limit vs stop relationship
-    if (formData.orderType === 'stop_limit') {
-      const limitPrice = parseFloat(formData.price);
-      if (formData.side === 'sell' && stopPrice <= limitPrice) {
-        return { valid: false, error: 'Sell stop limit: stop must be above limit' };
-      }
-      if (formData.side === 'buy' && stopPrice >= limitPrice) {
-        return { valid: false, error: 'Buy stop limit: stop must be below limit' };
-      }
-    }
-
-    return { valid: true };
-  // Quick order presets - for when seconds matter
-  const orderPresets = [
-    { label: '25%', value: 0.25 },
-    { label: '50%', value: 0.5 },
-    { label: '75%', value: 0.75 },
-    { label: '100%', value: 1.0 }
-  ];
+  // ─────────────────────────────────────────────────────────────
+  // RISK CALCULATIONS - The Mathematics of Survival
+  // ─────────────────────────────────────────────────────────────
   
-  const applyQuantityPreset = (multiplier: number) => {
-    // FIXED: Calculate available balance from Decimal
-    const availableBalance = accountBalance.toNumber() * 0.9; // 90% as available
+  const riskMetrics = useMemo((): RiskMetrics => {
+    const qty = parseFloat(formData.quantity) || 0;
+    const price = formData.orderType === 'market' 
+      ? currentPrice 
+      : parseFloat(formData.price) || currentPrice;
     
-    const available = formData.side === 'buy' 
-      ? availableBalance / (currentPrice || 1)
-      : currentPosition?.quantity.toNumber() || 0; // FIXED: Decimal conversion
+    const positionValue = qty * price;
+    const accountRisk = accountBalance.toNumber() > 0 
+      ? (positionValue / accountBalance.toNumber()) * 100 
+      : 0;
     
-    const quantity = available * multiplier;
-    setFormData(prev => ({ 
-      ...prev, 
-      quantity: quantity.toFixed(4) 
-    }));
-  };
+    const stopPrice = parseFloat(formData.stopPrice) || 0;
+    const potentialLoss = formData.side === 'buy' && stopPrice > 0
+      ? qty * (price - stopPrice)
+      : formData.side === 'sell' && stopPrice > 0
+        ? qty * (stopPrice - price)
+        : 0;
+    
+    const potentialProfit = 0; // Would calculate based on TP
+    const riskRewardRatio = potentialLoss > 0 && potentialProfit > 0
+      ? potentialProfit / Math.abs(potentialLoss)
+      : 0;
+    
+    const marginRequired = positionValue * 0.1; // 10x leverage
+    const liquidationPrice = formData.side === 'buy'
+      ? price * 0.9  // 10% down
+      : price * 1.1; // 10% up
+    
+    return {
+      positionValue,
+      accountRisk,
+      potentialLoss,
+      potentialProfit,
+      riskRewardRatio,
+      marginRequired,
+      liquidationPrice
+    };
+  }, [formData, currentPrice, accountBalance]);
 
-
-  /**
-   * Validate order - the gatekeeper of capital
-   * 
-   * Every check here was written in blood. Someone, somewhere,
-   * lost money because they didn't validate properly.
-   */
-
-  // Enhanced validation function with all fixes
+  // ─────────────────────────────────────────────────────────────
+  // VALIDATION PROTOCOLS
+  // ─────────────────────────────────────────────────────────────
+  
   const validateOrder = (): { valid: boolean; error?: string } => {
     const qty = parseFloat(formData.quantity);
     const price = parseFloat(formData.price);
     
-    // Basic validation
     if (!qty || qty <= 0) {
-      return { valid: false, error: 'Invalid quantity' };
+      return { valid: false, error: 'INVALID QUANTITY DETECTED' };
     }
     
     if (formData.orderType !== 'market' && formData.orderType !== 'stop' && (!price || price <= 0)) {
-      return { valid: false, error: 'Invalid price' };
+      return { valid: false, error: 'INVALID PRICE MATRIX' };
     }
     
-    // Risk limits check - FIXED: proper Decimal handling
     if (riskMetrics.accountRisk > riskLimits.riskLimitPerTrade.toNumber()) {
       return { 
         valid: false, 
-        error: `Position exceeds risk limit (${riskLimits.riskLimitPerTrade.toNumber()}%)` 
+        error: `RISK LIMIT BREACH: ${riskLimits.riskLimitPerTrade.toNumber()}% MAX` 
       };
     }
     
-    // Margin check - FIXED: estimate available as 90% of total
     const availableBalance = accountBalance.toNumber() * 0.9;
     if (riskMetrics.marginRequired > availableBalance) {
       return { 
         valid: false, 
-        error: 'Insufficient margin' 
+        error: 'INSUFFICIENT CREDITS' 
       };
     }
     
-    // Daily loss limit check - FIXED: use dailyPnL from store
     const dailyLoss = dailyPnL.toNumber();
     if (Math.abs(dailyLoss) > riskLimits.maxDailyLoss.toNumber()) {
       return { 
         valid: false, 
-        error: 'Daily loss limit reached' 
+        error: 'DAILY LOSS LIMIT ENGAGED' 
       };
     }
     
-    // Fat finger protection - positions over 10% of account need confirmation
     if (riskMetrics.accountRisk > 10 && !showConfirmation) {
       setShowConfirmation(true);
       return { 
         valid: false, 
-        error: 'Large order - please confirm' 
+        error: 'LARGE ORDER DETECTED - CONFIRM TO PROCEED' 
       };
     }
     
     return { valid: true };
   };
 
-  /**
-   * Submit order - where rubber meets the road
-   * 
-   * This function has processed over $10M in orders. Every error
-   * path has been discovered through pain. Respect it.
-   */
+  const validateStopPrice = useCallback((): { valid: boolean; error?: string } => {
+    const stop = parseFloat(formData.stopPrice);
+    if (!stop || stop <= 0) {
+      return { valid: false, error: 'INVALID STOP PRICE' };
+    }
+    
+    if (formData.orderType === 'stop_loss') {
+      if (formData.side === 'buy' && stop >= currentPrice) {
+        return { valid: false, error: 'STOP LOSS MUST BE BELOW CURRENT PRICE' };
+      }
+      if (formData.side === 'sell' && stop <= currentPrice) {
+        return { valid: false, error: 'STOP LOSS MUST BE ABOVE CURRENT PRICE' };
+      }
+    }
+    
+    return { valid: true };
+  }, [formData, currentPrice]);
 
-  // Enhanced submit handler
+  // ─────────────────────────────────────────────────────────────
+  // ORDER EXECUTION PROTOCOL
+  // ─────────────────────────────────────────────────────────────
+  
   const handleSubmit = async () => {
-    // Validate basic order
     const validation = validateOrder();
     if (!validation.valid) {
-      toast.error(validation.error!);
+      toast.error(validation.error!, {
+        style: {
+          background: '#1a1a2e',
+          color: '#ff0040',
+          border: '1px solid #ff0040'
+        }
+      });
       return;
     }
 
-    // Validate stop prices if applicable
     if (['stop', 'stop_limit', 'stop_loss'].includes(formData.orderType)) {
       const stopValidation = validateStopPrice();
       if (!stopValidation.valid) {
-        toast.error(stopValidation.error!);
+        toast.error(stopValidation.error!, {
+          style: {
+            background: '#1a1a2e',
+            color: '#ff0040',
+            border: '1px solid #ff0040'
+          }
+        });
         return;
       }
     }
@@ -313,7 +294,7 @@ export const OrderPanel = ({
         order: {
           symbol: formData.symbol,
           side: formData.side,
-          type: formData.orderType,  // Now correctly typed
+          type: formData.orderType,
           quantity: parseFloat(formData.quantity),
           price: formData.orderType === 'market' || formData.orderType === 'stop' 
             ? null 
@@ -324,13 +305,17 @@ export const OrderPanel = ({
           time_in_force: formData.timeInForce,
           post_only: formData.postOnly,
           reduce_only: formData.reduceOnly,
-          position_id: position?.id  // Include for position-based orders
+          position_id: position?.id
         }
       });
 
-      toast.success(`${formData.orderType.replace('_', ' ')} order placed: ${orderId}`, {
-        icon: formData.orderType.includes('stop') ? '🛡️' : 
-              formData.orderType === 'take_profit' ? '🎯' : '📈',
+      toast.success(`ORDER EXECUTED: ${orderId}`, {
+        icon: '⚡',
+        style: {
+          background: '#1a1a2e',
+          color: '#00ff88',
+          border: '1px solid #00ff88'
+        },
         duration: 5000
       });
 
@@ -345,9 +330,14 @@ export const OrderPanel = ({
       onOrderPlaced?.(orderId);
     } catch (error: any) {
       console.error('Order failed:', error);
-      toast.error(error.message || 'Order failed');
+      toast.error(error.message || 'EXECUTION FAILED', {
+        style: {
+          background: '#1a1a2e',
+          color: '#ff0040',
+          border: '1px solid #ff0040'
+        }
+      });
       
-      // Special handling for common errors
       if (error.message?.includes('insufficient')) {
         setShowRiskCalculator(true);
       }
@@ -357,352 +347,337 @@ export const OrderPanel = ({
     }
   };
 
+  // ─────────────────────────────────────────────────────────────
+  // RENDER PROTOCOL - The Visual Matrix
+  // ─────────────────────────────────────────────────────────────
+  
   return (
     <div className={`
-      bg-gray-900/50 border border-cyan-900/30 rounded-lg
-      backdrop-blur-sm ${compact ? 'p-3' : 'p-4'}
+      relative bg-black/80 border border-cyan-500/30 rounded-lg
+      backdrop-blur-md overflow-hidden
+      ${compact ? 'p-3' : 'p-4'}
     `}>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-cyan-400 flex items-center gap-2">
-          <Zap className="w-5 h-5" />
-          {position ? 'POSITION PROTECTION' : 'ORDER MATRIX'}
-        </h3>
-        
-        {/* Risk indicator */}
-        <div className="flex items-center gap-2">
-          <div className={`
-            px-2 py-1 rounded text-xs font-mono
-            ${riskMetrics.accountRisk > 5 ? 'bg-red-900/50 text-red-400' :
-              riskMetrics.accountRisk > 2 ? 'bg-yellow-900/50 text-yellow-400' :
-              'bg-green-900/50 text-green-400'}
-          `}>
-            RISK: {riskMetrics.accountRisk.toFixed(1)}%
-          </div>
-          
-          {riskMetrics.marginRequired > accountBalance.toNumber() * 0.8 && (
-            <motion.div
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ duration: 1, repeat: Infinity }}
-              className="text-red-400"
-            >
-              <AlertCircle className="w-4 h-4" />
-            </motion.div>
-          )}
-        </div>
+      {/* Neural Grid Background */}
+      <div className="absolute inset-0 opacity-10">
+        <div className="absolute inset-0" style={{
+          backgroundImage: `
+            linear-gradient(cyan 1px, transparent 1px),
+            linear-gradient(90deg, cyan 1px, transparent 1px)
+          `,
+          backgroundSize: '20px 20px'
+        }} />
       </div>
-      
-      {/* Risk Metrics Display - HUD for position details */}
-      {!compact && formData.quantity && (
-        <div className="mb-4 p-3 bg-gray-800/50 rounded border border-gray-700">
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="flex justify-between">
-              <span className="text-gray-400">Position Value:</span>
-              <span className="text-white font-mono">
-                ${riskMetrics.positionValue.toFixed(2)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">Margin Required:</span>
-              <span className="text-white font-mono">
-                ${riskMetrics.marginRequired.toFixed(2)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">Max Loss:</span>
-              <span className="text-red-400 font-mono">
-                -${riskMetrics.potentialLoss.toFixed(2)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">Liquidation:</span>
-              <span className="text-orange-400 font-mono">
-                ${riskMetrics.liquidationPrice.toFixed(2)}
-              </span>
+
+      {/* Scanning Line Animation */}
+      <motion.div
+        className="absolute left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent"
+        animate={{
+          top: ['0%', '100%', '0%']
+        }}
+        transition={{
+          duration: 4,
+          repeat: Infinity,
+          ease: "linear"
+        }}
+      />
+
+      <div className="relative z-10">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-cyan-400 flex items-center gap-2">
+            <Terminal className="w-5 h-5" />
+            {position ? 'POSITION_SHIELD.EXE' : 'ORDER_MATRIX.EXE'}
+          </h3>
+          
+          {/* Neural Activity Indicator */}
+          <div className="flex items-center gap-2">
+            <Activity className="w-4 h-4 text-cyan-400" />
+            <div className="text-xs font-mono text-cyan-400">
+              NEURAL: {neuralActivity}%
             </div>
           </div>
         </div>
-      )}
 
-      {/* Side Selection - Only show for new orders, not position protection */}
-      {(!position || !['stop_loss', 'take_profit'].includes(formData.orderType)) && (
-        <div className="grid grid-cols-2 gap-2 mb-4">
-          <button
-            onClick={() => setFormData(prev => ({ ...prev, side: 'buy' }))}
-            className={`
-              py-3 rounded font-semibold transition-all
-              ${formData.side === 'buy'
-                ? 'bg-green-600 text-white shadow-lg shadow-green-600/20'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}
-            `}
-          >
-            <TrendingUp className="w-4 h-4 inline mr-2" />
-            BUY / LONG
-          </button>
-          
-          <button
-            onClick={() => setFormData(prev => ({ ...prev, side: 'sell' }))}
-            className={`
-              py-3 rounded font-semibold transition-all
-              ${formData.side === 'sell'
-                ? 'bg-red-600 text-white shadow-lg shadow-red-600/20'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}
-            `}
-          >
-            <TrendingDown className="w-4 h-4 inline mr-2" />
-            SELL / SHORT
-          </button>
+        {/* Risk Status Bar */}
+        <div className="mb-4 p-2 bg-gray-900/50 rounded border border-gray-800">
+          <div className="flex items-center justify-between text-xs">
+            <div className={`flex items-center gap-1 ${
+              riskMetrics.accountRisk > 5 ? 'text-red-400' :
+              riskMetrics.accountRisk > 2 ? 'text-yellow-400' : 'text-green-400'
+            }`}>
+              <Cpu className="w-3 h-3" />
+              RISK: {riskMetrics.accountRisk.toFixed(1)}%
+            </div>
+            <div className="text-gray-400">
+              MARGIN: ${riskMetrics.marginRequired.toFixed(2)}
+            </div>
+            <div className="text-gray-400">
+              LIQ: ${riskMetrics.liquidationPrice.toFixed(2)}
+            </div>
+          </div>
         </div>
-      )}
-      {/* Order Type Selection */}
-      <div className="mb-4">
-        <label className="block text-xs text-gray-400 mb-1 uppercase tracking-wider">
-          Order Protocol
-        </label>
-        <select
-          value={formData.orderType}
-          onChange={(e) => setFormData(prev => ({ 
-            ...prev, 
-            orderType: e.target.value as OrderType
-          }))}
-          className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2
-                   text-white focus:outline-none focus:border-cyan-500"
-        >
-          {availableOrderTypes.map(type => (
-            <option key={type.value} value={type.value}>
-              {type.label}
-            </option>
-          ))}
-        </select>
-      </div>
 
-      {/* Show different fields based on order type */}
-      {formData.orderType !== 'market' && formData.orderType !== 'stop' && (
-        <div className="mb-4">
-          <label className="block text-xs text-gray-400 mb-1 uppercase tracking-wider">
-            {formData.orderType === 'take_profit' ? 'Target Price' : 'Limit Price'}
-          </label>
-          <input
-            type="number"
-            value={formData.price}
-            onChange={(e) => setFormData(prev => ({ 
-              ...prev, 
-              price: e.target.value 
-            }))}
-            placeholder={currentPrice.toString()}
-            className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2
-                     text-white focus:outline-none focus:border-cyan-500"
-          />
-        </div>
-      )}
-
-      {/* Stop Price for stop orders */}
-      {['stop', 'stop_limit', 'stop_loss'].includes(formData.orderType) && (
-        <div className="mb-4">
-          <label className="block text-xs text-gray-400 mb-1 uppercase tracking-wider">
-            {formData.orderType === 'stop_loss' ? 'Stop Loss Price' : 'Stop Trigger Price'}
-          </label>
-          <input
-            type="number"
-            value={formData.stopPrice}
-            onChange={(e) => setFormData(prev => ({ 
-              ...prev, 
-              stopPrice: e.target.value 
-            }))}
-            placeholder={
-              formData.orderType === 'stop_loss' && position
-                ? `Suggested: ${(currentPrice * (position.side === 'long' ? 0.98 : 1.02)).toFixed(2)}`
-                : 'Enter stop price'
-            }
-            className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2
-                     text-white focus:outline-none focus:border-cyan-500"
-          />
-        </div>
-      )}
-
-      {/* Quantity - auto-filled for position orders */}
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-1">
-          <label className="block text-xs text-gray-400 mb-1 uppercase tracking-wider">
-            Quantity
-          </label>
-          <button
-            onClick={() => setShowRiskCalculator(!showRiskCalculator)}
-            className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
-          >
-            <Calculator className="w-3 h-3" />
-            Position Calculator
-          </button>
-        </div>
-        <input
-          type="number"
-          value={formData.quantity}
-          onChange={(e) => setFormData(prev => ({ 
-            ...prev, 
-            quantity: e.target.value 
-          }))}
-          disabled={!!position && ['stop_loss', 'take_profit'].includes(formData.orderType)}
-          placeholder="0.0000"
-          className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2
-                   text-white focus:outline-none focus:border-cyan-500
-                   disabled:opacity-50 disabled:cursor-not-allowed"
-        />
-        
-        {/* Quick presets - FIXED */}
-        <div className="grid grid-cols-4 gap-1 mt-2">
-          {orderPresets.map(preset => (
-            <button
-              key={preset.label}
-              onClick={() => applyQuantityPreset(preset.value)}
-              className="py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs
-                       text-gray-400 hover:text-white transition-colors"
+        {/* Buy/Sell Toggle */}
+        {!position && (
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setFormData(prev => ({ ...prev, side: 'buy' }))}
+              className={`
+                py-3 rounded font-bold transition-all uppercase tracking-wider
+                ${formData.side === 'buy'
+                  ? 'bg-green-500/20 text-green-400 border border-green-400 shadow-lg shadow-green-500/20'
+                  : 'bg-gray-900/50 text-gray-500 border border-gray-700 hover:border-gray-600'}
+              `}
             >
-              {preset.label}
-            </button>
-          ))}
-        </div>
-      </div>
+              <TrendingUp className="w-4 h-4 inline mr-2" />
+              LONG_PROTOCOL
+            </motion.button>
+            
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setFormData(prev => ({ ...prev, side: 'sell' }))}
+              className={`
+                py-3 rounded font-bold transition-all uppercase tracking-wider
+                ${formData.side === 'sell'
+                  ? 'bg-red-500/20 text-red-400 border border-red-400 shadow-lg shadow-red-500/20'
+                  : 'bg-gray-900/50 text-gray-500 border border-gray-700 hover:border-gray-600'}
+              `}
+            >
+              <TrendingDown className="w-4 h-4 inline mr-2" />
+              SHORT_PROTOCOL
+            </motion.button>
+          </div>
+        )}
 
-/**
-   * Calculate risk metrics - because math saves accounts
-   * 
-   * This formula saved me during the Luna crash. Position sizing
-   * based on volatility, not ego. The market doesn't care about
-   * your confidence, only your risk management.
-   */
-
-      {/* Risk Calculator - FIXED */}
-      <AnimatePresence>
-        {showRiskCalculator && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="mb-4 overflow-hidden"
+        {/* Order Type Selection */}
+        <div className="mb-4">
+          <label className="block text-xs text-cyan-400 mb-1 uppercase tracking-wider font-mono">
+            EXECUTION_MODE://
+          </label>
+          <select
+            value={formData.orderType}
+            onChange={(e) => setFormData(prev => ({ 
+              ...prev, 
+              orderType: e.target.value as OrderType
+            }))}
+            className="w-full bg-gray-900/80 border border-cyan-500/30 rounded px-3 py-2
+                     text-cyan-300 font-mono text-sm
+                     focus:outline-none focus:border-cyan-400 focus:shadow-lg focus:shadow-cyan-400/20
+                     transition-all duration-200"
           >
-            <div className="p-3 bg-gray-800/50 rounded border border-cyan-900/30">
-              <h4 className="text-sm font-semibold text-cyan-400 mb-3 flex items-center gap-2">
-                <Brain className="w-4 h-4" />
-                NEURAL POSITION CALCULATOR
-              </h4>
-              
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs text-gray-400">Risk % of Account</label>
-                  <input
-                    type="number"
-                    value={riskPercentage}
-                    onChange={(e) => setRiskPercentage(e.target.value)}
-                    min="0.1"
-                    max="10"
-                    step="0.1"
-                    className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1
-                             text-sm text-white focus:outline-none focus:border-cyan-500"
-                  />
-                </div>
-                
-                <div>
-                  <label className="text-xs text-gray-400">Stop Loss Price</label>
-                  <input
-                    type="number"
-                    value={formData.stopPrice}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      stopPrice: e.target.value 
-                    }))}
-                    placeholder="Enter stop loss"
-                    className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1
-                             text-sm text-white focus:outline-none focus:border-cyan-500"
-                  />
-                </div>
-                
+            {availableOrderTypes.map(type => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Quantity Input */}
+        <div className="mb-4">
+          <label className="block text-xs text-cyan-400 mb-1 uppercase tracking-wider font-mono">
+            QUANTITY_UNITS://
+          </label>
+          <div className="relative">
+            <input
+              type="number"
+              value={formData.quantity}
+              onChange={(e) => setFormData(prev => ({ 
+                ...prev, 
+                quantity: e.target.value 
+              }))}
+              placeholder="0.00000000"
+              className="w-full bg-gray-900/80 border border-cyan-500/30 rounded px-3 py-2 pr-20
+                       text-cyan-300 font-mono placeholder-gray-600
+                       focus:outline-none focus:border-cyan-400 focus:shadow-lg focus:shadow-cyan-400/20
+                       transition-all duration-200"
+            />
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+              {[25, 50, 75, 100].map(pct => (
                 <button
-                  onClick={calculateSafePositionSize}
-                  className="w-full py-2 bg-cyan-600 hover:bg-cyan-500 rounded
-                           text-sm font-semibold text-white transition-colors"
+                  key={pct}
+                  onClick={() => {
+                    const available = position 
+                      ? position.quantity.toNumber()
+                      : accountBalance.toNumber() * 0.9 / (currentPrice || 1);
+                    const qty = available * (pct / 100);
+                    setFormData(prev => ({ ...prev, quantity: qty.toFixed(8) }));
+                  }}
+                  className="px-2 py-1 text-xs bg-cyan-500/20 text-cyan-400 
+                           rounded hover:bg-cyan-500/30 transition-colors font-mono"
                 >
-                  Calculate Safe Position Size
+                  {pct}%
                 </button>
-              </div>
+              ))}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
 
-      {/* Submit Button */}
-      <motion.button
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        onClick={handleSubmit}
-        disabled={isSubmitting}
-        className={`
-          w-full py-3 rounded font-semibold transition-all
-          flex items-center justify-center gap-2
-          ${isSubmitting 
-            ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-            : formData.orderType.includes('stop') || formData.orderType === 'take_profit'
-              ? 'bg-purple-600 hover:bg-purple-500 shadow-purple-600/20'
-              : formData.side === 'buy'
-                ? 'bg-green-600 hover:bg-green-500 shadow-green-600/20'
-                : 'bg-red-600 hover:bg-red-500 shadow-red-600/20'
-          }
-          text-white shadow-lg
-        `}
-      >
-        {isSubmitting ? (
-          <>
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-            >
-              <Gauge className="w-5 h-5" />
-            </motion.div>
-            PROCESSING...
-          </>
-        ) : showConfirmation ? (
-          <>
-            <ShieldAlert className="w-5 h-5" />
-            CONFIRM LARGE ORDER
-          </>
-        ) : (
-          <>
-            {formData.orderType === 'stop_loss' && <Shield className="w-5 h-5" />}
-            {formData.orderType === 'take_profit' && <Target className="w-5 h-5" />}
-            {!['stop_loss', 'take_profit'].includes(formData.orderType) && (
-              formData.side === 'buy' ? 
-                <TrendingUp className="w-5 h-5" /> : 
-                <TrendingDown className="w-5 h-5" />
-            )}
-            PLACE {formData.orderType.replace('_', ' ').toUpperCase()}
-          </>
+        {/* Price Input (for limit orders) */}
+        {formData.orderType !== 'market' && formData.orderType !== 'stop' && (
+          <div className="mb-4">
+            <label className="block text-xs text-cyan-400 mb-1 uppercase tracking-wider font-mono">
+              {formData.orderType === 'take_profit' ? 'TARGET_PRICE://' : 'LIMIT_PRICE://'}
+            </label>
+            <input
+              type="number"
+              value={formData.price}
+              onChange={(e) => setFormData(prev => ({ 
+                ...prev, 
+                price: e.target.value 
+              }))}
+              placeholder={currentPrice.toFixed(2)}
+              className="w-full bg-gray-900/80 border border-cyan-500/30 rounded px-3 py-2
+                       text-cyan-300 font-mono placeholder-gray-600
+                       focus:outline-none focus:border-cyan-400 focus:shadow-lg focus:shadow-cyan-400/20
+                       transition-all duration-200"
+            />
+          </div>
         )}
-      </motion.button>
-	  {/* Emergency Close - The Panic Button */}
-      {currentPosition && !compact && (
+
+        {/* Stop Price (for stop orders) */}
+        {['stop', 'stop_limit', 'stop_loss'].includes(formData.orderType) && (
+          <div className="mb-4">
+            <label className="block text-xs text-cyan-400 mb-1 uppercase tracking-wider font-mono">
+              {formData.orderType === 'stop_loss' ? 'DEFENSE_TRIGGER://' : 'STOP_TRIGGER://'}
+            </label>
+            <input
+              type="number"
+              value={formData.stopPrice}
+              onChange={(e) => setFormData(prev => ({ 
+                ...prev, 
+                stopPrice: e.target.value 
+              }))}
+              placeholder="0.00"
+              className="w-full bg-gray-900/80 border border-cyan-500/30 rounded px-3 py-2
+                       text-cyan-300 font-mono placeholder-gray-600
+                       focus:outline-none focus:border-cyan-400 focus:shadow-lg focus:shadow-cyan-400/20
+                       transition-all duration-200"
+            />
+          </div>
+        )}
+
+        {/* Advanced Options */}
+        {!compact && (
+          <div className="mb-4 space-y-2">
+            <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.postOnly}
+                onChange={(e) => setFormData(prev => ({ 
+                  ...prev, 
+                  postOnly: e.target.checked 
+                }))}
+                className="w-4 h-4 bg-gray-900 border-gray-600 rounded
+                         text-cyan-400 focus:ring-cyan-400 focus:ring-offset-0"
+              />
+              <span className="font-mono">POST_ONLY_MODE</span>
+            </label>
+            
+            <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.reduceOnly}
+                onChange={(e) => setFormData(prev => ({ 
+                  ...prev, 
+                  reduceOnly: e.target.checked 
+                }))}
+                className="w-4 h-4 bg-gray-900 border-gray-600 rounded
+                         text-cyan-400 focus:ring-cyan-400 focus:ring-offset-0"
+              />
+              <span className="font-mono">REDUCE_ONLY</span>
+            </label>
+          </div>
+        )}
+
+        {/* Submit Button */}
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          onClick={() => {
-            // Set up a market close order
-            setFormData(prev => ({
-              ...prev,
-              side: currentPosition.side === 'long' ? 'sell' : 'buy',
-              orderType: 'market',
-              quantity: currentPosition.quantity.abs().toString(), // FIXED: Decimal method
-              reduceOnly: true
-            }));
-            // Auto-submit after a brief delay
-            setTimeout(handleSubmit, 100);
-          }}
-          className="w-full mt-2 py-2 bg-orange-600 hover:bg-orange-500 rounded
-                   text-sm font-semibold text-white transition-all
-                   hover:shadow-lg hover:shadow-orange-600/20
-                   flex items-center justify-center gap-2"
+          onClick={handleSubmit}
+          disabled={isSubmitting || (parseFloat(formData.quantity) || 0) <= 0}
+          className={`
+            w-full py-3 rounded font-bold transition-all
+            flex items-center justify-center gap-2 uppercase tracking-wider
+            ${isSubmitting || (parseFloat(formData.quantity) || 0) <= 0
+              ? 'bg-gray-800 text-gray-500 cursor-not-allowed border border-gray-700'
+              : formData.orderType.includes('stop') || formData.orderType === 'take_profit'
+                ? 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-400 shadow-lg shadow-purple-500/20'
+                : formData.side === 'buy'
+                  ? 'bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-400 shadow-lg shadow-green-500/20'
+                  : 'bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-400 shadow-lg shadow-red-500/20'
+            }
+          `}
         >
-          <Lock className="w-4 h-4" />
-          EMERGENCY CLOSE
+          {isSubmitting ? (
+            <>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              >
+                <Gauge className="w-5 h-5" />
+              </motion.div>
+              PROCESSING...
+            </>
+          ) : showConfirmation ? (
+            <>
+              <ShieldAlert className="w-5 h-5" />
+              CONFIRM_LARGE_ORDER
+            </>
+          ) : (
+            <>
+              {formData.orderType === 'stop_loss' && <Shield className="w-5 h-5" />}
+              {formData.orderType === 'take_profit' && <Target className="w-5 h-5" />}
+              {!['stop_loss', 'take_profit'].includes(formData.orderType) && (
+                formData.side === 'buy' ? 
+                  <TrendingUp className="w-5 h-5" /> : 
+                  <TrendingDown className="w-5 h-5" />
+              )}
+              EXECUTE_{formData.orderType.replace('_', ' ').toUpperCase()}
+            </>
+          )}
         </motion.button>
-      )}
+
+        {/* Emergency Close Button */}
+        {currentPosition && !compact && (
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => {
+              setFormData(prev => ({
+                ...prev,
+                side: currentPosition.side === 'long' ? 'sell' : 'buy',
+                orderType: 'market',
+                quantity: currentPosition.quantity.abs().toString(),
+                reduceOnly: true
+              }));
+              setTimeout(handleSubmit, 100);
+            }}
+            className="w-full mt-2 py-2 bg-orange-500/20 hover:bg-orange-500/30 rounded
+                     text-sm font-bold text-orange-400 border border-orange-400
+                     transition-all hover:shadow-lg hover:shadow-orange-500/20
+                     flex items-center justify-center gap-2 uppercase tracking-wider"
+          >
+            <Lock className="w-4 h-4" />
+            PANIC_EJECT.EXE
+          </motion.button>
+        )}
+
+        {/* Risk Calculator Toggle */}
+        {!compact && (
+          <button
+            onClick={() => setShowRiskCalculator(!showRiskCalculator)}
+            className="w-full mt-2 py-1 text-xs text-cyan-400 hover:text-cyan-300
+                     transition-colors flex items-center justify-center gap-1 font-mono"
+          >
+            <Calculator className="w-3 h-3" />
+            RISK_CALCULATOR_v2.1
+          </button>
+        )}
+      </div>
     </div>
-  )
-}
+  );
+};

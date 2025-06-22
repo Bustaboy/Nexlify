@@ -8,6 +8,7 @@ import { persist, devtools } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
 import Decimal from 'decimal.js';
 
+export type OrderType = 'market' | 'limit' | 'stop' | 'stop_limit' | 'stop_loss' | 'take_profit';
 Decimal.set({ precision: 18, rounding: Decimal.ROUND_DOWN });
 
 // Export these interfaces so components can use them
