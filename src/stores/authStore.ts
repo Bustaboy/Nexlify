@@ -148,6 +148,45 @@ export const useAuthStore = create<AuthState>()(
         }
       },
       
+	  unlock: async (password?: string) => {
+		const state = get();
+  
+		// Check if already unlocked
+		if (state.strongholdStatus === 'unlocked' && state.isAuthenticated) {
+			console.log('🔓 Stronghold already unlocked');
+			return;
+		}
+  
+		set((draft) => {
+			draft.error = null;
+			draft.strongholdStatus = 'pending';
+		});
+  
+		try {
+			// If no password provided, just check session
+			if (!password) {
+			const isValid = await get().checkSession();
+			if (isValid) {
+				set((draft) => {
+				draft.strongholdStatus = 'unlocked';
+				});
+				return;
+			}
+			throw new Error('Session invalid - password required');
+			}
+    
+			// Otherwise authenticate with password
+			await get().authenticate(password);
+    
+		} catch (error) {
+			set((draft) => {
+			draft.strongholdStatus = 'locked';
+			draft.error = error instanceof Error ? error.message : 'Unlock failed';
+			});
+			throw error;
+		}
+	  },
+	  
       checkSession: async () => {
         const state = get();
         if (!state.sessionId || !state.sessionExpiry) {

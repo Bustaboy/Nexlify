@@ -94,7 +94,7 @@ export class BinaryIPC {
    */
   encode<T extends MessageType>(
     type: T,
-    data: extends keyof MessageSchemas ? MessageSchemas[T] : any
+    data: T extends keyof MessageSchemas ? MessageSchemas[T] : any
   ): ArrayBuffer {
     const buffer = new ArrayBuffer(1024 * 10); // 10KB pre-allocated
     const view = new DataView(buffer);

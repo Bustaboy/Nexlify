@@ -16,6 +16,12 @@ interface OrderbookLevel {
   orderCount?: number;
 }
 
+interface MarketUpdate {
+  symbol: string;
+  price: number;
+  volume: number;
+}
+
 interface Orderbook {
   symbol: string;
   bids: OrderbookLevel[];
@@ -68,6 +74,7 @@ interface MarketState {
   tickers: Record<string, Ticker>;
   recentTrades: Record<string, Trade[]>;
   candles: Record<string, Candle[]>;
+  updateMarketData: (updates: MarketUpdate[]) => void;
   marketData: Record<string, {
     price: number;           // Current price
     volume: number;          // Current volume
@@ -381,6 +388,42 @@ export const useMarketStore = create<MarketState>()(
           });
         },
         
+		updateMarketData: (updates: MarketUpdate[]) => {
+			set((draft) => {
+				updates.forEach(({ symbol, price, volume }) => {
+				// Initialize if doesn't exist
+				if (!draft.marketData[symbol]) {
+					draft.marketData[symbol] = {
+					price: 0,
+					volume: 0,
+					previousPrice: 0,
+					lastUpdate: new Date(),
+					changePercent24h: 0,
+					volume24h: 0,
+					high24h: 0,
+					low24h: 0,
+					avgVolume: 0
+					};
+				}
+      
+				const existing = draft.marketData[symbol];
+      
+				// Update with all required properties
+				draft.marketData[symbol] = {
+					price,
+					volume,
+					previousPrice: existing.previousPrice || price,
+					lastUpdate: new Date(),
+					changePercent24h: existing.changePercent24h || 0,
+					volume24h: existing.volume24h || volume,
+					high24h: Math.max(existing.high24h || price, price),
+					low24h: Math.min(existing.low24h || price, price),
+					avgVolume: existing.avgVolume || volume
+				};
+			  });
+			});
+		},
+		
         checkHealth: async () => {
           const subs = Object.values(get().subscriptions);
           const now = new Date();
