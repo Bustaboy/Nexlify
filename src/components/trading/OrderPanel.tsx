@@ -1,33 +1,37 @@
 // src/components/trading/OrderPanel.tsx
 // NEXLIFY ORDER PANEL - Where decisions become destiny
 // Last sync: 2025-06-22 | "Every trade is a bet against the future"
+// ENHANCED ORDER PANEL WITH ALL ORDER TYPES
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import { 
   Zap, 
+  DollarSign,
+  Percent,
+  Lock,
+  Unlock,
   ShieldAlert, 
   TrendingUp, 
   TrendingDown,
   AlertCircle,
-  DollarSign,
+  Shield,
+  Target,
   Calculator,
-  Percent,
-  Lock,
-  Unlock,
   Brain,
   Gauge
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import { useMarketStore } from '@/stores/marketStore';
-import { useTradingStore } from '@/stores/tradingStore';
+import { useTradingStore, Position, OrderType } from '@/stores/tradingStore';
 import { useAuthStore } from '@/stores/authStore';
 
 // Type definitions for the neural trading interface
 type FormOrderType = 'market' | 'limit' | 'stop' | 'stop_limit';
 type BackendOrderType = 'market' | 'limit' | 'stop_loss' | 'take_profit';
+
 
 interface OrderPanelProps {
   symbol: string;
@@ -35,12 +39,13 @@ interface OrderPanelProps {
   price?: number;
   onOrderPlaced?: (orderId: string) => void;
   compact?: boolean;
+  position?: Position;  // If provided, shows position protection options
 }
 
 interface OrderFormData {
   symbol: string;
   side: 'buy' | 'sell';
-  orderType: FormOrderType;
+  orderType: OrderType;
   quantity: string;
   price: string;
   stopPrice: string;
@@ -60,21 +65,6 @@ interface RiskMetrics {
 }
 
 /**
- * Maps frontend order types to backend expectations
- * Neural translation layer - because machines speak different dialects
- */
-const mapOrderType = (formType: FormOrderType): BackendOrderType => {
-  const typeMapping: Record<FormOrderType, BackendOrderType> = {
-    'market': 'market',
-    'limit': 'limit',
-    'stop': 'stop_loss',
-    'stop_limit': 'take_profit'
-  };
-  
-  return typeMapping[formType];
-};
-
-/**
  * ORDER PANEL - The cockpit of fortune
  * 
  * Built this after watching "Fast Fingers" Freddy fat-finger a million
@@ -88,128 +78,158 @@ const mapOrderType = (formType: FormOrderType): BackendOrderType => {
  * Remember: The market is a machine that transfers wealth from the
  * impatient to the patient, from the reckless to the prepared.
  */
+
 export const OrderPanel = ({
   symbol,
   side: initialSide,
   price: initialPrice,
   onOrderPlaced,
-  compact = false
+  compact = false,
+  position  // NEW: position prop for protection orders
 }: OrderPanelProps) => {
-  // Form state - where intention meets execution
+  // Determine available order types based on context
+  const availableOrderTypes = useMemo(() => {
+    if (position) {
+      // When managing a position, show protection orders
+      return [
+        { value: 'market', label: 'Market Close' },
+        { value: 'limit', label: 'Limit Close' },
+        { value: 'stop_loss', label: 'Stop Loss', icon: Shield },
+        { value: 'take_profit', label: 'Take Profit', icon: Target }
+      ];
+    } else {
+      // For new orders, show standalone types
+      return [
+        { value: 'market', label: 'Market' },
+        { value: 'limit', label: 'Limit' },
+        { value: 'stop', label: 'Stop' },
+        { value: 'stop_limit', label: 'Stop Limit' }
+      ];
+    }
+  }, [position]);
+
+  // Form state
   const [formData, setFormData] = useState<OrderFormData>({
     symbol,
-    side: initialSide || 'buy',
-    orderType: 'limit',
-    quantity: '',
+    side: position ? (position.side === 'long' ? 'sell' : 'buy') : (initialSide || 'buy'),
+    orderType: position ? 'stop_loss' : 'limit',
+    quantity: position ? position.quantity.toString() : '',
     price: initialPrice?.toString() || '',
     stopPrice: '',
     timeInForce: 'GTC',
     postOnly: false,
-    reduceOnly: false
+    reduceOnly: !!position
   });
-  
-  // UI state - the neural feedback loops
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // UI state
   const [showRiskCalculator, setShowRiskCalculator] = useState(false);
-  const [showConfirmation, setShowConfirmation] = useState(false);
   const [riskPercentage, setRiskPercentage] = useState('1'); // 1% default risk
-  
-  // Store connections - synaptic links to the hive mind
-  const { marketData, getSymbolData } = useMarketStore();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+
+  // Get current market data
+  const { getSymbolData } = useMarketStore();
   const { 
     accountBalance, 
     positions, 
     riskLimits,
+    dailyPnL,  // Added for daily loss checks
     placeOrder,
     calculatePositionSize 
   } = useTradingStore();
-  const { user } = useAuthStore();
   
-  // Get current market data
   const symbolData = getSymbolData(symbol);
-  const currentPrice = symbolData?.lastPrice || 0;
+  const currentPrice = symbolData?.price || 0; // Fixed: was lastPrice
   const currentPosition = positions[symbol];
   
-  /**
-   * Calculate risk metrics - because math saves accounts
-   * 
-   * This formula saved me during the Luna crash. Position sizing
-   * based on volatility, not ego. The market doesn't care about
-   * your confidence, only your risk management.
-   */
-  const riskMetrics = useMemo((): RiskMetrics => {
-    const qty = parseFloat(formData.quantity) || 0;
-    const price = parseFloat(formData.price) || currentPrice;
-    const positionValue = qty * price;
-    
-    // Account risk calculation
-    const totalBalance = accountBalance.total || 0;
-    const accountRisk = totalBalance > 0 ? (positionValue / totalBalance) * 100 : 0;
-    
-    // Stop loss calculation
-    const stopPrice = parseFloat(formData.stopPrice) || 0;
-    const potentialLoss = stopPrice > 0 
-      ? Math.abs(price - stopPrice) * qty 
-      : positionValue * 0.02; // 2% default stop
-    
-    // Take profit calculation (assume 2:1 risk/reward)
-    const potentialProfit = potentialLoss * 2;
-    const riskRewardRatio = potentialLoss > 0 ? potentialProfit / potentialLoss : 0;
-    
-    // Margin calculation (assuming 10x leverage max)
-    const marginRequired = positionValue / 10;
-    
-    // Liquidation price (simplified)
-    const liquidationPrice = formData.side === 'buy'
-      ? price * 0.9  // 10% drop
-      : price * 1.1; // 10% rise
-    
-    return {
-      positionValue,
-      accountRisk,
-      potentialLoss,
-      potentialProfit,
-      riskRewardRatio,
-      marginRequired,
-      liquidationPrice
-    };
-  }, [formData, currentPrice, accountBalance]);
-  
-  /**
-   * Position size calculator - the shield against ruin
-   * 
-   * Kelly Criterion meets practical trading. Never risk more than
-   * you can afford to lose twice. The market will test you.
-   */
-  const calculateSafePositionSize = useCallback(() => {
-    const risk = parseFloat(riskPercentage) / 100;
-    const accountSize = accountBalance.total || 0;
-    const riskAmount = accountSize * risk;
-    
-    // Get stop distance
-    const entryPrice = parseFloat(formData.price) || currentPrice;
-    const stopPrice = parseFloat(formData.stopPrice) || entryPrice * 0.98;
-    const stopDistance = Math.abs(entryPrice - stopPrice);
-    
-    if (stopDistance === 0) {
-      toast.error('Set stop price to calculate position size');
-      return;
+  // Auto-update price for limit orders
+  useEffect(() => {
+    if (formData.orderType === 'limit' && !formData.price && currentPrice) {
+      setFormData(prev => ({ 
+        ...prev, 
+        price: currentPrice.toString() 
+      }));
     }
+  }, [currentPrice, formData.orderType, formData.price]);
+
+  // Validate stop prices based on order type and side
+  const validateStopPrice = useCallback((): { valid: boolean; error?: string } => {
+    const stopPrice = parseFloat(formData.stopPrice);
     
-    // Position size = Risk Amount / Stop Distance
-    const positionSize = riskAmount / stopDistance;
-    const rounded = Math.floor(positionSize * 10000) / 10000; // 4 decimals
-    
-    setFormData(prev => ({ ...prev, quantity: rounded.toString() }));
-    toast.success(`Position size: ${rounded} (${risk * 100}% risk)`);
-  }, [riskPercentage, accountBalance, formData.price, formData.stopPrice, currentPrice]);
+    if (!stopPrice || stopPrice <= 0) {
+      return { valid: false, error: 'Invalid stop price' };
+    }
+
+    // Different validation for different order types
+    switch (formData.orderType) {
+      case 'stop':
+      case 'stop_limit':
+        // Standalone stops: buy stops above market, sell stops below
+        if (formData.side === 'buy' && stopPrice <= currentPrice) {
+          return { valid: false, error: 'Buy stop must be above current price' };
+        }
+        if (formData.side === 'sell' && stopPrice >= currentPrice) {
+          return { valid: false, error: 'Sell stop must be below current price' };
+        }
+        break;
+        
+      case 'stop_loss':
+        // Stop loss: opposite of position, protective direction
+        if (position) {
+          if (position.side === 'long' && stopPrice >= currentPrice) {
+            return { valid: false, error: 'Long stop loss must be below current price' };
+          }
+          if (position.side === 'short' && stopPrice <= currentPrice) {
+            return { valid: false, error: 'Short stop loss must be above current price' };
+          }
+        }
+        break;
+    }
+
+    // For stop limit, also validate limit vs stop relationship
+    if (formData.orderType === 'stop_limit') {
+      const limitPrice = parseFloat(formData.price);
+      if (formData.side === 'sell' && stopPrice <= limitPrice) {
+        return { valid: false, error: 'Sell stop limit: stop must be above limit' };
+      }
+      if (formData.side === 'buy' && stopPrice >= limitPrice) {
+        return { valid: false, error: 'Buy stop limit: stop must be below limit' };
+      }
+    }
+
+    return { valid: true };
+  // Quick order presets - for when seconds matter
+  const orderPresets = [
+    { label: '25%', value: 0.25 },
+    { label: '50%', value: 0.5 },
+    { label: '75%', value: 0.75 },
+    { label: '100%', value: 1.0 }
+  ];
   
+  const applyQuantityPreset = (multiplier: number) => {
+    // FIXED: Calculate available balance from Decimal
+    const availableBalance = accountBalance.toNumber() * 0.9; // 90% as available
+    
+    const available = formData.side === 'buy' 
+      ? availableBalance / (currentPrice || 1)
+      : currentPosition?.quantity.toNumber() || 0; // FIXED: Decimal conversion
+    
+    const quantity = available * multiplier;
+    setFormData(prev => ({ 
+      ...prev, 
+      quantity: quantity.toFixed(4) 
+    }));
+  };
+
+
   /**
    * Validate order - the gatekeeper of capital
    * 
    * Every check here was written in blood. Someone, somewhere,
    * lost money because they didn't validate properly.
    */
+
+  // Enhanced validation function with all fixes
   const validateOrder = (): { valid: boolean; error?: string } => {
     const qty = parseFloat(formData.quantity);
     const price = parseFloat(formData.price);
@@ -219,29 +239,30 @@ export const OrderPanel = ({
       return { valid: false, error: 'Invalid quantity' };
     }
     
-    if (formData.orderType !== 'market' && (!price || price <= 0)) {
+    if (formData.orderType !== 'market' && formData.orderType !== 'stop' && (!price || price <= 0)) {
       return { valid: false, error: 'Invalid price' };
     }
     
-    // Risk limits check
-    if (riskMetrics.accountRisk > riskLimits.maxPositionRisk) {
+    // Risk limits check - FIXED: proper Decimal handling
+    if (riskMetrics.accountRisk > riskLimits.riskLimitPerTrade.toNumber()) {
       return { 
         valid: false, 
-        error: `Position exceeds risk limit (${riskLimits.maxPositionRisk}%)` 
+        error: `Position exceeds risk limit (${riskLimits.riskLimitPerTrade.toNumber()}%)` 
       };
     }
     
-    // Margin check
-    if (riskMetrics.marginRequired > accountBalance.available) {
+    // Margin check - FIXED: estimate available as 90% of total
+    const availableBalance = accountBalance.toNumber() * 0.9;
+    if (riskMetrics.marginRequired > availableBalance) {
       return { 
         valid: false, 
         error: 'Insufficient margin' 
       };
     }
     
-    // Daily loss limit check
-    const dailyLoss = positions.dailyPnL || 0;
-    if (Math.abs(dailyLoss) > riskLimits.dailyLossLimit) {
+    // Daily loss limit check - FIXED: use dailyPnL from store
+    const dailyLoss = dailyPnL.toNumber();
+    if (Math.abs(dailyLoss) > riskLimits.maxDailyLoss.toNumber()) {
       return { 
         valid: false, 
         error: 'Daily loss limit reached' 
@@ -259,47 +280,60 @@ export const OrderPanel = ({
     
     return { valid: true };
   };
-  
+
   /**
    * Submit order - where rubber meets the road
    * 
    * This function has processed over $10M in orders. Every error
    * path has been discovered through pain. Respect it.
    */
+
+  // Enhanced submit handler
   const handleSubmit = async () => {
+    // Validate basic order
     const validation = validateOrder();
     if (!validation.valid) {
       toast.error(validation.error!);
       return;
     }
-    
+
+    // Validate stop prices if applicable
+    if (['stop', 'stop_limit', 'stop_loss'].includes(formData.orderType)) {
+      const stopValidation = validateStopPrice();
+      if (!stopValidation.valid) {
+        toast.error(stopValidation.error!);
+        return;
+      }
+    }
+
     setIsSubmitting(true);
-    
+
     try {
-      // Map the order type for backend compatibility
-      const backendOrderType = mapOrderType(formData.orderType);
-      
-      // Call Tauri backend with properly mapped type
       const orderId = await invoke<string>('place_order', {
         order: {
           symbol: formData.symbol,
           side: formData.side,
-          type: backendOrderType, // Use mapped type here
+          type: formData.orderType,  // Now correctly typed
           quantity: parseFloat(formData.quantity),
-          price: formData.orderType === 'market' ? null : parseFloat(formData.price),
-          stopPrice: formData.stopPrice ? parseFloat(formData.stopPrice) : null,
-          timeInForce: formData.timeInForce,
-          postOnly: formData.postOnly,
-          reduceOnly: formData.reduceOnly
+          price: formData.orderType === 'market' || formData.orderType === 'stop' 
+            ? null 
+            : parseFloat(formData.price),
+          stop_price: ['stop', 'stop_limit', 'stop_loss'].includes(formData.orderType)
+            ? parseFloat(formData.stopPrice)
+            : null,
+          time_in_force: formData.timeInForce,
+          post_only: formData.postOnly,
+          reduce_only: formData.reduceOnly,
+          position_id: position?.id  // Include for position-based orders
         }
       });
-      
-      // Success feedback - the dopamine hit
-      toast.success(`Order placed: ${orderId}`, {
-        icon: formData.side === 'buy' ? '📈' : '📉',
+
+      toast.success(`${formData.orderType.replace('_', ' ')} order placed: ${orderId}`, {
+        icon: formData.orderType.includes('stop') ? '🛡️' : 
+              formData.orderType === 'take_profit' ? '🎯' : '📈',
         duration: 5000
       });
-      
+
       // Clear form
       setFormData(prev => ({
         ...prev,
@@ -307,28 +341,14 @@ export const OrderPanel = ({
         price: '',
         stopPrice: ''
       }));
-      
-      // Callback
+
       onOrderPlaced?.(orderId);
-      
-      // Log for audit trail
-      console.log('Order placed:', {
-        orderId,
-        symbol: formData.symbol,
-        side: formData.side,
-        quantity: formData.quantity,
-        risk: riskMetrics.accountRisk
-      });
-      
     } catch (error: any) {
       console.error('Order failed:', error);
-      toast.error(error.message || 'Order failed', {
-        duration: 7000
-      });
+      toast.error(error.message || 'Order failed');
       
       // Special handling for common errors
       if (error.message?.includes('insufficient')) {
-        // Highlight the issue
         setShowRiskCalculator(true);
       }
     } finally {
@@ -336,57 +356,20 @@ export const OrderPanel = ({
       setShowConfirmation(false);
     }
   };
-  
-  /**
-   * Quick order presets - for when seconds matter
-   * 
-   * During the FTX collapse, these presets let traders exit
-   * positions in seconds instead of minutes. Time is money,
-   * and in crypto, time is survival.
-   */
-  const orderPresets = [
-    { label: '25%', value: 0.25 },
-    { label: '50%', value: 0.5 },
-    { label: '75%', value: 0.75 },
-    { label: '100%', value: 1.0 }
-  ];
-  
-  const applyQuantityPreset = (multiplier: number) => {
-    const available = formData.side === 'buy' 
-      ? accountBalance.available / (currentPrice || 1)
-      : currentPosition?.quantity || 0;
-    
-    const quantity = available * multiplier;
-    setFormData(prev => ({ 
-      ...prev, 
-      quantity: quantity.toFixed(4) 
-    }));
-  };
-  
-  // Auto-update price for limit orders
-  useEffect(() => {
-    if (formData.orderType === 'limit' && !formData.price && currentPrice) {
-      setFormData(prev => ({ 
-        ...prev, 
-        price: currentPrice.toString() 
-      }));
-    }
-  }, [currentPrice, formData.orderType, formData.price]);
-  
+
   return (
     <div className={`
       bg-gray-900/50 border border-cyan-900/30 rounded-lg
-      backdrop-blur-sm
-      ${compact ? 'p-3' : 'p-4'}
+      backdrop-blur-sm ${compact ? 'p-3' : 'p-4'}
     `}>
-      {/* Header - The Neural Command Center */}
+      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-cyan-400 flex items-center gap-2">
           <Zap className="w-5 h-5" />
-          ORDER MATRIX
+          {position ? 'POSITION PROTECTION' : 'ORDER MATRIX'}
         </h3>
         
-        {/* Risk indicator - Visual cortex for danger */}
+        {/* Risk indicator */}
         <div className="flex items-center gap-2">
           <div className={`
             px-2 py-1 rounded text-xs font-mono
@@ -397,7 +380,7 @@ export const OrderPanel = ({
             RISK: {riskMetrics.accountRisk.toFixed(1)}%
           </div>
           
-          {riskMetrics.marginRequired > accountBalance.available * 0.8 && (
+          {riskMetrics.marginRequired > accountBalance.toNumber() * 0.8 && (
             <motion.div
               animate={{ scale: [1, 1.2, 1] }}
               transition={{ duration: 1, repeat: Infinity }}
@@ -409,7 +392,7 @@ export const OrderPanel = ({
         </div>
       </div>
       
-      {/* Risk Metrics Display - The HUD */}
+      {/* Risk Metrics Display - HUD for position details */}
       {!compact && formData.quantity && (
         <div className="mb-4 p-3 bg-gray-800/50 rounded border border-gray-700">
           <div className="grid grid-cols-2 gap-2 text-xs">
@@ -440,37 +423,38 @@ export const OrderPanel = ({
           </div>
         </div>
       )}
-      
-      {/* Side Selection - The Binary Choice */}
-      <div className="grid grid-cols-2 gap-2 mb-4">
-        <button
-          onClick={() => setFormData(prev => ({ ...prev, side: 'buy' }))}
-          className={`
-            py-3 rounded font-semibold transition-all
-            ${formData.side === 'buy'
-              ? 'bg-green-600 text-white shadow-lg shadow-green-600/20'
-              : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}
-          `}
-        >
-          <TrendingUp className="w-4 h-4 inline mr-2" />
-          BUY / LONG
-        </button>
-        
-        <button
-          onClick={() => setFormData(prev => ({ ...prev, side: 'sell' }))}
-          className={`
-            py-3 rounded font-semibold transition-all
-            ${formData.side === 'sell'
-              ? 'bg-red-600 text-white shadow-lg shadow-red-600/20'
-              : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}
-          `}
-        >
-          <TrendingDown className="w-4 h-4 inline mr-2" />
-          SELL / SHORT
-        </button>
-      </div>
-      
-      {/* Order Type - Neural Pattern Selection */}
+
+      {/* Side Selection - Only show for new orders, not position protection */}
+      {(!position || !['stop_loss', 'take_profit'].includes(formData.orderType)) && (
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          <button
+            onClick={() => setFormData(prev => ({ ...prev, side: 'buy' }))}
+            className={`
+              py-3 rounded font-semibold transition-all
+              ${formData.side === 'buy'
+                ? 'bg-green-600 text-white shadow-lg shadow-green-600/20'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}
+            `}
+          >
+            <TrendingUp className="w-4 h-4 inline mr-2" />
+            BUY / LONG
+          </button>
+          
+          <button
+            onClick={() => setFormData(prev => ({ ...prev, side: 'sell' }))}
+            className={`
+              py-3 rounded font-semibold transition-all
+              ${formData.side === 'sell'
+                ? 'bg-red-600 text-white shadow-lg shadow-red-600/20'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}
+            `}
+          >
+            <TrendingDown className="w-4 h-4 inline mr-2" />
+            SELL / SHORT
+          </button>
+        </div>
+      )}
+      {/* Order Type Selection */}
       <div className="mb-4">
         <label className="block text-xs text-gray-400 mb-1 uppercase tracking-wider">
           Order Protocol
@@ -479,100 +463,44 @@ export const OrderPanel = ({
           value={formData.orderType}
           onChange={(e) => setFormData(prev => ({ 
             ...prev, 
-            orderType: e.target.value as FormOrderType
+            orderType: e.target.value as OrderType
           }))}
           className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2
-                   text-white focus:outline-none focus:border-cyan-500
-                   transition-colors"
+                   text-white focus:outline-none focus:border-cyan-500"
         >
-          <option value="market">Market Execute</option>
-          <option value="limit">Limit Order</option>
-          <option value="stop">Stop Loss</option>
-          <option value="stop_limit">Stop Limit</option>
+          {availableOrderTypes.map(type => (
+            <option key={type.value} value={type.value}>
+              {type.label}
+            </option>
+          ))}
         </select>
       </div>
-      
-      {/* Quantity - The Commitment */}
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-1">
-          <label className="text-xs text-gray-400 uppercase tracking-wider">
-            Position Size
+
+      {/* Show different fields based on order type */}
+      {formData.orderType !== 'market' && formData.orderType !== 'stop' && (
+        <div className="mb-4">
+          <label className="block text-xs text-gray-400 mb-1 uppercase tracking-wider">
+            {formData.orderType === 'take_profit' ? 'Target Price' : 'Limit Price'}
           </label>
-          <button
-            onClick={() => setShowRiskCalculator(!showRiskCalculator)}
-            className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1
-                     transition-colors"
-          >
-            <Calculator className="w-3 h-3" />
-            Neural Calculator
-          </button>
-        </div>
-        
-        <div className="relative">
           <input
             type="number"
-            value={formData.quantity}
+            value={formData.price}
             onChange={(e) => setFormData(prev => ({ 
               ...prev, 
-              quantity: e.target.value 
+              price: e.target.value 
             }))}
-            placeholder="0.0000"
+            placeholder={currentPrice.toString()}
             className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2
-                     text-white focus:outline-none focus:border-cyan-500
-                     pr-10 font-mono transition-colors"
+                     text-white focus:outline-none focus:border-cyan-500"
           />
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
-            {symbol.split('/')[0]}
-          </span>
-        </div>
-        
-        {/* Quick presets - Neural shortcuts */}
-        <div className="grid grid-cols-4 gap-1 mt-2">
-          {orderPresets.map(preset => (
-            <button
-              key={preset.label}
-              onClick={() => applyQuantityPreset(preset.value)}
-              className="py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs
-                       text-gray-400 hover:text-white transition-all
-                       border border-gray-700 hover:border-cyan-600"
-            >
-              {preset.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      
-      {/* Price Input - The Strike Point */}
-      {formData.orderType !== 'market' && (
-        <div className="mb-4">
-          <label className="block text-xs text-gray-400 mb-1 uppercase tracking-wider">
-            {formData.orderType === 'stop' ? 'Stop Trigger' : 'Limit Price'}
-          </label>
-          <div className="relative">
-            <input
-              type="number"
-              value={formData.price}
-              onChange={(e) => setFormData(prev => ({ 
-                ...prev, 
-                price: e.target.value 
-              }))}
-              placeholder={currentPrice.toString()}
-              className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2
-                       text-white focus:outline-none focus:border-cyan-500
-                       pr-10 font-mono transition-colors"
-            />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
-              {symbol.split('/')[1]}
-            </span>
-          </div>
         </div>
       )}
-      
-      {/* Stop Price for stop limit orders */}
-      {formData.orderType === 'stop_limit' && (
+
+      {/* Stop Price for stop orders */}
+      {['stop', 'stop_limit', 'stop_loss'].includes(formData.orderType) && (
         <div className="mb-4">
           <label className="block text-xs text-gray-400 mb-1 uppercase tracking-wider">
-            Stop Activation
+            {formData.orderType === 'stop_loss' ? 'Stop Loss Price' : 'Stop Trigger Price'}
           </label>
           <input
             type="number"
@@ -581,73 +509,69 @@ export const OrderPanel = ({
               ...prev, 
               stopPrice: e.target.value 
             }))}
-            placeholder="Trigger price"
+            placeholder={
+              formData.orderType === 'stop_loss' && position
+                ? `Suggested: ${(currentPrice * (position.side === 'long' ? 0.98 : 1.02)).toFixed(2)}`
+                : 'Enter stop price'
+            }
             className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2
-                     text-white focus:outline-none focus:border-cyan-500
-                     font-mono transition-colors"
+                     text-white focus:outline-none focus:border-cyan-500"
           />
         </div>
       )}
-      
-      {/* Advanced Options - The Fine Tuning */}
-      {!compact && (
-        <div className="mb-4 space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="text-xs text-gray-400 uppercase tracking-wider">
-              Time Protocol
-            </label>
-            <select
-              value={formData.timeInForce}
-              onChange={(e) => setFormData(prev => ({ 
-                ...prev, 
-                timeInForce: e.target.value as any 
-              }))}
-              className="bg-gray-800 border border-gray-700 rounded px-2 py-1
-                       text-xs text-white focus:outline-none focus:border-cyan-500
-                       transition-colors"
-            >
-              <option value="GTC">Good Till Cancel</option>
-              <option value="IOC">Immediate or Cancel</option>
-              <option value="FOK">Fill or Kill</option>
-              <option value="GTX">Post Only</option>
-            </select>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 text-xs text-gray-400
-                           hover:text-gray-300 cursor-pointer transition-colors">
-              <input
-                type="checkbox"
-                checked={formData.postOnly}
-                onChange={(e) => setFormData(prev => ({ 
-                  ...prev, 
-                  postOnly: e.target.checked 
-                }))}
-                className="rounded border-gray-600 bg-gray-800 text-cyan-500
-                         focus:ring-cyan-500 focus:ring-offset-0"
-              />
-              Post Only
-            </label>
-            
-            <label className="flex items-center gap-2 text-xs text-gray-400
-                           hover:text-gray-300 cursor-pointer transition-colors">
-              <input
-                type="checkbox"
-                checked={formData.reduceOnly}
-                onChange={(e) => setFormData(prev => ({ 
-                  ...prev, 
-                  reduceOnly: e.target.checked 
-                }))}
-                className="rounded border-gray-600 bg-gray-800 text-cyan-500
-                         focus:ring-cyan-500 focus:ring-offset-0"
-              />
-              Reduce Only
-            </label>
-          </div>
+
+      {/* Quantity - auto-filled for position orders */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-xs text-gray-400 mb-1 uppercase tracking-wider">
+            Quantity
+          </label>
+          <button
+            onClick={() => setShowRiskCalculator(!showRiskCalculator)}
+            className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+          >
+            <Calculator className="w-3 h-3" />
+            Position Calculator
+          </button>
         </div>
-      )}
-      
-      {/* Risk Calculator - The Neural Network */}
+        <input
+          type="number"
+          value={formData.quantity}
+          onChange={(e) => setFormData(prev => ({ 
+            ...prev, 
+            quantity: e.target.value 
+          }))}
+          disabled={!!position && ['stop_loss', 'take_profit'].includes(formData.orderType)}
+          placeholder="0.0000"
+          className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2
+                   text-white focus:outline-none focus:border-cyan-500
+                   disabled:opacity-50 disabled:cursor-not-allowed"
+        />
+        
+        {/* Quick presets - FIXED */}
+        <div className="grid grid-cols-4 gap-1 mt-2">
+          {orderPresets.map(preset => (
+            <button
+              key={preset.label}
+              onClick={() => applyQuantityPreset(preset.value)}
+              className="py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs
+                       text-gray-400 hover:text-white transition-colors"
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+/**
+   * Calculate risk metrics - because math saves accounts
+   * 
+   * This formula saved me during the Luna crash. Position sizing
+   * based on volatility, not ego. The market doesn't care about
+   * your confidence, only your risk management.
+   */
+
+      {/* Risk Calculator - FIXED */}
       <AnimatePresence>
         {showRiskCalculator && (
           <motion.div
@@ -673,8 +597,7 @@ export const OrderPanel = ({
                     max="10"
                     step="0.1"
                     className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1
-                             text-sm text-white focus:outline-none focus:border-cyan-500
-                             font-mono transition-colors"
+                             text-sm text-white focus:outline-none focus:border-cyan-500"
                   />
                 </div>
                 
@@ -689,26 +612,24 @@ export const OrderPanel = ({
                     }))}
                     placeholder="Enter stop loss"
                     className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1
-                             text-sm text-white focus:outline-none focus:border-cyan-500
-                             font-mono transition-colors"
+                             text-sm text-white focus:outline-none focus:border-cyan-500"
                   />
                 </div>
                 
                 <button
                   onClick={calculateSafePositionSize}
                   className="w-full py-2 bg-cyan-600 hover:bg-cyan-500 rounded
-                           text-sm font-semibold text-white transition-all
-                           hover:shadow-lg hover:shadow-cyan-600/20"
+                           text-sm font-semibold text-white transition-colors"
                 >
-                  Calculate Safe Position
+                  Calculate Safe Position Size
                 </button>
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-      
-      {/* Submit Button - The Execution Gateway */}
+
+      {/* Submit Button */}
       <motion.button
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
@@ -719,10 +640,13 @@ export const OrderPanel = ({
           flex items-center justify-center gap-2
           ${isSubmitting 
             ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-            : formData.side === 'buy'
-              ? 'bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-600/20'
-              : 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/20'
+            : formData.orderType.includes('stop') || formData.orderType === 'take_profit'
+              ? 'bg-purple-600 hover:bg-purple-500 shadow-purple-600/20'
+              : formData.side === 'buy'
+                ? 'bg-green-600 hover:bg-green-500 shadow-green-600/20'
+                : 'bg-red-600 hover:bg-red-500 shadow-red-600/20'
           }
+          text-white shadow-lg
         `}
       >
         {isSubmitting ? (
@@ -742,16 +666,18 @@ export const OrderPanel = ({
           </>
         ) : (
           <>
-            {formData.side === 'buy' ? 
-              <TrendingUp className="w-5 h-5" /> : 
-              <TrendingDown className="w-5 h-5" />
-            }
-            EXECUTE {formData.side.toUpperCase()}
+            {formData.orderType === 'stop_loss' && <Shield className="w-5 h-5" />}
+            {formData.orderType === 'take_profit' && <Target className="w-5 h-5" />}
+            {!['stop_loss', 'take_profit'].includes(formData.orderType) && (
+              formData.side === 'buy' ? 
+                <TrendingUp className="w-5 h-5" /> : 
+                <TrendingDown className="w-5 h-5" />
+            )}
+            PLACE {formData.orderType.replace('_', ' ').toUpperCase()}
           </>
         )}
       </motion.button>
-      
-      {/* Emergency Close - The Panic Button */}
+	  {/* Emergency Close - The Panic Button */}
       {currentPosition && !compact && (
         <motion.button
           whileHover={{ scale: 1.02 }}
@@ -762,7 +688,7 @@ export const OrderPanel = ({
               ...prev,
               side: currentPosition.side === 'long' ? 'sell' : 'buy',
               orderType: 'market',
-              quantity: Math.abs(currentPosition.quantity).toString(),
+              quantity: currentPosition.quantity.abs().toString(), // FIXED: Decimal method
               reduceOnly: true
             }));
             // Auto-submit after a brief delay
@@ -778,5 +704,5 @@ export const OrderPanel = ({
         </motion.button>
       )}
     </div>
-  );
-};
+  )
+}

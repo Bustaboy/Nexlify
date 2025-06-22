@@ -15,16 +15,17 @@ export interface Order {
   id: string;
   symbol: string;
   side: 'buy' | 'sell';
-  type: 'market' | 'limit' | 'stop_loss' | 'take_profit';
+  type: OrderType;
   status: 'pending' | 'open' | 'partially_filled' | 'filled' | 'cancelled' | 'rejected';
   quantity: Decimal;
-  price?: Decimal;
-  stopPrice?: Decimal;
+  price?: Decimal;      // Limit price
+  stopPrice?: Decimal;  // Stop/trigger price
   filledQuantity: Decimal;
   averageFillPrice?: Decimal;
   fees: Decimal;
   createdAt: Date;
   updatedAt: Date;
+  positionId?: string;  // Links to position for stop_loss/take_profit
   metadata: Record<string, any>;
 }
 
@@ -99,13 +100,14 @@ export interface PnLMetrics {
 export interface PlaceOrderParams {
   symbol: string;
   side: 'buy' | 'sell';
-  type: 'market' | 'limit' | 'stop_loss' | 'take_profit';
+  type: OrderType;
   quantity: number;
   price?: number;
   stopPrice?: number;
   timeInForce?: string;
   reduceOnly?: boolean;
   postOnly?: boolean;
+  positionId?: string;  // For position-based orders
   metadata?: Record<string, any>;
 }
 
@@ -204,6 +206,19 @@ export const useTradingStore = create<TradingState>()(
         
         // Action implementations
         placeOrder: async (params: PlaceOrderParams) => {
+			// Validate stop orders
+			if ((params.type === 'stop' || params.type === 'stop_loss') && !params.stopPrice) {
+				throw new Error('Stop price required for stop orders');
+			}
+  
+			if (params.type === 'stop_limit' && (!params.stopPrice || !params.price)) {
+				throw new Error('Stop limit orders require both stop and limit prices');
+			}
+  
+			// Validate position-based orders
+			if ((params.type === 'stop_loss' || params.type === 'take_profit') && !params.positionId) {
+				throw new Error('Position ID required for position-based orders');
+			}
           const { allowed, reason } = get().canPlaceOrder(params);
           if (!allowed) {
             throw new Error(reason || 'Order rejected by risk management');
