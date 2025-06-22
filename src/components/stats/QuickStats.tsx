@@ -1,6 +1,6 @@
 // src/components/stats/QuickStats.tsx
 // NEXLIFY QUICK STATS - Instant battlefield awareness at a glance
-// Last sync: 2025-06-19 | "Numbers tell stories, but only if you're listening"
+// Last sync: 2025-06-22 | "Numbers tell stories, but only if you're listening"
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -24,6 +24,7 @@ import {
   AlertCircle,
   Sparkles
 } from 'lucide-react';
+import Decimal from 'decimal.js';
 
 import { useTradingStore } from '@/stores/tradingStore';
 import { useMarketStore } from '@/stores/marketStore';
@@ -105,11 +106,12 @@ export const QuickStats = ({
   const allStats = useMemo((): StatItem[] => {
     const stats: StatItem[] = [];
     
-    // Account Balance
+    // Account Balance - Convert Decimal to number for display
+    const balanceValue = accountBalance.toNumber();
     stats.push({
       id: 'balance',
       label: 'Balance',
-      value: accountBalance.total,
+      value: balanceValue,
       previousValue: previousValues.get('balance'),
       icon: <DollarSign className="w-4 h-4" />,
       color: 'text-green-400',
@@ -117,17 +119,18 @@ export const QuickStats = ({
       priority: 1
     });
     
-    // Daily P&L
-    const dailyPnLColor = dailyPnL >= 0 ? 'text-green-400' : 'text-red-400';
+    // Daily P&L - Handle Decimal comparison and conversion
+    const dailyPnLValue = dailyPnL.toNumber();
+    const dailyPnLColor = dailyPnL.gte(0) ? 'text-green-400' : 'text-red-400';
     stats.push({
       id: 'daily_pnl',
       label: 'Daily P&L',
-      value: dailyPnL,
+      value: Math.abs(dailyPnLValue), // Use absolute value for display
       previousValue: previousValues.get('daily_pnl'),
-      icon: dailyPnL >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />,
+      icon: dailyPnL.gte(0) ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />,
       color: dailyPnLColor,
-      prefix: dailyPnL >= 0 ? '+$' : '-$',
-      alert: Math.abs(dailyPnL) > accountBalance.total * 0.05 ? 'Large daily move!' : undefined,
+      prefix: dailyPnL.gte(0) ? '+$' : '-$',
+      alert: dailyPnL.abs().gt(accountBalance.mul(0.05)) ? 'Large daily move!' : undefined,
       priority: 2
     });
     
@@ -143,12 +146,16 @@ export const QuickStats = ({
       priority: 3
     });
     
-    // Total Exposure
+    // Total Exposure - Convert Decimal operations
     const totalExposure = Object.values(positions).reduce(
-      (sum, pos) => sum + Math.abs(pos.quantity * pos.currentPrice), 0
+      (sum, pos) => {
+        const posValue = pos.quantity.mul(pos.currentPrice);
+        return sum.add(posValue.abs());
+      }, 
+      new Decimal(0)
     );
-    const exposurePercent = accountBalance.total > 0 
-      ? (totalExposure / accountBalance.total) * 100 
+    const exposurePercent = accountBalance.gt(0) 
+      ? totalExposure.div(accountBalance).mul(100).toNumber()
       : 0;
     stats.push({
       id: 'exposure',
@@ -366,51 +373,41 @@ export const QuickStats = ({
   };
   
   /**
-   * Get change indicator
+   * Render mini sparkline chart
    */
-  const getChangeIndicator = (stat: StatItem) => {
-    if (!stat.change || stat.change === 0) {
-      return <Minus className="w-3 h-3 text-gray-500" />;
-    }
-    
-    return stat.change > 0 
-      ? <ArrowUp className="w-3 h-3 text-green-400" />
-      : <ArrowDown className="w-3 h-3 text-red-400" />;
-  };
-  
-  /**
-   * Render sparkline
-   */
-  const renderSparkline = (data: number[]): JSX.Element => {
-    if (!data || data.length < 2) return <div className="h-8" />;
+  const renderSparkline = (data: number[]) => {
+    if (data.length < 2) return null;
     
     const min = Math.min(...data);
     const max = Math.max(...data);
     const range = max - min || 1;
+    const width = 100;
+    const height = 30;
     
     const points = data.map((value, index) => {
-      const x = (index / (data.length - 1)) * 100;
-      const y = 100 - ((value - min) / range) * 100;
+      const x = (index / (data.length - 1)) * width;
+      const y = height - ((value - min) / range) * height;
       return `${x},${y}`;
     }).join(' ');
     
-    const trend = data[data.length - 1] > data[0] ? 'up' : 'down';
+    const isPositive = data[data.length - 1] > data[0];
     
     return (
-      <svg className="h-8 w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+      <svg width={width} height={height} className="overflow-visible">
         <polyline
           points={points}
           fill="none"
-          stroke={trend === 'up' ? '#10b981' : '#ef4444'}
+          stroke={isPositive ? '#10b981' : '#ef4444'}
           strokeWidth="2"
-          className="opacity-50"
+          className="animate-draw"
         />
-        <circle
-          cx="100"
-          cy={100 - ((data[data.length - 1] - min) / range) * 100}
-          r="2"
-          fill={trend === 'up' ? '#10b981' : '#ef4444'}
-          className="animate-pulse"
+        <polyline
+          points={points}
+          fill="none"
+          stroke={isPositive ? '#10b981' : '#ef4444'}
+          strokeWidth="4"
+          strokeOpacity="0.3"
+          className="blur-sm"
         />
       </svg>
     );
@@ -420,38 +417,64 @@ export const QuickStats = ({
    * Render individual stat card
    */
   const renderStatCard = (stat: StatItem) => {
-    const isPulsing = pulseStats.has(stat.id);
     const sparkline = sparklineData.get(stat.id);
+    const isPulsing = pulseStats.has(stat.id);
     
     return (
       <motion.div
         key={stat.id}
+        layout
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ 
           opacity: 1, 
-          scale: isPulsing ? [1, 1.05, 1] : 1 
+          scale: isPulsing ? [1, 1.05, 1] : 1,
         }}
-        transition={{ duration: 0.3 }}
+        exit={{ opacity: 0, scale: 0.9 }}
+        transition={{ 
+          duration: 0.2,
+          scale: {
+            duration: 0.5,
+            repeat: isPulsing ? Infinity : 0,
+            repeatDelay: 1
+          }
+        }}
         className={`
-          bg-gray-900/50 border border-cyan-900/30 rounded-lg p-3
-          ${isPulsing ? 'ring-2 ring-cyan-500/50' : ''}
-          ${stat.alert ? 'border-yellow-500/50' : ''}
-          hover:bg-gray-800/50 transition-all cursor-pointer
-          ${theme === 'neon' ? 'shadow-lg shadow-cyan-900/20' : ''}
+          relative p-4 rounded-lg border backdrop-blur-sm
+          ${theme === 'minimal' 
+            ? 'bg-gray-900/50 border-gray-800' 
+            : 'bg-gray-900/80 border-cyan-500/20'
+          }
+          ${isPulsing ? 'shadow-lg shadow-cyan-500/20' : ''}
+          ${layout === 'row' ? 'min-w-[180px]' : ''}
+          transition-all duration-300
+          hover:shadow-md hover:shadow-cyan-500/10
+          ${theme === 'neon' ? 'hover:border-cyan-500/40' : 'hover:border-gray-700'}
         `}
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <div className={stat.color}>{stat.icon}</div>
-            <span className="text-xs text-gray-400">{stat.label}</span>
+            <div className={`${stat.color} ${isPulsing ? 'animate-pulse' : ''}`}>
+              {stat.icon}
+            </div>
+            <span className="text-xs text-gray-400 uppercase tracking-wide">
+              {stat.label}
+            </span>
           </div>
-          {animate && stat.change !== undefined && (
+          
+          {/* Change indicator */}
+          {stat.change !== undefined && theme !== 'minimal' && (
             <div className="flex items-center gap-1">
-              {getChangeIndicator(stat)}
+              {stat.change > 0 ? (
+                <ArrowUp className="w-3 h-3 text-green-400" />
+              ) : stat.change < 0 ? (
+                <ArrowDown className="w-3 h-3 text-red-400" />
+              ) : (
+                <Minus className="w-3 h-3 text-gray-400" />
+              )}
               {stat.changePercent !== undefined && (
-                <span className={`text-xs ${
-                  stat.change! > 0 ? 'text-green-400' : 'text-red-400'
+                <span className={`text-xs font-mono ${
+                  stat.changePercent > 0 ? 'text-green-400' : 'text-red-400'
                 }`}>
                   {Math.abs(stat.changePercent).toFixed(1)}%
                 </span>

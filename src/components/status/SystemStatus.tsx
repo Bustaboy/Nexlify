@@ -1,6 +1,6 @@
 // src/components/status/SystemStatus.tsx
 // NEXLIFY SYSTEM STATUS - The vital signs of your digital predator
-// Last sync: 2025-06-19 | "Trust the machine, but verify its heartbeat"
+// Last sync: 2025-06-22 | "Trust the machine, but verify its heartbeat"
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -408,8 +408,9 @@ export const SystemStatus = ({
                           {service.latency.toFixed(0)}ms
                         </span>
                         {service.message && (
-                          <AlertTriangle className="w-3 h-3 text-yellow-400" 
-                                       title={service.message} />
+                          <span title={service.message}>
+                            <AlertTriangle className="w-3 h-3 text-yellow-400" />
+                          </span>
                         )}
                       </div>
                     </div>
