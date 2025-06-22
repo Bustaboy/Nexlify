@@ -169,7 +169,7 @@ export const RiskMonitor = ({
     
     // Position risk - largest single position
     const positionValues = Object.values(positions).map(p => 
-      pos.quantity.mul(pos.currentPrice).toNumber() / accountBalanceNum
+      p.quantity.mul(p.currentPrice).toNumber() / accountBalanceNum
     );
     const largestPosition = positionValues.length > 0 
       ? Math.max(...positionValues) * 100
