@@ -112,10 +112,10 @@ interface MarketState {
   updateTicker: (symbol: string, data: any) => void;
   processTrade: (symbol: string, trade: Trade) => void;
   handleBinaryMessage: (data: Uint8Array) => void;
-  handleMarketEvent: (event: any) => void; // Added
+  handleMarketEvent: (event: any) => void;
   reconnectAll: () => Promise<void>;
   clearMarketData: (symbol?: string) => void;
-  getSymbolData: (symbol: string) => { price: number; volume: number } | null; // Added
+  getSymbolData: (symbol: string) => { price: number; volume: number } | null;
   
   // Health monitoring - staying alive
   checkHealth: () => Promise<void>;
@@ -139,11 +139,11 @@ export const useMarketStore = create<MarketState>()(
         orderbooks: {},
         tickers: {},
         recentTrades: {},
-        candles: {}, // Added
-        marketData: {}, // Added
-        volatilityIndex: 0, // Added
-        totalVolume24h: 0, // Added
-        topMovers: [], // Added
+        candles: {},
+        marketData: {},
+        volatilityIndex: 0,
+        totalVolume24h: 0,
+        topMovers: [],
         subscriptions: {},
         connectionStatus: 'disconnected',
         marketHealth: 'operational',
@@ -250,6 +250,7 @@ export const useMarketStore = create<MarketState>()(
         
         updateTicker: (symbol: string, data: any) => {
           set((draft) => {
+            // Update ticker data
             draft.tickers[symbol] = {
               symbol,
               bid: data.bid,
@@ -261,23 +262,45 @@ export const useMarketStore = create<MarketState>()(
               high24h: data.high24h,
               low24h: data.low24h,
             };
+            
+            // Define price and volume from data
+            const price = data.last;
+            const volume = data.volume24h;
+            
+            // Initialize marketData if it doesn't exist
+            if (!draft.marketData[symbol]) {
+              draft.marketData[symbol] = {
+                price: 0,
+                volume: 0,
+                previousPrice: 0,
+                lastUpdate: new Date(),
+                changePercent24h: 0,
+                volume24h: 0,
+                high24h: 0,
+                low24h: 0,
+                avgVolume: 0
+              };
+            }
+            
             // Update marketData
             draft.marketData[symbol] = {
               price,
-			  volume,
-			  previousPrice: draft.marketData[symbol]?.previousPrice || price,
-			  lastUpdate: new Date(),
-			  changePercent24h: draft.marketData[symbol]?.changePercent24h || 0,
-			  volume24h: draft.marketData[symbol]?.volume24h || volume,
-			  high24h: draft.marketData[symbol]?.high24h || price,
-			  low24h: draft.marketData[symbol]?.low24h || price,
-			  avgVolume: draft.marketData[symbol]?.avgVolume || volume
-			};
+              volume,
+              previousPrice: draft.marketData[symbol]?.previousPrice || price,
+              lastUpdate: new Date(),
+              changePercent24h: data.priceChangePercent24h || draft.marketData[symbol]?.changePercent24h || 0,
+              volume24h: volume,
+              high24h: data.high24h || draft.marketData[symbol]?.high24h || price,
+              low24h: data.low24h || draft.marketData[symbol]?.low24h || price,
+              avgVolume: draft.marketData[symbol]?.avgVolume || volume
+            };
+            
             // Update totalVolume24h
             draft.totalVolume24h = Object.values(draft.tickers).reduce(
               (sum, ticker) => sum + ticker.volume24h,
               0
             );
+            
             // Update topMovers
             draft.topMovers = Object.values(draft.tickers)
               .map(t => ({
@@ -327,7 +350,7 @@ export const useMarketStore = create<MarketState>()(
             case 'trade':
               processTrade(event.symbol, event.data);
               break;
-            case 'candles': // Added
+            case 'candles':
               set((draft) => {
                 const key = `${event.symbol}:${event.timeframe || '1m'}`;
                 draft.candles[key] = event.data.map((c: any) => ({
@@ -388,42 +411,42 @@ export const useMarketStore = create<MarketState>()(
           });
         },
         
-		updateMarketData: (updates: MarketUpdate[]) => {
-			set((draft) => {
-				updates.forEach(({ symbol, price, volume }) => {
-				// Initialize if doesn't exist
-				if (!draft.marketData[symbol]) {
-					draft.marketData[symbol] = {
-					price: 0,
-					volume: 0,
-					previousPrice: 0,
-					lastUpdate: new Date(),
-					changePercent24h: 0,
-					volume24h: 0,
-					high24h: 0,
-					low24h: 0,
-					avgVolume: 0
-					};
-				}
-      
-				const existing = draft.marketData[symbol];
-      
-				// Update with all required properties
-				draft.marketData[symbol] = {
-					price,
-					volume,
-					previousPrice: existing.previousPrice || price,
-					lastUpdate: new Date(),
-					changePercent24h: existing.changePercent24h || 0,
-					volume24h: existing.volume24h || volume,
-					high24h: Math.max(existing.high24h || price, price),
-					low24h: Math.min(existing.low24h || price, price),
-					avgVolume: existing.avgVolume || volume
-				};
-			  });
-			});
-		},
-		
+        updateMarketData: (updates: MarketUpdate[]) => {
+          set((draft) => {
+            updates.forEach(({ symbol, price, volume }) => {
+              // Initialize if doesn't exist
+              if (!draft.marketData[symbol]) {
+                draft.marketData[symbol] = {
+                  price: 0,
+                  volume: 0,
+                  previousPrice: 0,
+                  lastUpdate: new Date(),
+                  changePercent24h: 0,
+                  volume24h: 0,
+                  high24h: 0,
+                  low24h: 0,
+                  avgVolume: 0
+                };
+              }
+              
+              const existing = draft.marketData[symbol];
+              
+              // Update with all required properties
+              draft.marketData[symbol] = {
+                price,
+                volume,
+                previousPrice: existing.previousPrice || price,
+                lastUpdate: new Date(),
+                changePercent24h: existing.changePercent24h || 0,
+                volume24h: existing.volume24h || volume,
+                high24h: Math.max(existing.high24h || price, price),
+                low24h: Math.min(existing.low24h || price, price),
+                avgVolume: existing.avgVolume || volume
+              };
+            });
+          });
+        },
+        
         checkHealth: async () => {
           const subs = Object.values(get().subscriptions);
           const now = new Date();
@@ -480,6 +503,7 @@ export const useMarketStore = create<MarketState>()(
   )
 );
 
+// Helper functions
 const heartbeatIntervals: Record<string, number> = {};
 
 function startHeartbeatMonitor(symbol: string) {
@@ -499,6 +523,7 @@ function startHeartbeatMonitor(symbol: string) {
   }, HEARTBEAT_INTERVAL);
 }
 
+// Performance monitoring
 let messageCount = 0;
 let lastRateCheck = Date.now();
 
@@ -509,9 +534,32 @@ setInterval(() => {
   useMarketStore.setState({ messagesPerSecond: rate });
   messageCount = 0;
   lastRateCheck = now;
-});
+}, 1000);
 
+// Subscribe to message count changes
 useMarketStore.subscribe(
   (state) => state.totalMessagesProcessed,
   () => messageCount++
 );
+
+/**
+ * MARKET STORE WISDOM:
+ * 
+ * 1. Market data is a firehose. Every update costs CPU cycles.
+ *    Use selectors wisely, subscribe only to what you need.
+ * 
+ * 2. Binary mode exists for a reason. JSON parsing during high
+ *    volatility will melt your CPU. I've seen it happen.
+ * 
+ * 3. Heartbeat monitoring catches dead connections before they
+ *    cost you money. The market doesn't pause for reconnects.
+ * 
+ * 4. Orderbook depth is capped at 50 levels. More than that is
+ *    vanity, not trading. Your screen isn't that tall anyway.
+ * 
+ * 5. The volatility index is a simple standard deviation. Want
+ *    something fancier? Calculate it in a worker thread.
+ * 
+ * "In the market matrix, data flows like blood through chrome veins.
+ *  Miss a beat, and you're already behind."
+ */
