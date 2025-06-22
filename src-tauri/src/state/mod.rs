@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 use dashmap::DashMap;
 use arc_swap::ArcSwap;
 use thiserror::Error;
+use chrono::{DateTime, Utc};
+use std::collections::HashMap;
 
 pub mod market_cache;
 pub use market_cache::MarketCache;
@@ -47,6 +49,180 @@ pub struct AppState {
     
     /// Circuit breakers - for when the market tries to flatline us
     circuit_breakers: DashMap<String, CircuitBreaker>,
+}
+
+// ─────────────────────────────────────────────────────────────
+// P&L TRACKING TYPES
+// ─────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PnLSnapshot {
+    pub timestamp: DateTime<Utc>,
+    pub realized_pnl: f64,
+    pub unrealized_pnl: f64,
+    pub total_pnl: f64,
+    pub fees_paid: f64,
+    pub positions_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TradeRecord {
+    pub symbol: String,
+    pub pnl: f64,
+    pub percentage: f64,
+    pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PnLTracker {
+    pub daily_pnl: f64,
+    pub weekly_pnl: f64,
+    pub monthly_pnl: f64,
+    pub yearly_pnl: f64,
+    pub all_time_pnl: f64,
+    pub pnl_history: Vec<PnLSnapshot>,
+    pub last_update: DateTime<Utc>,
+    pub total_trades: usize,
+    pub winning_trades: usize,
+    pub losing_trades: usize,
+    pub win_rate: f32,
+    pub sharpe_ratio: f32,
+    pub max_drawdown: f32,
+    pub best_trade: Option<TradeRecord>,
+    pub worst_trade: Option<TradeRecord>,
+}
+
+impl Default for PnLTracker {
+    fn default() -> Self {
+        Self {
+            daily_pnl: 0.0,
+            weekly_pnl: 0.0,
+            monthly_pnl: 0.0,
+            yearly_pnl: 0.0,
+            all_time_pnl: 0.0,
+            pnl_history: Vec::new(),
+            last_update: Utc::now(),
+            total_trades: 0,
+            winning_trades: 0,
+            losing_trades: 0,
+            win_rate: 0.0,
+            sharpe_ratio: 0.0,
+            max_drawdown: 0.0,
+            best_trade: None,
+            worst_trade: None,
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// SIMULATION ENGINE
+// ─────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub struct SimulationEngine {
+    pub paper_mode: bool,
+    pub latency_ms: u64,
+    pub slippage_bps: f64,
+    pub failure_rate: f64,
+    pub mock_prices: HashMap<String, f64>,
+}
+
+impl Default for SimulationEngine {
+    fn default() -> Self {
+        Self {
+            paper_mode: true,
+            latency_ms: 50,
+            slippage_bps: 10.0, // 0.1%
+            failure_rate: 0.02, // 2% failure rate
+            mock_prices: HashMap::new(),
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// HEALTH MONITORING
+// ─────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub struct HealthThresholdConfig {
+    pub critical: f32,
+    pub warning: f32,
+    pub auto_close: f32,
+}
+
+impl Default for HealthThresholdConfig {
+    fn default() -> Self {
+        Self {
+            critical: 20.0,
+            warning: 40.0,
+            auto_close: 10.0,
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// FEE MANAGEMENT
+// ─────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ExchangeFeeStructure {
+    pub maker_fee: f64,
+    pub taker_fee: f64,
+    pub volume_tier: u32,
+    pub has_native_token_discount: bool,
+    pub volume_30d: f64,
+}
+
+// ─────────────────────────────────────────────────────────────
+// UPDATE EXISTING STRUCTURES
+// ─────────────────────────────────────────────────────────────
+
+// Add these fields to your existing AppState struct:
+pub struct AppState {
+    // ...existing fields...
+    
+    // Add these new fields:
+    pub simulation_engine: SimulationEngine,
+    pub health_thresholds: HealthThresholdConfig,
+    pub auto_risk_management: bool,
+    pub position_monitoring_active: bool,
+    pub exchange_fees: HashMap<String, ExchangeFeeStructure>,
+}
+
+// Add this field to your existing TradingEngine struct:
+pub struct TradingEngine {
+    // ...existing fields...
+    
+    // Add this new field:
+    pub pnl_tracker: Arc<RwLock<PnLTracker>>,
+}
+
+// In your AppState implementation, update the new() or default() method:
+impl AppState {
+    pub fn new() -> Self {
+        Self {
+            // ...existing field initialization...
+            
+            // Add these:
+            simulation_engine: SimulationEngine::default(),
+            health_thresholds: HealthThresholdConfig::default(),
+            auto_risk_management: false,
+            position_monitoring_active: false,
+            exchange_fees: HashMap::new(),
+        }
+    }
+}
+
+// In your TradingEngine implementation, update the new() or default() method:
+impl TradingEngine {
+    pub fn new() -> Self {
+        Self {
+            // ...existing field initialization...
+            
+            // Add this:
+            pnl_tracker: Arc::new(RwLock::new(PnLTracker::default())),
+        }
+    }
 }
 
 /// Connection status to various market feeds
@@ -198,6 +374,21 @@ impl Default for UserPreferences {
             default_leverage: 1.0,
             risk_limit: 1000.0,
             neural_assist: true,
+			id: String::new(),
+            symbol: String::new(),
+            exchange: String::new(),
+            side: OrderSide::Buy,
+            order_type: OrderType::Market,
+            quantity: 0.0,
+            price: None,
+            stop_price: None,
+            position_id: None, // NEW
+            status: OrderStatus::Pending,
+            filled_quantity: 0.0,
+            average_fill_price: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            metadata: HashMap::new(),
         }
     }
 }
@@ -230,6 +421,7 @@ pub struct Order {
     pub side: OrderSide,
     pub order_type: OrderType,
     pub price: Option<f64>,
+	pub stop_price: Option<f64>,
     pub quantity: f64,
     pub status: OrderStatus,
     pub created_at: DateTime<Utc>,
@@ -237,6 +429,7 @@ pub struct Order {
     pub filled_quantity: f64,
     pub average_fill_price: Option<f64>,
     pub metadata: HashMap<String, String>, // For that extra chrome
+	pub position_id: Option<String>, // NEW: Links position-based orders
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
