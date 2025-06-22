@@ -1,6 +1,6 @@
 // src/components/trading/OrderPanel.tsx
 // NEXLIFY ORDER PANEL - Where decisions become destiny
-// Last sync: 2025-06-19 | "Every trade is a bet against the future"
+// Last sync: 2025-06-22 | "Every trade is a bet against the future"
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -25,6 +25,10 @@ import { useMarketStore } from '@/stores/marketStore';
 import { useTradingStore } from '@/stores/tradingStore';
 import { useAuthStore } from '@/stores/authStore';
 
+// Type definitions for the neural trading interface
+type FormOrderType = 'market' | 'limit' | 'stop' | 'stop_limit';
+type BackendOrderType = 'market' | 'limit' | 'stop_loss' | 'take_profit';
+
 interface OrderPanelProps {
   symbol: string;
   side?: 'buy' | 'sell';
@@ -36,7 +40,7 @@ interface OrderPanelProps {
 interface OrderFormData {
   symbol: string;
   side: 'buy' | 'sell';
-  orderType: 'market' | 'limit' | 'stop' | 'stop_limit';
+  orderType: FormOrderType;
   quantity: string;
   price: string;
   stopPrice: string;
@@ -54,6 +58,21 @@ interface RiskMetrics {
   marginRequired: number;
   liquidationPrice: number;
 }
+
+/**
+ * Maps frontend order types to backend expectations
+ * Neural translation layer - because machines speak different dialects
+ */
+const mapOrderType = (formType: FormOrderType): BackendOrderType => {
+  const typeMapping: Record<FormOrderType, BackendOrderType> = {
+    'market': 'market',
+    'limit': 'limit',
+    'stop': 'stop_loss',
+    'stop_limit': 'take_profit'
+  };
+  
+  return typeMapping[formType];
+};
 
 /**
  * ORDER PANEL - The cockpit of fortune
@@ -89,13 +108,13 @@ export const OrderPanel = ({
     reduceOnly: false
   });
   
-  // UI state
+  // UI state - the neural feedback loops
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showRiskCalculator, setShowRiskCalculator] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [riskPercentage, setRiskPercentage] = useState('1'); // 1% default risk
   
-  // Store connections
+  // Store connections - synaptic links to the hive mind
   const { marketData, getSymbolData } = useMarketStore();
   const { 
     accountBalance, 
@@ -257,12 +276,15 @@ export const OrderPanel = ({
     setIsSubmitting(true);
     
     try {
-      // Call Tauri backend
+      // Map the order type for backend compatibility
+      const backendOrderType = mapOrderType(formData.orderType);
+      
+      // Call Tauri backend with properly mapped type
       const orderId = await invoke<string>('place_order', {
         order: {
           symbol: formData.symbol,
           side: formData.side,
-          orderType: formData.orderType,
+          type: backendOrderType, // Use mapped type here
           quantity: parseFloat(formData.quantity),
           price: formData.orderType === 'market' ? null : parseFloat(formData.price),
           stopPrice: formData.stopPrice ? parseFloat(formData.stopPrice) : null,
@@ -272,7 +294,7 @@ export const OrderPanel = ({
         }
       });
       
-      // Success feedback
+      // Success feedback - the dopamine hit
       toast.success(`Order placed: ${orderId}`, {
         icon: formData.side === 'buy' ? '📈' : '📉',
         duration: 5000
@@ -289,7 +311,7 @@ export const OrderPanel = ({
       // Callback
       onOrderPlaced?.(orderId);
       
-      // Log for audit
+      // Log for audit trail
       console.log('Order placed:', {
         orderId,
         symbol: formData.symbol,
@@ -354,16 +376,17 @@ export const OrderPanel = ({
   return (
     <div className={`
       bg-gray-900/50 border border-cyan-900/30 rounded-lg
+      backdrop-blur-sm
       ${compact ? 'p-3' : 'p-4'}
     `}>
-      {/* Header */}
+      {/* Header - The Neural Command Center */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-cyan-400 flex items-center gap-2">
           <Zap className="w-5 h-5" />
-          ORDER ENTRY
+          ORDER MATRIX
         </h3>
         
-        {/* Risk indicator */}
+        {/* Risk indicator - Visual cortex for danger */}
         <div className="flex items-center gap-2">
           <div className={`
             px-2 py-1 rounded text-xs font-mono
@@ -374,33 +397,51 @@ export const OrderPanel = ({
             RISK: {riskMetrics.accountRisk.toFixed(1)}%
           </div>
           
-          {/* Panic close button */}
-          {currentPosition && (
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => {
-                setFormData(prev => ({
-                  ...prev,
-                  side: currentPosition.quantity > 0 ? 'sell' : 'buy',
-                  orderType: 'market',
-                  quantity: Math.abs(currentPosition.quantity).toString(),
-                  reduceOnly: true
-                }));
-                toast('⚠️ Panic close ready - confirm order', { 
-                  duration: 5000 
-                });
-              }}
-              className="px-3 py-1 bg-red-600 text-white rounded text-xs font-bold
-                       hover:bg-red-500 transition-colors"
+          {riskMetrics.marginRequired > accountBalance.available * 0.8 && (
+            <motion.div
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ duration: 1, repeat: Infinity }}
+              className="text-red-400"
             >
-              PANIC CLOSE
-            </motion.button>
+              <AlertCircle className="w-4 h-4" />
+            </motion.div>
           )}
         </div>
       </div>
       
-      {/* Buy/Sell Toggle */}
+      {/* Risk Metrics Display - The HUD */}
+      {!compact && formData.quantity && (
+        <div className="mb-4 p-3 bg-gray-800/50 rounded border border-gray-700">
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-gray-400">Position Value:</span>
+              <span className="text-white font-mono">
+                ${riskMetrics.positionValue.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Margin Required:</span>
+              <span className="text-white font-mono">
+                ${riskMetrics.marginRequired.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Max Loss:</span>
+              <span className="text-red-400 font-mono">
+                -${riskMetrics.potentialLoss.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Liquidation:</span>
+              <span className="text-orange-400 font-mono">
+                ${riskMetrics.liquidationPrice.toFixed(2)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Side Selection - The Binary Choice */}
       <div className="grid grid-cols-2 gap-2 mb-4">
         <button
           onClick={() => setFormData(prev => ({ ...prev, side: 'buy' }))}
@@ -429,35 +470,41 @@ export const OrderPanel = ({
         </button>
       </div>
       
-      {/* Order Type */}
+      {/* Order Type - Neural Pattern Selection */}
       <div className="mb-4">
-        <label className="block text-xs text-gray-400 mb-1">ORDER TYPE</label>
+        <label className="block text-xs text-gray-400 mb-1 uppercase tracking-wider">
+          Order Protocol
+        </label>
         <select
           value={formData.orderType}
           onChange={(e) => setFormData(prev => ({ 
             ...prev, 
-            orderType: e.target.value as any 
+            orderType: e.target.value as FormOrderType
           }))}
           className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2
-                   text-white focus:outline-none focus:border-cyan-500"
+                   text-white focus:outline-none focus:border-cyan-500
+                   transition-colors"
         >
-          <option value="market">Market</option>
-          <option value="limit">Limit</option>
-          <option value="stop">Stop</option>
+          <option value="market">Market Execute</option>
+          <option value="limit">Limit Order</option>
+          <option value="stop">Stop Loss</option>
           <option value="stop_limit">Stop Limit</option>
         </select>
       </div>
       
-      {/* Quantity */}
+      {/* Quantity - The Commitment */}
       <div className="mb-4">
         <div className="flex items-center justify-between mb-1">
-          <label className="text-xs text-gray-400">QUANTITY</label>
+          <label className="text-xs text-gray-400 uppercase tracking-wider">
+            Position Size
+          </label>
           <button
             onClick={() => setShowRiskCalculator(!showRiskCalculator)}
-            className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+            className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1
+                     transition-colors"
           >
             <Calculator className="w-3 h-3" />
-            Position Calculator
+            Neural Calculator
           </button>
         </div>
         
@@ -472,21 +519,22 @@ export const OrderPanel = ({
             placeholder="0.0000"
             className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2
                      text-white focus:outline-none focus:border-cyan-500
-                     pr-10"
+                     pr-10 font-mono transition-colors"
           />
           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
             {symbol.split('/')[0]}
           </span>
         </div>
         
-        {/* Quick presets */}
+        {/* Quick presets - Neural shortcuts */}
         <div className="grid grid-cols-4 gap-1 mt-2">
           {orderPresets.map(preset => (
             <button
               key={preset.label}
               onClick={() => applyQuantityPreset(preset.value)}
               className="py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs
-                       text-gray-400 hover:text-white transition-colors"
+                       text-gray-400 hover:text-white transition-all
+                       border border-gray-700 hover:border-cyan-600"
             >
               {preset.label}
             </button>
@@ -494,11 +542,11 @@ export const OrderPanel = ({
         </div>
       </div>
       
-      {/* Price (for limit orders) */}
+      {/* Price Input - The Strike Point */}
       {formData.orderType !== 'market' && (
         <div className="mb-4">
-          <label className="block text-xs text-gray-400 mb-1">
-            {formData.orderType === 'stop' ? 'STOP PRICE' : 'LIMIT PRICE'}
+          <label className="block text-xs text-gray-400 mb-1 uppercase tracking-wider">
+            {formData.orderType === 'stop' ? 'Stop Trigger' : 'Limit Price'}
           </label>
           <div className="relative">
             <input
@@ -511,7 +559,7 @@ export const OrderPanel = ({
               placeholder={currentPrice.toString()}
               className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2
                        text-white focus:outline-none focus:border-cyan-500
-                       pr-10"
+                       pr-10 font-mono transition-colors"
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
               {symbol.split('/')[1]}
@@ -520,10 +568,12 @@ export const OrderPanel = ({
         </div>
       )}
       
-      {/* Stop Price (for stop limit) */}
+      {/* Stop Price for stop limit orders */}
       {formData.orderType === 'stop_limit' && (
         <div className="mb-4">
-          <label className="block text-xs text-gray-400 mb-1">STOP TRIGGER</label>
+          <label className="block text-xs text-gray-400 mb-1 uppercase tracking-wider">
+            Stop Activation
+          </label>
           <input
             type="number"
             value={formData.stopPrice}
@@ -531,18 +581,21 @@ export const OrderPanel = ({
               ...prev, 
               stopPrice: e.target.value 
             }))}
-            placeholder="Stop price"
+            placeholder="Trigger price"
             className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2
-                     text-white focus:outline-none focus:border-cyan-500"
+                     text-white focus:outline-none focus:border-cyan-500
+                     font-mono transition-colors"
           />
         </div>
       )}
       
-      {/* Advanced Options */}
+      {/* Advanced Options - The Fine Tuning */}
       {!compact && (
         <div className="mb-4 space-y-2">
           <div className="flex items-center justify-between">
-            <label className="text-xs text-gray-400">TIME IN FORCE</label>
+            <label className="text-xs text-gray-400 uppercase tracking-wider">
+              Time Protocol
+            </label>
             <select
               value={formData.timeInForce}
               onChange={(e) => setFormData(prev => ({ 
@@ -550,7 +603,8 @@ export const OrderPanel = ({
                 timeInForce: e.target.value as any 
               }))}
               className="bg-gray-800 border border-gray-700 rounded px-2 py-1
-                       text-xs text-white focus:outline-none focus:border-cyan-500"
+                       text-xs text-white focus:outline-none focus:border-cyan-500
+                       transition-colors"
             >
               <option value="GTC">Good Till Cancel</option>
               <option value="IOC">Immediate or Cancel</option>
@@ -560,7 +614,8 @@ export const OrderPanel = ({
           </div>
           
           <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 text-xs text-gray-400">
+            <label className="flex items-center gap-2 text-xs text-gray-400
+                           hover:text-gray-300 cursor-pointer transition-colors">
               <input
                 type="checkbox"
                 checked={formData.postOnly}
@@ -568,12 +623,14 @@ export const OrderPanel = ({
                   ...prev, 
                   postOnly: e.target.checked 
                 }))}
-                className="rounded border-gray-700"
+                className="rounded border-gray-600 bg-gray-800 text-cyan-500
+                         focus:ring-cyan-500 focus:ring-offset-0"
               />
               Post Only
             </label>
             
-            <label className="flex items-center gap-2 text-xs text-gray-400">
+            <label className="flex items-center gap-2 text-xs text-gray-400
+                           hover:text-gray-300 cursor-pointer transition-colors">
               <input
                 type="checkbox"
                 checked={formData.reduceOnly}
@@ -581,7 +638,8 @@ export const OrderPanel = ({
                   ...prev, 
                   reduceOnly: e.target.checked 
                 }))}
-                className="rounded border-gray-700"
+                className="rounded border-gray-600 bg-gray-800 text-cyan-500
+                         focus:ring-cyan-500 focus:ring-offset-0"
               />
               Reduce Only
             </label>
@@ -589,95 +647,68 @@ export const OrderPanel = ({
         </div>
       )}
       
-      {/* Risk Metrics Display */}
-      <div className="mb-4 p-3 bg-gray-800/50 rounded space-y-2">
-        <div className="flex justify-between text-xs">
-          <span className="text-gray-400">Position Value:</span>
-          <span className="text-white font-mono">
-            ${riskMetrics.positionValue.toFixed(2)}
-          </span>
-        </div>
-        <div className="flex justify-between text-xs">
-          <span className="text-gray-400">Margin Required:</span>
-          <span className="text-white font-mono">
-            ${riskMetrics.marginRequired.toFixed(2)}
-          </span>
-        </div>
-        <div className="flex justify-between text-xs">
-          <span className="text-gray-400">Est. Liquidation:</span>
-          <span className={`font-mono ${
-            formData.side === 'buy' ? 'text-red-400' : 'text-green-400'
-          }`}>
-            ${riskMetrics.liquidationPrice.toFixed(2)}
-          </span>
-        </div>
-        {formData.stopPrice && (
-          <div className="flex justify-between text-xs">
-            <span className="text-gray-400">Max Loss:</span>
-            <span className="text-red-400 font-mono">
-              -${riskMetrics.potentialLoss.toFixed(2)}
-            </span>
-          </div>
-        )}
-      </div>
-      
-      {/* Risk Calculator Modal */}
+      {/* Risk Calculator - The Neural Network */}
       <AnimatePresence>
         {showRiskCalculator && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="mb-4 p-3 bg-cyan-900/20 rounded border border-cyan-900/50"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="mb-4 overflow-hidden"
           >
-            <h4 className="text-sm font-semibold text-cyan-400 mb-2 flex items-center gap-2">
-              <Brain className="w-4 h-4" />
-              Position Size Calculator
-            </h4>
-            
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs text-gray-400">Risk % of Account</label>
-                <input
-                  type="number"
-                  value={riskPercentage}
-                  onChange={(e) => setRiskPercentage(e.target.value)}
-                  min="0.1"
-                  max="10"
-                  step="0.1"
-                  className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1
-                           text-sm text-white focus:outline-none focus:border-cyan-500"
-                />
-              </div>
+            <div className="p-3 bg-gray-800/50 rounded border border-cyan-900/30">
+              <h4 className="text-sm font-semibold text-cyan-400 mb-3 flex items-center gap-2">
+                <Brain className="w-4 h-4" />
+                NEURAL POSITION CALCULATOR
+              </h4>
               
-              <div>
-                <label className="text-xs text-gray-400">Stop Loss Price</label>
-                <input
-                  type="number"
-                  value={formData.stopPrice}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    stopPrice: e.target.value 
-                  }))}
-                  placeholder="Enter stop loss"
-                  className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1
-                           text-sm text-white focus:outline-none focus:border-cyan-500"
-                />
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-gray-400">Risk % of Account</label>
+                  <input
+                    type="number"
+                    value={riskPercentage}
+                    onChange={(e) => setRiskPercentage(e.target.value)}
+                    min="0.1"
+                    max="10"
+                    step="0.1"
+                    className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1
+                             text-sm text-white focus:outline-none focus:border-cyan-500
+                             font-mono transition-colors"
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-xs text-gray-400">Stop Loss Price</label>
+                  <input
+                    type="number"
+                    value={formData.stopPrice}
+                    onChange={(e) => setFormData(prev => ({ 
+                      ...prev, 
+                      stopPrice: e.target.value 
+                    }))}
+                    placeholder="Enter stop loss"
+                    className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1
+                             text-sm text-white focus:outline-none focus:border-cyan-500
+                             font-mono transition-colors"
+                  />
+                </div>
+                
+                <button
+                  onClick={calculateSafePositionSize}
+                  className="w-full py-2 bg-cyan-600 hover:bg-cyan-500 rounded
+                           text-sm font-semibold text-white transition-all
+                           hover:shadow-lg hover:shadow-cyan-600/20"
+                >
+                  Calculate Safe Position
+                </button>
               </div>
-              
-              <button
-                onClick={calculateSafePositionSize}
-                className="w-full py-2 bg-cyan-600 hover:bg-cyan-500 rounded
-                         text-sm font-semibold text-white transition-colors"
-              >
-                Calculate Safe Position Size
-              </button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
       
-      {/* Submit Button */}
+      {/* Submit Button - The Execution Gateway */}
       <motion.button
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
@@ -702,7 +733,7 @@ export const OrderPanel = ({
             >
               <Gauge className="w-5 h-5" />
             </motion.div>
-            Processing...
+            PROCESSING...
           </>
         ) : showConfirmation ? (
           <>
@@ -711,52 +742,41 @@ export const OrderPanel = ({
           </>
         ) : (
           <>
-            {formData.side === 'buy' ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
-            PLACE {formData.side.toUpperCase()} ORDER
+            {formData.side === 'buy' ? 
+              <TrendingUp className="w-5 h-5" /> : 
+              <TrendingDown className="w-5 h-5" />
+            }
+            EXECUTE {formData.side.toUpperCase()}
           </>
         )}
       </motion.button>
       
-      {/* Warning for large orders */}
-      {riskMetrics.accountRisk > 5 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="mt-3 p-2 bg-yellow-900/30 border border-yellow-900/50 rounded"
+      {/* Emergency Close - The Panic Button */}
+      {currentPosition && !compact && (
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => {
+            // Set up a market close order
+            setFormData(prev => ({
+              ...prev,
+              side: currentPosition.side === 'long' ? 'sell' : 'buy',
+              orderType: 'market',
+              quantity: Math.abs(currentPosition.quantity).toString(),
+              reduceOnly: true
+            }));
+            // Auto-submit after a brief delay
+            setTimeout(handleSubmit, 100);
+          }}
+          className="w-full mt-2 py-2 bg-orange-600 hover:bg-orange-500 rounded
+                   text-sm font-semibold text-white transition-all
+                   hover:shadow-lg hover:shadow-orange-600/20
+                   flex items-center justify-center gap-2"
         >
-          <p className="text-xs text-yellow-400 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4" />
-            Large position size - {riskMetrics.accountRisk.toFixed(1)}% of account
-          </p>
-        </motion.div>
+          <Lock className="w-4 h-4" />
+          EMERGENCY CLOSE
+        </motion.button>
       )}
     </div>
   );
 };
-
-/**
- * TRADING WISDOM FROM THE PANEL:
- * 
- * 1. The panic button has saved more accounts than any other feature.
- *    When shit hits the fan, you need ONE CLICK to safety.
- * 
- * 2. Position sizing is THE MOST IMPORTANT feature. More traders
- *    blow up from position size than from being wrong on direction.
- * 
- * 3. Visual risk indicators work better than numbers. Red = danger
- *    is processed faster by the brain than "Risk: 15.7%"
- * 
- * 4. Fat finger protection is not optional. That confirmation dialog
- *    for large orders? It's saved millions in mistaken trades.
- * 
- * 5. Time in Force matters more than most realize. Post-only orders
- *    save fees. IOC prevents slippage. Learn them, use them.
- * 
- * Remember: This panel is the bridge between your analysis and your
- * P&L. Treat it with respect, and it will serve you well.
- * 
- * "The market is a device for transferring money from the impatient
- * to the patient." - Warren Buffett
- * 
- * But in crypto, patience is measured in milliseconds.
- */

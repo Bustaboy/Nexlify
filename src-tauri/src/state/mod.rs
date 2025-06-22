@@ -247,10 +247,19 @@ pub enum OrderSide {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum OrderType {
+// Basic order types
     Market,
     Limit,
-    StopLoss,
-    TakeProfit,
+    
+    // Standalone stop orders (for entering/exiting positions)
+    Stop,        // Triggers market order at stop price
+    StopLimit,   // Triggers limit order at stop price
+    
+    // Position-based protection (attached to existing positions)
+    StopLoss,    // Protective stop for existing position
+    TakeProfit,  // Profit target for existing position
+    
+    // Advanced order types
     IcebergOrder, // Hidden size orders
     NeuralOrder,  // AI-suggested orders
 }
@@ -324,6 +333,8 @@ impl TradingEngine {
         }
     }
     
+	
+	
     /// Place a new order - firing into the market matrix
     pub fn place_order(&self, order: Order) -> Result<String, StateError> {
         // Risk checks first - don't be a gonk

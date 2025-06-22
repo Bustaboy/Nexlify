@@ -1,18 +1,19 @@
 // src-tauri/src/commands/trading.rs
 // NEXLIFY TRADING ENGINE COMMANDS - Where decisions become destiny
-// Last sync: 2025-06-19 | "Every trade is a roll of the dice, but we load them first"
+// Last sync: 2025-06-22 | "Every trade is a roll of the dice, but we load them first"
 
 use tauri::State;
 use std::sync::Arc;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
-use tracing::{info, warn, error};
+use tracing::{debug, info, warn, error};
+use uuid::Uuid;
 
 use crate::state::{
     AppState, TradingEngine, 
     Order, OrderSide, OrderType, OrderStatus,
-    Position
+    Position, PositionSide
 };
 use super::{CommandResult, CommandError, validation};
 
@@ -30,6 +31,7 @@ pub async fn place_order(
     price: Option<f64>,
     stop_price: Option<f64>,
     time_in_force: Option<String>,
+    position_id: Option<String>, // For position-based orders
     metadata: Option<std::collections::HashMap<String, String>>,
     app_state: State<'_, Arc<RwLock<AppState>>>,
     trading_engine: State<'_, Arc<RwLock<TradingEngine>>>,
@@ -41,6 +43,9 @@ pub async fn place_order(
     if let Some(p) = price {
         validation::validate_price(p)?;
     }
+    if let Some(sp) = stop_price {
+        validation::validate_price(sp)?;
+    }
     
     // Parse order side - buying hope or selling fear?
     let side = match side.to_lowercase().as_str() {
@@ -51,7 +56,7 @@ pub async fn place_order(
         )),
     };
     
-    // Parse order type - how brave are you feeling?
+    // Parse order type - now with ALL the chrome!
     let order_type = match order_type.to_lowercase().as_str() {
         "market" => {
             if price.is_some() {
@@ -67,26 +72,68 @@ pub async fn place_order(
             }
             OrderType::Limit
         },
-        "stop_loss" | "stop-loss" => {
+        "stop" => {
+            // Standalone stop order - for breakouts and bailouts
             if stop_price.is_none() {
                 return Err(CommandError::TradingError(
-                    "Stop loss needs a trigger price. Gotta know when to cut and run.".to_string()
+                    "Stop order needs a trigger price. Gotta know when to pull the ripcord.".to_string()
+                ));
+            }
+            OrderType::Stop
+        },
+        "stop_limit" => {
+            // Standalone stop limit - controlled chaos
+            if stop_price.is_none() || price.is_none() {
+                return Err(CommandError::TradingError(
+                    "Stop limit needs both stop and limit prices. Set your boundaries, samurai.".to_string()
+                ));
+            }
+            OrderType::StopLimit
+        },
+        "stop_loss" => {
+            // Position protection - your safety net
+            if stop_price.is_none() {
+                return Err(CommandError::TradingError(
+                    "Stop loss needs a price. No protection without preparation.".to_string()
+                ));
+            }
+            if position_id.is_none() {
+                return Err(CommandError::TradingError(
+                    "Stop loss must be attached to a position. Can't protect what doesn't exist.".to_string()
                 ));
             }
             OrderType::StopLoss
         },
-        "take_profit" | "take-profit" => {
+        "take_profit" => {
+            // Position target - greed management
             if price.is_none() {
                 return Err(CommandError::TradingError(
                     "Take profit needs a target. Dreams without goals are just... dreams.".to_string()
                 ));
             }
+            if position_id.is_none() {
+                return Err(CommandError::TradingError(
+                    "Take profit must be attached to a position. No harvest without planting.".to_string()
+                ));
+            }
             OrderType::TakeProfit
         },
         _ => return Err(CommandError::TradingError(
-            format!("Unknown order type: {}. Stick to the classics, ese.", order_type)
+            format!("Unknown order type: {}. We've got market, limit, stop, stop_limit, stop_loss, and take_profit. Pick your poison.", order_type)
         )),
     };
+    
+    // Validate position-based orders have valid position
+    if matches!(order_type, OrderType::StopLoss | OrderType::TakeProfit) {
+        let engine = trading_engine.read();
+        if let Some(pos_id) = &position_id {
+            if !engine.positions.contains_key(pos_id) {
+                return Err(CommandError::TradingError(
+                    format!("Position {} not found. Can't protect ghosts.", pos_id)
+                ));
+            }
+        }
+    }
     
     // Check circuit breakers - sometimes the system saves you from yourself
     {
@@ -102,20 +149,27 @@ pub async fn place_order(
     }
     
     // Build the order - crafting our digital bullet
-    let order_id = format!("ORD-{}-{}", symbol, uuid::Uuid::new_v4());
+    let order_id = format!("ORD-{}-{}", symbol, Uuid::new_v4());
     let order = Order {
         id: order_id.clone(),
-        exchange: "coinbase".to_string(), // Would be dynamic in production
+        exchange: "nexlify".to_string(), // Would be dynamic in production
         symbol: symbol.clone(),
         side,
-        order_type,
+        order_type: order_type.clone(),
         price,
+        stop_price,
         quantity,
-        status: OrderStatus::Pending,
+        status: match order_type {
+            // Stop orders wait in the shadows
+            OrderType::Stop | OrderType::StopLimit | OrderType::StopLoss => OrderStatus::Open,
+            // Others execute immediately
+            _ => OrderStatus::Pending,
+        },
         created_at: Utc::now(),
         updated_at: Utc::now(),
         filled_quantity: 0.0,
         average_fill_price: None,
+        position_id,
         metadata: metadata.unwrap_or_default(),
     };
     
@@ -123,20 +177,31 @@ pub async fn place_order(
     let engine = trading_engine.write();
     engine.place_order(order.clone())?;
     
-    info!("🎯 Order placed: {} - {} {} @ {:?}", 
-          order_id, order.side.clone() as i32, quantity, price);
+    info!("🎯 Order placed: {} - {:?} {} {} @ {:?}/{:?}", 
+          order_id, order.order_type, order.side, quantity, price, stop_price);
     
-    // Simulate order execution for now - in production, this would hit the exchange
-    tokio::spawn(simulate_order_execution(order_id.clone(), trading_engine.inner().clone()));
+    // Simulate order execution for market/limit orders
+    // Stop orders wait for their trigger
+    if matches!(order.order_type, OrderType::Market | OrderType::Limit | OrderType::TakeProfit) {
+        tokio::spawn(simulate_order_execution(order_id.clone(), trading_engine.inner().clone()));
+    }
+    
+    // Build response with appropriate message
+    let message = match order.order_type {
+        OrderType::Market => "Market order fired. May the spreads be ever in your favor.".to_string(),
+        OrderType::Limit => "Limit order set. Patience is a virtue, FOMO is a vice.".to_string(),
+        OrderType::Stop => "Stop order armed. Ready to strike when the moment comes.".to_string(),
+        OrderType::StopLimit => "Stop limit locked and loaded. Precision over speed.".to_string(),
+        OrderType::StopLoss => "Stop loss activated. Your safety net is in place.".to_string(),
+        OrderType::TakeProfit => "Take profit set. Greed is good, but profits are better.".to_string(),
+        _ => "Order placed. Let's see what the market gods decide.".to_string(),
+    };
     
     Ok(PlaceOrderResponse {
         order_id,
         symbol,
-        status: "pending".to_string(),
-        message: match order.side {
-            OrderSide::Buy => "Buy order fired into the matrix. May the markets be with you.".to_string(),
-            OrderSide::Sell => "Sell order released. Sometimes letting go is winning.".to_string(),
-        },
+        status: order.status.to_string(),
+        message,
         estimated_fees: calculate_fees(quantity, price),
         risk_score: calculate_risk_score(&order),
         timestamp: Utc::now(),
@@ -206,8 +271,9 @@ pub async fn get_positions(
     symbol: Option<String>,
     include_closed: Option<bool>,
     trading_engine: State<'_, Arc<RwLock<TradingEngine>>>,
-) -> CommandResult<PositionsResponse> {
+) -> CommandResult<Vec<PositionInfo>> {
     let engine = trading_engine.read();
+    let include_closed = include_closed.unwrap_or(false);
     
     let positions: Vec<PositionInfo> = engine.positions
         .iter()
@@ -219,244 +285,204 @@ pub async fn get_positions(
             let health = calculate_position_health(position);
             
             PositionInfo {
-                position: position.clone(),
-                health_score: health.score,
-                health_status: health.status,
-                time_held: format_duration(Utc::now() - position.opened_at),
-                risk_metrics: calculate_position_risk(position),
+                id: entry.key().clone(),
+                symbol: position.symbol.clone(),
+                side: format!("{:?}", position.side),
+                quantity: position.quantity,
+                entry_price: position.entry_price,
+                current_price: position.current_price,
+                unrealized_pnl: position.unrealized_pnl,
+                realized_pnl: position.realized_pnl,
+                margin_used: position.margin_used,
+                health_score: health,
+                opened_at: position.opened_at,
+                last_updated: position.last_updated,
             }
         })
         .collect();
     
-    let total_value = positions.iter()
-        .map(|p| p.position.quantity * p.position.current_price)
-        .sum();
-    
-    let total_pnl = positions.iter()
-        .map(|p| p.position.unrealized_pnl)
-        .sum();
-    
-    info!("📊 Retrieved {} positions - Total value: ${:.2}", positions.len(), total_value);
-    let position_count = positions.len();
-    
-    Ok(PositionsResponse {
-        positions,
-        total_value,
-        total_pnl,
-        position_count,
-        margin_usage: calculate_margin_usage(&engine),
-        timestamp: Utc::now(),
-    })
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PositionsResponse {
-    pub positions: Vec<PositionInfo>,
-    pub total_value: f64,
-    pub total_pnl: f64,
-    pub position_count: usize,
-    pub margin_usage: f32, // Percentage
-    pub timestamp: DateTime<Utc>,
+    info!("📊 Retrieved {} positions", positions.len());
+    Ok(positions)
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PositionInfo {
-    pub position: Position,
-    pub health_score: f32, // 0-100
-    pub health_status: String, // "healthy", "warning", "danger", "critical"
-    pub time_held: String,
-    pub risk_metrics: RiskMetrics,
+    pub id: String,
+    pub symbol: String,
+    pub side: String,
+    pub quantity: f64,
+    pub entry_price: f64,
+    pub current_price: f64,
+    pub unrealized_pnl: f64,
+    pub realized_pnl: f64,
+    pub margin_used: f64,
+    pub health_score: f32, // 0-100, position health
+    pub opened_at: DateTime<Utc>,
+    pub last_updated: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RiskMetrics {
-    pub var_95: f64, // Value at Risk 95%
-    pub max_loss: f64,
-    pub correlation_risk: f32, // 0-100
-    pub liquidation_price: Option<f64>,
-}
-
-/// Get order history - learn from the past
+/// Close a position - sometimes you gotta cut and run
 /// 
-/// Every order tells a story. The wins teach confidence, the losses teach wisdom.
-/// I keep a journal of every trade - not just the numbers, but how I felt, what I saw.
-/// That journal? It's worth more than any trading algorithm.
+/// Closing a position is like ending a relationship. Sometimes it hurts,
+/// sometimes it's relief, but it's always necessary. The market doesn't
+/// care about your attachment to a trade.
 #[tauri::command]
-pub async fn get_order_history(
-    symbol: Option<String>,
-    start_date: Option<DateTime<Utc>>,
-    end_date: Option<DateTime<Utc>>,
-    limit: Option<usize>,
+pub async fn close_position(
+    position_id: String,
+    percentage: Option<f64>,
+    reason: Option<String>,
     trading_engine: State<'_, Arc<RwLock<TradingEngine>>>,
-) -> CommandResult<OrderHistoryResponse> {
-    let limit = limit.unwrap_or(100).min(1000);
-    let start = start_date.unwrap_or(Utc::now() - chrono::Duration::days(7));
-    let end = end_date.unwrap_or(Utc::now());
+) -> CommandResult<ClosePositionResponse> {
+    let percentage = percentage.unwrap_or(100.0);
+    if percentage <= 0.0 || percentage > 100.0 {
+        return Err(CommandError::TradingError(
+            "Percentage must be between 0 and 100. Can't close what doesn't exist.".to_string()
+        ));
+    }
     
     let engine = trading_engine.read();
-    let history = engine.order_history.read();
+    let position = engine.positions.get(&position_id)
+        .ok_or_else(|| CommandError::TradingError(
+            format!("Position {} not found. Already gone, choom?", position_id)
+        ))?;
     
-    let filtered_orders: Vec<OrderInfo> = history
-        .iter()
-        .filter(|order| {
-            let in_time_range = order.created_at >= start && order.created_at <= end;
-            let matches_symbol = symbol.as_ref().map_or(true, |s| &order.symbol == s);
-            in_time_range && matches_symbol
-        })
-        .rev() // Most recent first
-        .take(limit)
-        .map(|order| {
-            let execution_time = if matches!(order.status, OrderStatus::Filled) {
-                Some(order.updated_at - order.created_at)
-            } else {
-                None
-            };
-            
-            OrderInfo {
-                order: order.clone(),
-                execution_time_ms: execution_time.map(|d| d.num_milliseconds()),
-                slippage: calculate_slippage(order),
-                fees_paid: calculate_actual_fees(order),
-            }
-        })
-        .collect();
-    
-    // Calculate statistics - the report card
-    let stats = calculate_order_statistics(&filtered_orders);
-    
-    info!("📜 Retrieved {} orders from history", filtered_orders.len());
-    
-    Ok(OrderHistoryResponse {
-        orders: filtered_orders,
-        statistics: stats,
-        period_start: start,
-        period_end: end,
-        total_count: history.len(),
-    })
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct OrderHistoryResponse {
-    pub orders: Vec<OrderInfo>,
-    pub statistics: OrderStatistics,
-    pub period_start: DateTime<Utc>,
-    pub period_end: DateTime<Utc>,
-    pub total_count: usize,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct OrderInfo {
-    pub order: Order,
-    pub execution_time_ms: Option<i64>,
-    pub slippage: Option<f64>,
-    pub fees_paid: f64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct OrderStatistics {
-    pub total_orders: usize,
-    pub filled_orders: usize,
-    pub cancelled_orders: usize,
-    pub fill_rate: f32,
-    pub average_execution_time_ms: f64,
-    pub total_volume: f64,
-    pub total_fees: f64,
-}
-
-/// Calculate PnL - the moment of truth
-/// 
-/// PnL is like looking in the mirror after a street fight. Sometimes you won,
-/// sometimes you just survived. But those numbers? They don't lie. They're the
-/// only truth in this game of shadows and chrome.
-#[tauri::command]
-pub async fn calculate_pnl(
-    timeframe: String,
-    include_fees: Option<bool>,
-    trading_engine: State<'_, Arc<RwLock<TradingEngine>>>,
-) -> CommandResult<PnLResponse> {
-    let include_fees = include_fees.unwrap_or(true);
-    
-    let engine = trading_engine.read();
-    let pnl_tracker = engine.pnl_tracker.read();
-    
-    let timeframe_pnl = match timeframe.to_lowercase().as_str() {
-        "daily" | "day" | "1d" => pnl_tracker.daily_pnl,
-        "weekly" | "week" | "1w" => pnl_tracker.weekly_pnl,
-        "monthly" | "month" | "1m" => pnl_tracker.monthly_pnl,
-        "all" | "lifetime" => pnl_tracker.all_time_pnl,
-        _ => return Err(CommandError::TradingError(
-            "Invalid timeframe. Time is money, but it still needs proper labels.".to_string()
-        )),
+    let close_quantity = position.quantity * (percentage / 100.0);
+    let side = match position.side {
+        PositionSide::Long => OrderSide::Sell,
+        PositionSide::Short => OrderSide::Buy,
     };
     
-    // Calculate fees if requested
-    let total_fees = if include_fees {
-        calculate_period_fees(&engine, &timeframe)
-    } else {
-        0.0
+    info!("💔 Closing {}% of position {} - {}", percentage, position_id, 
+          reason.as_ref().unwrap_or(&"No reason given".to_string()));
+    
+    // Place market order to close
+    drop(engine); // Release read lock
+    
+    // Create closing order
+    let order_id = format!("CLOSE-{}-{}", position_id, Uuid::new_v4());
+    let mut engine = trading_engine.write();
+    
+    let close_order = Order {
+        id: order_id.clone(),
+        exchange: position.exchange.clone(),
+        symbol: position.symbol.clone(),
+        side,
+        order_type: OrderType::Market,
+        price: None,
+        stop_price: None,
+        quantity: close_quantity,
+        status: OrderStatus::Pending,
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+        filled_quantity: 0.0,
+        average_fill_price: None,
+        position_id: Some(position_id.clone()),
+        metadata: {
+            let mut meta = std::collections::HashMap::new();
+            meta.insert("close_reason".to_string(), reason.unwrap_or_else(|| "manual".to_string()));
+            meta.insert("close_percentage".to_string(), percentage.to_string());
+            meta
+        },
     };
     
-    let net_pnl = timeframe_pnl - total_fees;
+    engine.place_order(close_order)?;
     
-    // Emotional impact assessment - because numbers affect more than wallets
-    let emotional_impact = match net_pnl {
-        x if x > 1000.0 => "Euphoric - don't let it go to your head".to_string(),
-        x if x > 0.0 => "Positive - keep the discipline".to_string(),
-        x if x > -100.0 => "Minor loss - part of the game".to_string(),
-        x if x > -1000.0 => "Painful - time to review strategy".to_string(),
-        _ => "Critical - consider stepping back".to_string(),
-    };
-    
-    info!("💰 PnL calculated for {}: ${:.2} net", timeframe, net_pnl);
-    
-    Ok(PnLResponse {
-        timeframe,
-        gross_pnl: timeframe_pnl,
-        fees: total_fees,
-        net_pnl,
-        best_trade: pnl_tracker.best_trade.clone(),
-        worst_trade: pnl_tracker.worst_trade.clone(),
-        win_rate: pnl_tracker.win_rate,
-        sharpe_ratio: pnl_tracker.sharpe_ratio,
-        max_drawdown: pnl_tracker.max_drawdown,
-        emotional_impact,
+    Ok(ClosePositionResponse {
+        position_id,
+        order_id,
+        quantity_closed: close_quantity,
+        percentage_closed: percentage,
+        message: if percentage >= 100.0 {
+            "Position closed. On to the next battle.".to_string()
+        } else {
+            format!("Partial close executed. {}% still riding.", 100.0 - percentage)
+        },
         timestamp: Utc::now(),
     })
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct PnLResponse {
-    pub timeframe: String,
-    pub gross_pnl: f64,
-    pub fees: f64,
-    pub net_pnl: f64,
-    pub best_trade: Option<(String, f64)>,
-    pub worst_trade: Option<(String, f64)>,
-    pub win_rate: f32,
-    pub sharpe_ratio: f32,
-    pub max_drawdown: f32,
-    pub emotional_impact: String,
+pub struct ClosePositionResponse {
+    pub position_id: String,
+    pub order_id: String,
+    pub quantity_closed: f64,
+    pub percentage_closed: f64,
+    pub message: String,
     pub timestamp: DateTime<Utc>,
 }
 
-// Helper functions - the tools of survival
+/// Get P&L report - the scoreboard of war
+/// 
+/// P&L is truth. Everything else is noise. Green days feel like chrome,
+/// red days feel like rust. But remember - it's not about winning every
+/// battle, it's about winning the war.
+#[tauri::command]
+pub async fn get_pnl_report(
+    period: Option<String>,
+    trading_engine: State<'_, Arc<RwLock<TradingEngine>>>,
+) -> CommandResult<PnLReport> {
+    let engine = trading_engine.read();
+    let pnl = engine.pnl_tracker.read();
+    
+    let period = period.unwrap_or_else(|| "daily".to_string());
+    
+    let (period_pnl, period_label) = match period.as_str() {
+        "daily" => (pnl.daily_pnl, "Today"),
+        "weekly" => (pnl.weekly_pnl, "This Week"),
+        "monthly" => (pnl.monthly_pnl, "This Month"),
+        "all" => (pnl.all_time_pnl, "All Time"),
+        _ => (pnl.daily_pnl, "Today"),
+    };
+    
+    Ok(PnLReport {
+        period: period_label.to_string(),
+        pnl: period_pnl,
+        win_rate: pnl.win_rate,
+        sharpe_ratio: pnl.sharpe_ratio,
+        max_drawdown: pnl.max_drawdown,
+        best_trade: pnl.best_trade.clone(),
+        worst_trade: pnl.worst_trade.clone(),
+        message: match period_pnl {
+            p if p > 1000.0 => "Crushing it! The chrome shines bright today. 🚀".to_string(),
+            p if p > 0.0 => "Green is good. Keep the discipline, avoid the greed. 📈".to_string(),
+            p if p > -500.0 => "Red day, but still breathing. Tomorrow's another fight. 💪".to_string(),
+            _ => "Rough waters. Remember: preservation over profit. 🛡️".to_string(),
+        },
+        timestamp: Utc::now(),
+    })
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PnLReport {
+    pub period: String,
+    pub pnl: f64,
+    pub win_rate: f32,
+    pub sharpe_ratio: f32,
+    pub max_drawdown: f32,
+    pub best_trade: Option<(String, f64)>,
+    pub worst_trade: Option<(String, f64)>,
+    pub message: String,
+    pub timestamp: DateTime<Utc>,
+}
+
+// === HELPER FUNCTIONS ===
 
 /// Perform risk check before placing order
 fn perform_risk_check(
-    engine: &Arc<RwLock<TradingEngine>>,
+    engine: &State<'_, Arc<RwLock<TradingEngine>>>,
     symbol: &str,
     side: OrderSide,
     quantity: f64,
     price: Option<f64>,
-) -> Result<(), CommandError> {
+) -> CommandResult<()> {
     let engine = engine.read();
     let risk_params = engine.risk_params.read();
     
-    // Check max position size
-    let position_value = quantity * price.unwrap_or(50000.0); // Use a default for market orders
+    // Check position size limits
+    let position_value = quantity * price.unwrap_or(50000.0);
     if position_value > risk_params.max_position_size {
         return Err(CommandError::TradingError(
-            format!("Position size ${:.2} exceeds max ${:.2}. Even cowboys have limits.", 
+            format!("Position size ${:.2} exceeds limit ${:.2}. Even chrome has limits.", 
                     position_value, risk_params.max_position_size)
         ));
     }
@@ -465,173 +491,74 @@ fn perform_risk_check(
     let pnl = engine.pnl_tracker.read();
     if pnl.daily_pnl < -risk_params.max_daily_loss {
         return Err(CommandError::TradingError(
-            format!("Daily loss limit reached: ${:.2}. Time to walk away, hermano.", 
-                    risk_params.max_daily_loss)
+            "Daily loss limit reached. The market has spoken - fight another day.".to_string()
         ));
     }
     
-    // Check if symbol is allowed
-    if !risk_params.allowed_symbols.contains(&symbol.to_string()) {
+    // Check symbol restrictions
+    if risk_params.banned_symbols.contains(&symbol.to_string()) {
         return Err(CommandError::TradingError(
-            format!("{} not in allowed symbols. Stick to the plan.", symbol)
+            format!("Symbol {} is restricted. Some battles aren't worth fighting.", symbol)
         ));
     }
     
     Ok(())
 }
 
-/// Calculate position health - like a medical checkup for your trades
-fn calculate_position_health(position: &Position) -> PositionHealth {
-    let pnl_percent = (position.unrealized_pnl / (position.quantity * position.entry_price)) * 100.0;
+/// Calculate position health score
+fn calculate_position_health(position: &Position) -> f32 {
+    let pnl_percent = (position.unrealized_pnl / (position.entry_price * position.quantity)) * 100.0;
+    let time_held = Utc::now().signed_duration_since(position.opened_at).num_hours() as f32;
     
-    let (score, status) = match pnl_percent {
-        x if x > 10.0 => (90.0, "healthy"),
-        x if x > 0.0 => (70.0, "stable"),
-        x if x > -5.0 => (50.0, "warning"),
-        x if x > -10.0 => (30.0, "danger"),
-        _ => (10.0, "critical"),
-    };
-    
-    PositionHealth { score, status: status.to_string() }
+    // Health based on P&L and time
+    match pnl_percent {
+        p if p > 5.0 => 100.0,
+        p if p > 0.0 => 80.0 + (p * 4.0),
+        p if p > -2.0 => 60.0 + (p * 10.0),
+        p if p > -5.0 => 40.0 + (p * 4.0),
+        _ => (20.0 + pnl_percent).max(0.0),
+    }
 }
 
-struct PositionHealth {
-    score: f32,
-    status: String,
-}
-
-/// Calculate various fees
+/// Calculate estimated fees
 fn calculate_fees(quantity: f64, price: Option<f64>) -> f64 {
     let value = quantity * price.unwrap_or(50000.0);
-    value * 0.006 // 0.6% taker fee
+    value * 0.001 // 0.1% taker fee
 }
 
-fn calculate_actual_fees(order: &Order) -> f64 {
-    if order.filled_quantity > 0.0 {
-        let value = order.filled_quantity * order.average_fill_price.unwrap_or(0.0);
-        value * 0.006
-    } else {
-        0.0
-    }
-}
-
-/// Calculate order slippage
-fn calculate_slippage(order: &Order) -> Option<f64> {
-    match (&order.price, &order.average_fill_price) {
-        (Some(expected), Some(actual)) => Some((actual - expected).abs()),
-        _ => None,
-    }
-}
-
-/// Risk score calculation - how spicy is this trade?
+/// Calculate risk score for an order
 fn calculate_risk_score(order: &Order) -> f32 {
-    let mut score = 0.0;
-    
-    // Order type risk
-    score += match order.order_type {
-        OrderType::Market => 30.0, // Market orders are risky
+    let base_score = match order.order_type {
+        OrderType::Market => 30.0,
         OrderType::Limit => 10.0,
-        OrderType::StopLoss => 5.0, // Stop losses are protective
+        OrderType::Stop => 40.0,
+        OrderType::StopLimit => 35.0,
+        OrderType::StopLoss => 5.0,
         OrderType::TakeProfit => 5.0,
-        _ => 20.0,
+        _ => 50.0,
     };
     
-    // Size risk (assuming $50k position is "normal")
-    let position_value = order.quantity * order.price.unwrap_or(50000.0);
-    score += (position_value / 50000.0 * 20.0).min(40.0);
+    // Adjust for order size (simplified)
+    let size_multiplier = (order.quantity * order.price.unwrap_or(50000.0) / 10000.0).min(2.0);
     
-    // Volatility risk (would use real vol data in production)
-    score += 20.0; // Placeholder
-    
-    score.min(100.0) as f32
+    (base_score * size_multiplier).min(100.0)
 }
 
-/// Format duration for human reading
-fn format_duration(duration: chrono::Duration) -> String {
-    if duration.num_days() > 0 {
-        format!("{}d {}h", duration.num_days(), duration.num_hours() % 24)
-    } else if duration.num_hours() > 0 {
-        format!("{}h {}m", duration.num_hours(), duration.num_minutes() % 60)
-    } else {
-        format!("{}m", duration.num_minutes())
-    }
-}
-
-/// Position risk calculations
-fn calculate_position_risk(position: &Position) -> RiskMetrics {
-    // These would use proper risk models in production
-    RiskMetrics {
-        var_95: position.quantity * position.current_price * 0.05, // 5% VaR
-        max_loss: position.quantity * position.entry_price, // Total investment
-        correlation_risk: 25.0, // Placeholder
-        liquidation_price: if position.margin_used > 0.0 {
-            Some(position.entry_price * 0.7) // 30% drop
-        } else {
-            None
-        },
-    }
-}
-
-/// Calculate margin usage across all positions
-fn calculate_margin_usage(engine: &TradingEngine) -> f32 {
-    let total_margin: f64 = engine.positions.iter()
-        .map(|entry| entry.value().margin_used)
-        .sum();
+/// Simulate order execution (for development)
+async fn simulate_order_execution(
+    order_id: String,
+    trading_engine: Arc<RwLock<TradingEngine>>,
+) {
+    // Simulate network delay
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
     
-    // Assuming $10k account size - would be dynamic
-    (total_margin / 10000.0 * 100.0) as f32
-}
-
-/// Calculate order statistics
-fn calculate_order_statistics(orders: &[OrderInfo]) -> OrderStatistics {
-    let filled = orders.iter().filter(|o| matches!(o.order.status, OrderStatus::Filled)).count();
-    let cancelled = orders.iter().filter(|o| matches!(o.order.status, OrderStatus::Cancelled)).count();
-    
-    let avg_execution = orders.iter()
-        .filter_map(|o| o.execution_time_ms)
-        .collect::<Vec<_>>();
-    
-    let avg_execution_time = if !avg_execution.is_empty() {
-        avg_execution.iter().sum::<i64>() as f64 / avg_execution.len() as f64
-    } else {
-        0.0
-    };
-    
-    OrderStatistics {
-        total_orders: orders.len(),
-        filled_orders: filled,
-        cancelled_orders: cancelled,
-        fill_rate: if orders.is_empty() { 0.0 } else { (filled as f32 / orders.len() as f32) * 100.0 },
-        average_execution_time_ms: avg_execution_time,
-        total_volume: orders.iter().map(|o| o.order.quantity * o.order.price.unwrap_or(0.0)).sum(),
-        total_fees: orders.iter().map(|o| o.fees_paid).sum(),
-    }
-}
-
-/// Calculate fees for a period
-fn calculate_period_fees(engine: &TradingEngine, timeframe: &str) -> f64 {
-    // Simplified - would calculate based on actual timeframe
-    let orders = engine.order_history.read();
-    orders.iter()
-        .filter(|o| matches!(o.status, OrderStatus::Filled))
-        .map(|o| calculate_actual_fees(o))
-        .sum()
-}
-
-/// Simulate order execution - in production this would be the exchange connector
-async fn simulate_order_execution(order_id: String, engine: Arc<RwLock<TradingEngine>>) {
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-    
-    // Simulate fill
-    if let Some((_, mut order)) = engine.write().active_orders.remove(&order_id) {
+    let mut engine = trading_engine.write();
+    if let Some(mut order) = engine.active_orders.get_mut(&order_id) {
         order.status = OrderStatus::Filled;
         order.filled_quantity = order.quantity;
-        order.average_fill_price = order.price.or(Some(50000.0)); // Mock price
+        order.average_fill_price = Some(order.price.unwrap_or(50000.0));
         order.updated_at = Utc::now();
         
-        info!("✅ Order {} filled at {:?}", order_id, order.average_fill_price);
-        
-        // Update position
-        // This would create/update actual positions in production
+        info!("✅ Order {} filled @ {}", order_id, order.average_fill_price.unwrap());
     }
 }
