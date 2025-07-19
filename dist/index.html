@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#FF00FF" />
+    <meta name="description" content="Nexlify Neural Trading Terminal - Where AI meets the market in Night City" />
+    
+    <!-- Prevent Flash of Unstyled Content -->
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: #0A0A0A;
+        color: #FFFFFF;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      
+      /* Cyberpunk loading screen */
+      #loading-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: #0A0A0A;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.5s ease-out;
+      }
+      
+      .neural-loader {
+        width: 120px;
+        height: 120px;
+        position: relative;
+      }
+      
+      .neural-loader::before,
+      .neural-loader::after {
+        content: '';
+        position: absolute;
+        border: 2px solid transparent;
+        border-top-color: #FF00FF;
+        border-right-color: #00FFFF;
+        border-radius: 50%;
+        animation: neural-spin 1.5s linear infinite;
+      }
+      
+      .neural-loader::before {
+        width: 100%;
+        height: 100%;
+        animation-duration: 2s;
+      }
+      
+      .neural-loader::after {
+        width: 80%;
+        height: 80%;
+        top: 10%;
+        left: 10%;
+        animation-direction: reverse;
+        border-top-color: #00FFFF;
+        border-right-color: #FF1493;
+      }
+      
+      @keyframes neural-spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      
+      .loading-text {
+        position: absolute;
+        bottom: -40px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 14px;
+        color: #00FFFF;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        opacity: 0.8;
+      }
+      
+      /* Prevent scrollbar flash */
+      html {
+        overflow-y: scroll;
+        scrollbar-width: thin;
+        scrollbar-color: #FF00FF #1A1A2E;
+      }
+      
+      html::-webkit-scrollbar {
+        width: 8px;
+      }
+      
+      html::-webkit-scrollbar-track {
+        background: #1A1A2E;
+      }
+      
+      html::-webkit-scrollbar-thumb {
+        background: #FF00FF;
+        border-radius: 4px;
+      }
+      
+      html::-webkit-scrollbar-thumb:hover {
+        background: #FF1493;
+      }
+    </style>
+    
+    <title>Nexlify Terminal</title>
+    <script type="module" crossorigin src="/assets/index-B7ZCaoFV.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-BSRYYm_l.css">
+  </head>
+  <body>
+    <!-- Loading screen shown before React mounts -->
+    <div id="loading-screen">
+      <div class="neural-loader">
+        <div class="loading-text">Neural Link</div>
+      </div>
+    </div>
+    
+    <!-- React root -->
+    <div id="root"></div>
+    
+    <!-- Entry point for Vite -->
+    
+    <script>
+      // Remove loading screen once React is ready
+      window.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+          const loader = document.getElementById('loading-screen');
+          if (loader) {
+            loader.style.opacity = '0';
+            setTimeout(() => loader.remove(), 500);
+          }
+        }, 1000);
+      });
+      
+      // Prevent context menu in production
+      if (!import.meta.env.DEV) {
+        document.addEventListener('contextmenu', (e) => e.preventDefault());
+      }
+    </script>
+  </body>
+</html>
