@@ -1,2 +1,662 @@
 /node_modules/.pnpm
 /node_modules
+# 🌃 NEXLIFY .gitignore - CYBERPUNK TRADING MATRIX
+# Location: /.gitignore
+# Purpose: Keep the corpo trash out of our neural network
+
+# ============================================
+# 🧠 PYTHON NEURAL CORES
+# ============================================
+
+# Byte-compiled / optimized / DLL files - corpo surveillance code
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions - augmented binaries
+*.so
+
+# Distribution / packaging - black market goods
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller - street samurai bundles
+*.manifest
+*.spec
+
+# Installer logs - trace evidence
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports - netrunner diagnostics
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations - babel fish modules
+*.mo
+*.pot
+
+# Django stuff - legacy corpo framework
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff - lightweight neural interface
+instance/
+.webassets-cache
+
+# Scrapy stuff - data extraction cyberware
+.scrapy
+
+# Sphinx documentation - technical readouts
+docs/_build/
+
+# PyBuilder - construction drones
+.pybuilder/
+target/
+
+# Jupyter Notebook - braindance recordings
+.ipynb_checkpoints
+
+# IPython - interactive neural link
+profile_default/
+ipython_config.py
+
+# pyenv - environment isolation chambers
+.python-version
+
+# pipenv - dependency injectors
+Pipfile.lock
+
+# poetry - package harmonics
+poetry.lock
+
+# pdm - parallel dimension manager
+pdm.lock
+.pdm.toml
+__pypackages__/
+
+# PEP 582 - future tech
+__pypackages__/
+
+# Celery stuff - distributed consciousness
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files - quantum calculations
+*.sage.py
+
+# Environments - virtual reality constructs
+.env
+.env.local
+.env.*.local
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings - spider bot configs
+.spyderproject
+.spyproject
+
+# Rope project settings - grappling hook data
+.ropeproject
+
+# mkdocs documentation - street doc archives
+/site
+
+# mypy - type enforcement cyberware
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker - fire wall
+.pyre/
+
+# pytype static type analyzer - ice breaker
+.pytype/
+
+# Cython debug symbols - chrome debugging
+cython_debug/
+
+# ============================================
+# 🔮 NODE.JS MATRIX INTERFACE
+# ============================================
+
+# Logs - digital breadcrumbs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Diagnostic reports - system scans
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Runtime data - volatile memory
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Directory for instrumented libs - modded components
+lib-cov
+
+# Coverage directory - shield integrity
+coverage
+*.lcov
+
+# nyc test coverage - night city coverage
+.nyc_output
+
+# Grunt intermediate storage - heavy lifting
+.grunt
+
+# Bower dependency directory - old tech
+bower_components
+
+# node-waf configuration - firewall config
+.lock-wscript
+
+# Compiled binary addons - chrome implants
+build/Release
+
+# Dependency directories - supply chain
+node_modules/
+jspm_packages/
+
+# Snowpack dependency directory - ice protocols
+web_modules/
+
+# TypeScript cache - memory shards
+*.tsbuildinfo
+
+# Optional npm cache directory - stash house
+.npm
+
+# Optional eslint cache - style enforcer
+.eslintcache
+
+# Optional stylelint cache - fashion police
+.stylelintcache
+
+# Microbundle cache - micro transactions
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history - command logs
+.node_repl_history
+
+# Output of 'npm pack' - smuggled packages
+*.tgz
+
+# Yarn Integrity file - yarn ball
+.yarn-integrity
+
+# dotenv environment variable files - secret codes
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# parcel-bundler cache - package cache
+.parcel-cache
+
+# Next.js build output - next gen builds
+.next
+out
+
+# Nuxt.js build / generate output - nuke builds
+.nuxt
+dist
+
+# Gatsby files - gatsby plasma
+.cache/
+
+# vuepress build output - vue port
+.vuepress/dist
+
+# vuepress v2.x temp and cache - vue port v2
+.temp
+.cache
+
+# Docusaurus cache and generated files - doc bot
+.docusaurus
+
+# Serverless directories - cloud nine
+.serverless/
+
+# FuseBox cache - fusion core
+.fusebox/
+
+# DynamoDB Local files - local db
+.dynamodb/
+
+# TernJS port file - tern protocols
+.tern-port
+
+# Stores VSCode versions - code history
+.vscode-test
+
+# yarn v2 - yarn protocols
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# ============================================
+# 🦀 RUST CYBERWARE (TAURI)
+# ============================================
+
+# Generated by Cargo - cargo manifest
+/target/
+**/*.rs.bk
+
+# Remove Cargo.lock from gitignore if creating an executable
+# Cargo.lock
+
+# MSVC Windows builds - corpo builds
+*.pdb
+
+# Tauri generated - neural interface
+src-tauri/target/
+src-tauri/WixTools/
+
+# ============================================
+# 🐳 DOCKER MATRIX CONTAINERS
+# ============================================
+
+# Docker project files - container blueprints
+docker-compose.override.yml
+docker-compose.*.yml
+!docker-compose.yml
+!compose.yaml
+!compose/*.yaml
+
+# Docker volumes - data vaults
+volumes/
+docker-volumes/
+
+# ============================================
+# ☸️ K3S CLUSTER CONSCIOUSNESS
+# ============================================
+
+# K3s data - cluster memory
+k3s-data/
+.kube/
+kubeconfig*
+
+# Helm charts - navigation charts
+charts/*.tgz
+**/charts/*.tgz
+
+# Manifests with secrets - encrypted manifests
+*-secret.yaml
+*-secrets.yaml
+
+# ============================================
+# 📊 DATABASES - MEMORY BANKS
+# ============================================
+
+# SQLite - local memory
+*.sqlite
+*.sqlite3
+*.db
+
+# PostgreSQL - postgres dumps
+*.sql
+*.dump
+
+# QuestDB - time series vaults
+questdb-data/
+questdb-root/
+
+# Redis/Valkey - cache matrix
+dump.rdb
+appendonly.aof
+
+# ============================================
+# 🤖 ML/AI NEURAL NETWORKS
+# ============================================
+
+# Model files - trained consciousness
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.pt
+*.pth
+*.onnx
+*.tflite
+*.pb
+
+# Model checkpoints - save states
+checkpoints/
+checkpoint/
+*.ckpt*
+
+# Tensorboard - neural visualizer
+runs/
+tensorboard/
+
+# MLflow - experiment tracker
+mlruns/
+mlflow.db
+
+# ============================================
+# 💻 IDE AUGMENTATIONS
+# ============================================
+
+# JetBrains - corpo IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+.idea_modules/
+
+# Visual Studio Code - street coder
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+*.code-workspace
+
+# Visual Studio - heavy artillery
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Sublime Text - sublime interface
+*.sublime-workspace
+*.sublime-project
+
+# Vim - netrunner's choice
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+Session.vim
+Sessionx.vim
+.netrwhist
+*~
+tags
+[._]*.un~
+
+# Emacs - old school
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+.org-id-locations
+*_archive
+*_flymake.*
+/eshell/history
+/eshell/lastdir
+/elpa/
+*.rel
+/auto/
+.cask/
+dist/
+flycheck_*.el
+/server/
+.projectile
+.dir-locals.el
+/network-security.data
+
+# ============================================
+# 🔐 SECURITY - BLACK ICE
+# ============================================
+
+# Private keys - neural keys
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Certificates - identity chips
+*.crt
+*.cer
+*.der
+
+# Secrets - shadow files
+secrets/
+.secrets/
+*-secret.*
+*-secrets.*
+
+# API Keys - access codes
+.api_keys
+api_keys.json
+api_keys.yml
+
+# ============================================
+# 📱 MOBILE - PORTABLE DECKS
+# ============================================
+
+# React Native - mobile neural interface
+*.hprof
+.gradle/
+android/app/build/
+android/.gradle/
+ios/Pods/
+ios/build/
+
+# Expo - expo protocols
+.expo/
+.expo-shared/
+
+# ============================================
+# 🎮 MISC CORPO TRASH
+# ============================================
+
+# OS generated - system droppings
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Temporary files - temp memory
+*.tmp
+*.temp
+*.swp
+*.bak
+*.backup
+*.old
+~*
+
+# Compressed files - packed data
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Logs and databases - trace files
+*.log
+*.sql
+*.sqlite
+
+# Build artifacts - construction debris
+build/
+dist/
+out/
+target/
+bin/
+obj/
+
+# Package files - supply crates
+*.jar
+*.war
+*.nar
+*.ear
+
+# Large files - data dumps
+*.csv
+!config/**/*.csv
+*.xlsx
+*.xls
+!templates/**/*.xlsx
+
+# ============================================
+# 🏗️ PROJECT SPECIFIC - NEXLIFY PROTOCOL
+# ============================================
+
+# Local configuration - personal mods
+config/local/
+config/*.local.*
+
+# User data - personal stash
+data/user/
+data/personal/
+
+# Backups - save states
+backups/
+archive/old-frontend-*/
+
+# Trading logs - transaction history
+logs/trades/
+logs/orders/
+
+# Model outputs - prediction dumps
+outputs/
+predictions/
+results/
+
+# Cache directories - speed stash
+.cache/
+cache/
+__cache__/
+
+# Session files - connection data
+sessions/
+.session
+
+# Wallet files - DO NOT COMMIT
+wallets/
+.wallet
+*.wallet
+
+# Exchange credentials - NEVER COMMIT
+exchange_creds/
+*_credentials.json
+
+# Performance reports - benchmark data
+benchmarks/
+performance/
+
+# Test artifacts - test debris
+test-results/
+cypress/videos/
+cypress/screenshots/
+
+# Documentation builds - doc compiles
+docs/build/
+docs/_build/
+site/
+
+# Pulumi state - infrastructure memory
+Pulumi.*.yaml
+!Pulumi.yaml
+.pulumi/
+
+# Terraform state - old infrastructure
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# ============================================
+# 🔥 KEEP THESE - CHROME COMPONENTS
+# ============================================
+
+# Configuration templates - blueprints
+!config/**/example.*
+!config/**/*.example
+!.env.example
+
+# Documentation - street knowledge
+!docs/
+!README.md
+!CONTRIBUTING.md
+!LICENSE
+
+# Important scripts - neural commands
+!scripts/create_structure.py
+!scripts/setup_database.py
+!launchers/
+
+# Core source - the chrome
+!src/
+!gui/
+!api/
+
+# Tests - quality assurance
+!tests/
+!__tests__/
+
+# Docker configs - container specs
+!Dockerfile
+!docker-compose.yml
+!compose.yaml
+
+# K3s manifests - cluster configs
+!k3s/manifests/
+
+# CI/CD - automation protocols
+!.github/
+!.gitlab-ci.yml
+!.travis.yml
+
+# ============================================
+# END TRANSMISSION - STAY CHROME, CHOOMBAS
+# ============================================
