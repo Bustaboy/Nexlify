@@ -1,0 +1,201 @@
+{
+  "// Location": "nexlify/configs/fusionbench.json",
+  "// Description": "Trinity FusionBench Configuration - Adaptive Consciousness Settings",
+  
+  "trinity_modules": {
+    "market_oracle": {
+      "model_path": "models/market_oracle_v1.onnx",
+      "precision_modes": ["fp32", "fp16", "int8"],
+      "batch_size_range": [1, 64],
+      "sequence_length_range": [128, 4096],
+      "latency_target_ms": 5.0,
+      "priority": "high"
+    },
+    "crowd_psyche": {
+      "model_path": "models/crowd_psyche_v1.onnx",
+      "precision_modes": ["fp32", "fp16", "int8"],
+      "batch_size_range": [1, 128],
+      "sequence_length_range": [64, 2048],
+      "latency_target_ms": 10.0,
+      "priority": "medium"
+    },
+    "city_pulse": {
+      "model_path": "models/city_pulse_v1.onnx",
+      "precision_modes": ["fp32", "fp16", "int8"],
+      "batch_size_range": [1, 256],
+      "sequence_length_range": [32, 1024],
+      "latency_target_ms": 15.0,
+      "priority": "low"
+    }
+  },
+  
+  "fusion_settings": {
+    "target_latency_ms": 6.5,
+    "algorithms": [
+      "weighted_fusion",
+      "attention_fusion",
+      "neural_merge",
+      "cascade_fusion",
+      "quantum_entangle"
+    ],
+    "default_algorithm": "cascade_fusion"
+  },
+  
+  "hardware_profiles": {
+    "mobile_npu": {
+      "default_precision": "int8",
+      "max_batch_size": 4,
+      "max_sequence_length": 256,
+      "thermal_limit_celsius": 45,
+      "power_limit_watts": 3
+    },
+    "mobile_gpu": {
+      "default_precision": "int8",
+      "max_batch_size": 8,
+      "max_sequence_length": 512,
+      "thermal_limit_celsius": 50,
+      "power_limit_watts": 5
+    },
+    "integrated": {
+      "default_precision": "fp16",
+      "max_batch_size": 16,
+      "max_sequence_length": 1024,
+      "thermal_limit_celsius": 70,
+      "power_limit_watts": 25
+    },
+    "entry_gpu": {
+      "default_precision": "fp16",
+      "max_batch_size": 32,
+      "max_sequence_length": 1024,
+      "thermal_limit_celsius": 75,
+      "power_limit_watts": 75
+    },
+    "mid_gpu": {
+      "default_precision": "fp16",
+      "max_batch_size": 64,
+      "max_sequence_length": 2048,
+      "thermal_limit_celsius": 80,
+      "power_limit_watts": 175
+    },
+    "high_gpu": {
+      "default_precision": "fp32",
+      "max_batch_size": 128,
+      "max_sequence_length": 4096,
+      "thermal_limit_celsius": 83,
+      "power_limit_watts": 320
+    },
+    "ultra_gpu": {
+      "default_precision": "fp32",
+      "max_batch_size": 256,
+      "max_sequence_length": 8192,
+      "thermal_limit_celsius": 85,
+      "power_limit_watts": 450
+    },
+    "multi_gpu": {
+      "default_precision": "fp32",
+      "max_batch_size": 512,
+      "max_sequence_length": 16384,
+      "thermal_limit_celsius": 85,
+      "power_limit_watts": 900
+    },
+    "cpu_only": {
+      "default_precision": "int8",
+      "max_batch_size": 2,
+      "max_sequence_length": 256,
+      "thermal_limit_celsius": 90,
+      "power_limit_watts": 65
+    }
+  },
+  
+  "benchmark_tasks": {
+    "comprehensive": [
+      "market_manipulation_detection",
+      "crowd_sentiment_analysis",
+      "infrastructure_cascade_prediction",
+      "neural_fusion_coherence",
+      "attention_consistency",
+      "cross_modal_alignment",
+      "consciousness_emergence"
+    ],
+    "quick": [
+      "neural_fusion_coherence",
+      "consciousness_emergence"
+    ],
+    "stress": [
+      "market_manipulation_detection",
+      "infrastructure_cascade_prediction"
+    ]
+  },
+  
+  "thermal_management": {
+    "cool": {
+      "temperature_range": [0, 60],
+      "action": "boost_performance",
+      "precision_upgrade": true,
+      "batch_size_multiplier": 1.2
+    },
+    "normal": {
+      "temperature_range": [60, 75],
+      "action": "maintain",
+      "precision_upgrade": false,
+      "batch_size_multiplier": 1.0
+    },
+    "warm": {
+      "temperature_range": [75, 85],
+      "action": "reduce_precision",
+      "precision_upgrade": false,
+      "batch_size_multiplier": 0.8
+    },
+    "critical": {
+      "temperature_range": [85, 100],
+      "action": "emergency_throttle",
+      "precision_upgrade": false,
+      "batch_size_multiplier": 0.5
+    }
+  },
+  
+  "mesh_configuration": {
+    "discovery": {
+      "protocol": "mdns",
+      "service_name": "_trinity-mesh._tcp",
+      "broadcast_interval_ms": 1000
+    },
+    "communication": {
+      "protocol": "grpc",
+      "port_range": [50000, 50100],
+      "encryption": "tls1.3",
+      "compression": "gzip"
+    },
+    "synchronization": {
+      "state_sync_interval_ms": 100,
+      "heartbeat_interval_ms": 1000,
+      "timeout_ms": 5000
+    }
+  },
+  
+  "consciousness_quality_thresholds": {
+    "minimum_viable": {
+      "attention_coherence": 0.7,
+      "prediction_accuracy": 0.6,
+      "consciousness_index": 0.65
+    },
+    "production_ready": {
+      "attention_coherence": 0.85,
+      "prediction_accuracy": 0.8,
+      "consciousness_index": 0.82
+    },
+    "premium_tier": {
+      "attention_coherence": 0.95,
+      "prediction_accuracy": 0.9,
+      "consciousness_index": 0.92
+    }
+  },
+  
+  "export_settings": {
+    "results_directory": "benchmarks/results",
+    "export_formats": ["json", "csv", "tensorboard"],
+    "include_system_metrics": true,
+    "include_thermal_data": true,
+    "compression": "zstd"
+  }
+}
