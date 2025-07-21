@@ -13,12 +13,39 @@
     "windows": [
       {
         "title": "nexlify-dashboard",
-        "width": 800,
-        "height": 600
+        "width": 1600,
+        "height": 1000,
+        "resizable": true,
+        "fullscreen": false,
+        "alwaysOnTop": false,
+        "decorations": true,
+        "transparent": false,
+        "skipTaskbar": false,
+        "theme": "Dark",
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": false,
+        "acceptFirstMouse": false,
+        "tabbingIdentifier": "nexlify",
+        "additionalBrowserArgs": null
       }
     ],
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": "'self' customprotocol: asset:",
+        "connect-src": "ipc: http://ipc.localhost ws://localhost:* wss://localhost:*",
+        "font-src": "'self' data:",
+        "img-src": "'self' asset: http://asset.localhost blob: data:",
+        "style-src": "'unsafe-inline' 'self'"
+      },
+      "assetProtocol": {
+        "enable": true,
+        "scope": {
+          "allow": ["**"],
+          "deny": []
+        }
+      },
+      "dangerousDisableAssetCspModification": false,
+      "freezePrototype": false
     }
   },
   "bundle": {
@@ -30,6 +57,34 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
-  }
+    ],
+    "resources": [],
+    "copyright": "© 2025 NEXLIFY",
+    "category": "Finance",
+    "shortDescription": "NEXLIFY Trading Dashboard",
+    "longDescription": "Real-time performance monitoring for NEXLIFY",
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": false,
+        "files": {}
+      }
+    },
+    "macOS": {
+      "frameworks": [],
+      "minimumSystemVersion": null,
+      "entitlements": null,
+      "hardenedRuntime": true
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "",
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      },
+      "allowDowngrades": true,
+      "nsis": null
+    }
+  },
+  "plugins": {}
 }
