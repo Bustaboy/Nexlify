@@ -1,4 +1,4 @@
-{
+﻿{
   "$schema": "../schemas/capabilities.json",
   "identifier": "default",
   "description": "Capability for the main window",
@@ -12,6 +12,6 @@
     "core:window:allow-maximize",
     "core:window:allow-set-size",
     "core:window:allow-set-position",
-    "core:webview:allow-set-webview-zoom"
+    "core:webview:allow-set-zoom"
   ]
 }

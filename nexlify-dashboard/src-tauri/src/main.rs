@@ -24,9 +24,12 @@ fn main() {
         .setup(move |_app| {
             let state = dashboard_state.clone();
             
-            // Start monitoring tasks
-            tokio::spawn(async move {
-                monitoring::start_monitoring(state).await;
+            // Start monitoring tasks in a proper runtime
+            std::thread::spawn(move || {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async {
+                    monitoring::start_monitoring(state).await;
+                });
             });
             
             Ok(())

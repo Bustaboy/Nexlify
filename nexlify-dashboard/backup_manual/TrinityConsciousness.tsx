@@ -22,7 +22,7 @@ export function TrinityConsciousness() {
       try {
         const state = await invoke<TrinityState>('get_trinity_state');
         setTrinity(state);
-        
+ECHO is off.
         // Add to history for chart
         setHistory(prev => [...prev.slice(-50), {
           time: new Date().toLocaleTimeString(),

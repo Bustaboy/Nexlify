@@ -1,6 +1,6 @@
 // Location: C:\Nexlify\nexlify-dashboard\src-tauri\src\commands.rs
 // Create this new file
-use crate::dashboard::{DashboardState, TrinityState, CascadePrediction};
+use crate::dashboard::{DashboardState, TrinityState, CascadePrediction, HardwareMetric};
 use tauri::State;
 
 #[tauri::command]
@@ -37,7 +37,7 @@ pub async fn get_hardware_metrics(
 #[tauri::command]
 pub async fn prepare_cascade_trading(
     cascade_id: String,
-    state: State<'_, DashboardState>
+    _state: State<'_, DashboardState>
 ) -> Result<String, String> {
     // This is where you'd integrate with Mission 85-I
     println!("🚨 PREPARING CASCADE TRADE: {}", cascade_id);
