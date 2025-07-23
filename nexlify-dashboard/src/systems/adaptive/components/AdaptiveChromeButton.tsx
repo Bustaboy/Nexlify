@@ -1,5 +1,5 @@
 // Location: nexlify-dashboard/src/systems/adaptive/components/AdaptiveChromeButton.tsx
-// Mission: 80-I.1 Adaptive Chrome Button
+// Mission: 80-I.1 Adaptive Chrome Button - FIXED
 // Dependencies: useAdaptiveVisuals hook
 // Context: Button that adapts visual complexity to hardware
 
@@ -29,8 +29,8 @@ export const AdaptiveChromeButton: React.FC<AdaptiveChromeButtonProps> = ({
   const [isHovered, setIsHovered] = useState(false);
   const [isPressed, setIsPressed] = useState(false);
   
-  const canAnimate = features?.neonGlow.enabled && !disabled && !loading;
-  const hasAudio = features?.audioVisualization.enabled && audioEngine;
+  const canAnimate = features?.neonGlow?.enabled && !disabled && !loading;
+  const hasAudio = features?.audioVisualization?.enabled && audioEngine;
   
   const handleClick = useCallback(() => {
     if (disabled || loading) return;
@@ -82,8 +82,8 @@ export const AdaptiveChromeButton: React.FC<AdaptiveChromeButtonProps> = ({
   const interactionStyles = canAnimate && !disabled ? {
     ...(isHovered && {
       borderColor: variant === 'primary' ? '#00ffff' : variant === 'danger' ? '#ff0040' : '#888888',
-      boxShadow: features?.neonGlow.intensity > 0.5 
-        ? `0 0 ${10 * features.neonGlow.intensity}px ${variant === 'primary' ? '#00ffff' : '#ff0040'}40`
+      boxShadow: (features?.neonGlow?.intensity || 0) > 0.5 
+        ? `0 0 ${10 * (features?.neonGlow?.intensity || 1)}px ${variant === 'primary' ? '#00ffff' : '#ff0040'}40`
         : undefined,
       transform: features?.shaderEffects?.enabled ? 'translateY(-1px)' : undefined
     }),
@@ -113,7 +113,7 @@ export const AdaptiveChromeButton: React.FC<AdaptiveChromeButtonProps> = ({
       }}
     >
       {/* Background effects for high-end hardware */}
-      {canAnimate && features?.particleSystem.enabled && isHovered && (
+      {canAnimate && features?.particleSystem?.enabled && isHovered && (
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
         </div>
@@ -132,7 +132,7 @@ export const AdaptiveChromeButton: React.FC<AdaptiveChromeButtonProps> = ({
       </span>
       
       {/* Glitch effect on hover for high priority buttons */}
-      {canAnimate && priority === 'critical' && isHovered && features?.glitchEffects.enabled && (
+      {canAnimate && priority === 'critical' && isHovered && features?.glitchEffects?.enabled && (
         <span 
           className="absolute inset-0 flex items-center justify-center opacity-50"
           style={{

@@ -1,5 +1,5 @@
 // Location: nexlify-dashboard/src/systems/adaptive/components/AdaptiveVisualLayer.tsx
-// Mission: 80-I.1 Main Visual Rendering Layer
+// Mission: 80-I.1 Main Visual Rendering Layer - FIXED
 // Dependencies: All previous components
 // Context: The actual visual layer that renders based on features
 
@@ -72,20 +72,20 @@ export const AdaptiveVisualLayer: React.FC = () => {
     gl.clear(gl.COLOR_BUFFER_BIT);
     
     // Render effects in order
-    if (features.matrixRain.enabled) {
+    if (features?.matrixRain?.enabled) {
       renderMatrixRain(timestamp);
     }
     
-    if (features.scanlines.enabled) {
+    if (features?.scanlines?.enabled) {
       renderScanlines(timestamp);
     }
     
-    if (features.glitchEffects.enabled && shouldGlitch(timestamp)) {
+    if (features?.glitchEffects?.enabled && shouldGlitch(timestamp)) {
       renderGlitch(timestamp);
     }
     
     // Post-processing effects would go here
-    if (features.postProcessing.enabled) {
+    if (features?.postProcessing?.enabled) {
       // Render to framebuffer first, then apply post-processing
     }
   }, [shaderManager, features]);
@@ -102,11 +102,11 @@ export const AdaptiveVisualLayer: React.FC = () => {
     // Set uniforms
     shaderManager.setUniform('matrixRain', 'u_time', timestamp / 1000);
     shaderManager.setUniform('matrixRain', 'u_resolution', [canvas.width, canvas.height]);
-    shaderManager.setUniform('matrixRain', 'u_density', features.matrixRain.density);
-    shaderManager.setUniform('matrixRain', 'u_speed', features.matrixRain.speed);
+    shaderManager.setUniform('matrixRain', 'u_density', features?.matrixRain?.density || 0);
+    shaderManager.setUniform('matrixRain', 'u_speed', features?.matrixRain?.speed || 0);
     shaderManager.setUniform('matrixRain', 'u_complexity', 
-      features.matrixRain.complexity === 'complex' ? 1.0 :
-      features.matrixRain.complexity === 'standard' ? 0.5 : 0.0
+      features?.matrixRain?.complexity === 'complex' ? 1.0 :
+      features?.matrixRain?.complexity === 'standard' ? 0.5 : 0.0
     );
     
     // Draw full-screen quad
@@ -125,9 +125,9 @@ export const AdaptiveVisualLayer: React.FC = () => {
     // Set uniforms
     shaderManager.setUniform('scanlines', 'u_time', timestamp / 1000);
     shaderManager.setUniform('scanlines', 'u_resolution', [canvas.width, canvas.height]);
-    shaderManager.setUniform('scanlines', 'u_intensity', features.scanlines.intensity);
-    shaderManager.setUniform('scanlines', 'u_thickness', features.scanlines.thickness);
-    shaderManager.setUniform('scanlines', 'u_speed', features.scanlines.speed);
+    shaderManager.setUniform('scanlines', 'u_intensity', features?.scanlines?.intensity || 0);
+    shaderManager.setUniform('scanlines', 'u_thickness', features?.scanlines?.thickness || 1);
+    shaderManager.setUniform('scanlines', 'u_speed', features?.scanlines?.speed || 0);
     
     // Draw full-screen quad
     drawFullScreenQuad();
@@ -137,14 +137,14 @@ export const AdaptiveVisualLayer: React.FC = () => {
     if (!features) return false;
     
     // Random glitch based on probability
-    return Math.random() < features.glitchEffects.probability;
+    return Math.random() < (features?.glitchEffects?.probability || 0);
   }, [features]);
   
   const renderGlitch = useCallback((timestamp: number) => {
     if (!shaderManager || !features || !audioEngine) return;
     
     // Play glitch sound
-    if (features.audioVisualization.enabled) {
+    if (features?.audioVisualization?.enabled) {
       audioEngine.playEffect('glitch', { volume: 0.3 });
     }
     
