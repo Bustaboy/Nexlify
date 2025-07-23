@@ -24,7 +24,7 @@ export const AdaptiveNeonText: React.FC<AdaptiveNeonTextProps> = ({
   const { features } = useAdaptiveVisuals();
   
   const shouldGlow = useMemo(() => {
-    if (!features?.neonGlow.enabled) return false;
+    if (!features?.neonGlow?.enabled) return false;
     
     const intensityThreshold = {
       critical: 0,
