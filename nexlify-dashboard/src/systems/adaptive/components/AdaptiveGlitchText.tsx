@@ -1,5 +1,5 @@
 // Location: nexlify-dashboard/src/systems/adaptive/components/AdaptiveGlitchText.tsx
-// Mission: 80-I.1 Adaptive Glitch Text Effect
+// Mission: 80-I.1 Adaptive Glitch Text Effect - FIXED
 // Dependencies: useAdaptiveVisuals hook
 // Context: Text that glitches based on hardware capabilities
 
@@ -26,18 +26,18 @@ export const AdaptiveGlitchText: React.FC<AdaptiveGlitchTextProps> = ({
   const [isGlitching, setIsGlitching] = useState(false);
   
   const effectiveIntensity = useMemo(() => {
-    if (!features?.glitchEffects.enabled) return 0;
-    return intensity ?? features.glitchEffects.intensity;
+    if (!features?.glitchEffects?.enabled) return 0;
+    return intensity ?? features?.glitchEffects?.intensity ?? 0;
   }, [features, intensity]);
   
   const glitchProbability = useMemo(() => {
-    if (!features?.glitchEffects.enabled || isStatic) return 0;
-    return features.glitchEffects.probability;
+    if (!features?.glitchEffects?.enabled || isStatic) return 0;
+    return features?.glitchEffects?.probability ?? 0;
   }, [features, isStatic]);
   
   const glitchTypes = useMemo(() => {
-    if (!features?.glitchEffects.enabled) return [];
-    return features.glitchEffects.types;
+    if (!features?.glitchEffects?.enabled) return [];
+    return features?.glitchEffects?.types ?? [];
   }, [features]);
   
   const applyGlitch = useCallback((originalText: string): string => {
@@ -74,7 +74,7 @@ export const AdaptiveGlitchText: React.FC<AdaptiveGlitchTextProps> = ({
         setDisplayText(applyGlitch(text));
         
         // Glitch duration
-        const duration = features?.glitchEffects.duration || { min: 50, max: 150 };
+        const duration = features?.glitchEffects?.duration ?? { min: 50, max: 150 };
         const glitchTime = duration.min + Math.random() * (duration.max - duration.min);
         
         setTimeout(() => {

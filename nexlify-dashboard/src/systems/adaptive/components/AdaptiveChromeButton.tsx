@@ -85,7 +85,7 @@ export const AdaptiveChromeButton: React.FC<AdaptiveChromeButtonProps> = ({
       boxShadow: features?.neonGlow.intensity > 0.5 
         ? `0 0 ${10 * features.neonGlow.intensity}px ${variant === 'primary' ? '#00ffff' : '#ff0040'}40`
         : undefined,
-      transform: features?.shaderEffects.enabled ? 'translateY(-1px)' : undefined
+      transform: features?.shaderEffects?.enabled ? 'translateY(-1px)' : undefined
     }),
     ...(isPressed && {
       transform: 'translateY(1px)',
@@ -94,7 +94,7 @@ export const AdaptiveChromeButton: React.FC<AdaptiveChromeButtonProps> = ({
   } : {};
   
   // Corner cut style (cyberpunk aesthetic)
-  const clipPath = features?.shaderEffects.enabled
+  const clipPath = features?.shaderEffects?.enabled
     ? 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px))'
     : undefined;
   

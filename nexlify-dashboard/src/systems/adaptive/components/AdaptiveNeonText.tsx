@@ -33,7 +33,7 @@ export const AdaptiveNeonText: React.FC<AdaptiveNeonTextProps> = ({
       low: 1.5
     };
     
-    return features.neonGlow.intensity >= intensityThreshold[importance];
+    return features.neonGlow?.intensity >= intensityThreshold[importance];
   }, [features, importance]);
   
   const glowStyle = useMemo(() => {
@@ -51,8 +51,8 @@ export const AdaptiveNeonText: React.FC<AdaptiveNeonTextProps> = ({
     const shadows: string[] = [];
     
     // Generate glow layers based on feature settings
-    for (let i = 0; i < features.neonGlow.layers; i++) {
-      const spread = (i + 1) * 5 * features.neonGlow.intensity;
+    for (let i = 0; i < (features.neonGlow?.layers || 0); i++) {
+      const spread = (i + 1) * 5 * (features.neonGlow?.intensity || 1);
       const opacity = 0.8 - (i * 0.15);
       shadows.push(`0 0 ${spread}px ${baseColor}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`);
     }
@@ -61,8 +61,8 @@ export const AdaptiveNeonText: React.FC<AdaptiveNeonTextProps> = ({
       color: baseColor,
       textShadow: shadows.join(', '),
       transition: 'all 0.3s ease',
-      ...(pulse && features.neonGlow.pulseFrequency > 0 ? {
-        animation: `neon-pulse ${1 / features.neonGlow.pulseFrequency}s ease-in-out infinite`
+      ...(pulse && (features.neonGlow?.pulseFrequency || 0) > 0 ? {
+        animation: `neon-pulse ${1 / features.neonGlow?.pulseFrequency || 1}s ease-in-out infinite`
       } : {})
     };
   }, [shouldGlow, features, color, pulse]);
@@ -75,7 +75,7 @@ export const AdaptiveNeonText: React.FC<AdaptiveNeonTextProps> = ({
       {children}
       
       {/* Reflection effect for high-end hardware */}
-      {shouldGlow && features?.neonGlow.intensity > 1.5 && (
+      {shouldGlow && (features?.neonGlow?.intensity || 0) > 1.5 && (
         <span 
           className="absolute top-0 left-0 opacity-30 transform scale-y-[-1] translate-y-full"
           style={{
