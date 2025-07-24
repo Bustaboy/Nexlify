@@ -1,7 +1,7 @@
 // Location: nexlify-dashboard/src/systems/adaptive/renderers/ShaderManager.ts
-// Mission: 80-I.1 WebGL Shader Management System
+// Mission: 80-I.1 WebGL Shader Management System - FIXED
 // Dependencies: hardware.types.ts, features.types.ts
-// Context: Manages all WebGL shaders and programs for visual effects
+// Context: Singleton pattern to prevent duplicate canvases
 
 import { HardwareCapabilities, VisualFeatureSet } from '../types';
 
@@ -13,6 +13,9 @@ interface ShaderProgram {
 }
 
 export class ShaderManager {
+  private static instance: ShaderManager | null = null;
+  private static canvasElement: HTMLCanvasElement | null = null;
+  
   private gl: WebGL2RenderingContext | WebGLRenderingContext | null = null;
   private canvas: HTMLCanvasElement | null = null;
   private programs: Map<string, ShaderProgram> = new Map();
@@ -22,15 +25,43 @@ export class ShaderManager {
   // Shader sources
   private shaderSources: Map<string, { vertex: string; fragment: string }> = new Map();
   
-  constructor(private capabilities: HardwareCapabilities) {
+  private constructor(private capabilities: HardwareCapabilities) {
     this.initializeShaderSources();
+  }
+  
+  // Singleton getter
+  static getInstance(capabilities: HardwareCapabilities): ShaderManager {
+    if (!ShaderManager.instance) {
+      ShaderManager.instance = new ShaderManager(capabilities);
+    }
+    return ShaderManager.instance;
   }
   
   async initialize(): Promise<void> {
     console.log('[SHADER] Initializing shader manager...');
     
-    // Create canvas
+    // Check for existing canvas first
+    if (ShaderManager.canvasElement && ShaderManager.canvasElement.isConnected) {
+      console.log('[SHADER] Reusing existing canvas');
+      this.canvas = ShaderManager.canvasElement;
+      
+      // Get existing context
+      this.gl = this.canvas.getContext('webgl2') as WebGL2RenderingContext || 
+                this.canvas.getContext('webgl') as WebGLRenderingContext;
+      
+      if (this.gl) {
+        this.isWebGL2 = this.canvas.getContext('webgl2') !== null;
+        return;
+      }
+    }
+    
+    // Remove any orphaned canvases
+    const existingCanvases = document.querySelectorAll('canvas[data-shader-manager="true"]');
+    existingCanvases.forEach(canvas => canvas.remove());
+    
+    // Create new canvas
     this.canvas = document.createElement('canvas');
+    this.canvas.setAttribute('data-shader-manager', 'true');
     this.canvas.width = this.capabilities.display.width;
     this.canvas.height = this.capabilities.display.height;
     this.canvas.style.position = 'fixed';
@@ -70,6 +101,9 @@ export class ShaderManager {
     
     console.log('[SHADER] Using WebGL', this.isWebGL2 ? '2' : '1');
     
+    // Store reference
+    ShaderManager.canvasElement = this.canvas;
+    
     // Setup GL state
     this.setupGLState();
     
@@ -89,73 +123,43 @@ export class ShaderManager {
       `,
       fragment: `
         ${this.isWebGL2 ? '#version 300 es' : ''}
-        precision highp float;
+        precision mediump float;
         
         uniform float u_time;
         uniform vec2 u_resolution;
         uniform float u_density;
         uniform float u_speed;
         uniform float u_complexity;
+        
         ${this.isWebGL2 ? 'out vec4 fragColor;' : ''}
         
         float random(vec2 st) {
-          return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453);
-        }
-        
-        float noise(vec2 st) {
-          vec2 i = floor(st);
-          vec2 f = fract(st);
-          
-          float a = random(i);
-          float b = random(i + vec2(1.0, 0.0));
-          float c = random(i + vec2(0.0, 1.0));
-          float d = random(i + vec2(1.0, 1.0));
-          
-          vec2 u = f * f * (3.0 - 2.0 * f);
-          
-          return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+          return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
         }
         
         void main() {
-          vec2 uv = ${this.isWebGL2 ? 'gl_FragCoord.xy' : 'gl_FragCoord.xy'} / u_resolution;
-          vec2 pos = uv * vec2(50.0 * u_density, 30.0);
-          vec2 ipos = floor(pos);
-          vec2 fpos = fract(pos);
+          vec2 st = ${this.isWebGL2 ? 'gl_FragCoord.xy' : 'gl_FragCoord.xy'} / u_resolution;
           
-          float columnSpeed = random(vec2(ipos.x, 0.0)) * 0.5 + 0.5;
-          float offset = random(vec2(ipos.x, 1.0)) * 10.0;
-          float rain = fract((u_time * u_speed * columnSpeed + offset) * 0.5);
+          // Create columns
+          float columns = 80.0 * u_density;
+          float x = floor(st.x * columns) / columns;
           
-          // Character brightness
-          float charBrightness = 0.0;
-          if (u_complexity > 0.5) {
-            // Complex: animated characters
-            float charTime = u_time * 10.0 + random(ipos) * 100.0;
-            charBrightness = noise(vec2(ipos.x * 0.1, ipos.y * 0.1 + charTime));
-          } else {
-            // Simple: static characters
-            charBrightness = random(ipos);
-          }
+          // Create falling effect
+          float y = fract(st.y - u_time * u_speed * random(vec2(x)));
           
-          // Fade trail
-          float fade = 1.0 - smoothstep(0.0, 1.0, rain);
-          float glow = exp(-5.0 * rain);
+          // Character intensity
+          float intensity = 1.0 - y;
+          intensity *= step(random(vec2(x, floor(st.y * 40.0))), 0.95);
           
-          // Color with green tint
-          vec3 color = vec3(0.0, 1.0, 0.2);
-          color *= charBrightness * fade * (0.5 + 0.5 * glow);
+          // Glow effect
+          vec3 color = vec3(0.0, 1.0, 0.0) * intensity;
           
-          // Leading edge highlight
-          if (abs(rain - fpos.y) < 0.1) {
-            color += vec3(0.2, 0.8, 0.4) * glow;
-          }
-          
-          ${this.isWebGL2 ? 'fragColor' : 'gl_FragColor'} = vec4(color, fade * 0.5);
+          ${this.isWebGL2 ? 'fragColor' : 'gl_FragColor'} = vec4(color, intensity * 0.8);
         }
       `
     });
     
-    // Scanline shader
+    // Scanlines shader
     this.shaderSources.set('scanlines', {
       vertex: this.shaderSources.get('matrixRain')!.vertex,
       fragment: `
@@ -167,67 +171,20 @@ export class ShaderManager {
         uniform float u_intensity;
         uniform float u_thickness;
         uniform float u_speed;
+        
         ${this.isWebGL2 ? 'out vec4 fragColor;' : ''}
         
         void main() {
-          vec2 uv = ${this.isWebGL2 ? 'gl_FragCoord.xy' : 'gl_FragCoord.xy'} / u_resolution;
+          vec2 st = ${this.isWebGL2 ? 'gl_FragCoord.xy' : 'gl_FragCoord.xy'} / u_resolution;
           
-          // Moving scanlines
-          float scanline = sin((uv.y + u_time * u_speed * 0.1) * u_resolution.y / u_thickness);
-          scanline = smoothstep(0.0, 1.0, scanline * 0.5 + 0.5);
+          // Scanline effect
+          float scanline = sin((st.y + u_time * u_speed) * u_resolution.y / u_thickness) * 0.5 + 0.5;
+          scanline = pow(scanline, 2.0);
           
-          // Interference pattern
-          float interference = sin(uv.y * 800.0 + u_time * 2.0) * 0.02;
+          // Interference
+          float interference = sin(u_time * 10.0) * 0.05;
           
-          // Combine effects
-          float alpha = (1.0 - scanline) * u_intensity + interference;
-          
-          ${this.isWebGL2 ? 'fragColor' : 'gl_FragColor'} = vec4(0.0, 1.0, 0.8, alpha * 0.5);
-        }
-      `
-    });
-    
-    // Glitch shader
-    this.shaderSources.set('glitch', {
-      vertex: this.shaderSources.get('matrixRain')!.vertex,
-      fragment: `
-        ${this.isWebGL2 ? '#version 300 es' : ''}
-        precision highp float;
-        
-        uniform float u_time;
-        uniform vec2 u_resolution;
-        uniform float u_intensity;
-        uniform float u_glitchTime;
-        uniform sampler2D u_scene;
-        ${this.isWebGL2 ? 'out vec4 fragColor;' : ''}
-        
-        float random(vec2 st) {
-          return fract(sin(dot(st, vec2(12.9898, 78.233))) * 43758.5453);
-        }
-        
-        void main() {
-          vec2 uv = ${this.isWebGL2 ? 'gl_FragCoord.xy' : 'gl_FragCoord.xy'} / u_resolution;
-          vec2 distortedUV = uv;
-          
-          // Displacement glitch
-          float glitchStrength = step(0.99, random(vec2(u_glitchTime)));
-          if (glitchStrength > 0.0) {
-            float displacement = random(vec2(u_glitchTime * 10.0, uv.y)) * 0.1;
-            distortedUV.x += displacement * u_intensity;
-          }
-          
-          // Color channel split
-          vec4 color;
-          color.r = texture2D(u_scene, distortedUV + vec2(0.01 * u_intensity, 0.0)).r;
-          color.g = texture2D(u_scene, distortedUV).g;
-          color.b = texture2D(u_scene, distortedUV - vec2(0.01 * u_intensity, 0.0)).b;
-          color.a = 1.0;
-          
-          // Noise blocks
-          float blockNoise = step(0.98, random(floor(uv * 10.0) + u_glitchTime));
-          if (blockNoise > 0.0) {
-            color = vec4(random(uv + u_glitchTime), random(uv + u_glitchTime + 1.0), random(uv + u_glitchTime + 2.0), 1.0);
-          }
+          vec4 color = vec4(0.0, 1.0, 1.0, (1.0 - scanline) * u_intensity + interference);
           
           ${this.isWebGL2 ? 'fragColor' : 'gl_FragColor'} = color;
         }
@@ -277,8 +234,6 @@ export class ShaderManager {
         }
       `
     });
-    
-    // Add more shaders as needed...
   }
   
   private setupGLState(): void {
@@ -476,7 +431,11 @@ export class ShaderManager {
       this.canvas.parentElement.removeChild(this.canvas);
     }
     
-    // Clear references
+    // Clear static references
+    ShaderManager.canvasElement = null;
+    ShaderManager.instance = null;
+    
+    // Clear instance references
     this.programs.clear();
     this.gl = null;
     this.canvas = null;

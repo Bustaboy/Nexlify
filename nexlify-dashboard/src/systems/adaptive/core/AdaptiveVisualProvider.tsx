@@ -153,7 +153,7 @@ export const AdaptiveVisualProvider: React.FC<AdaptiveVisualProviderProps> = ({
         setGpuScore(hardwareProfiler.getGPUScore());
         
         // Initialize managers
-        const shader = new ShaderManager(caps);
+        const shader = ShaderManager.getInstance(caps);
         await shader.initialize();
         setShaderManager(shader);
         
@@ -252,10 +252,10 @@ export const AdaptiveVisualProvider: React.FC<AdaptiveVisualProviderProps> = ({
     
     // Apply overrides
     for (const [feature, enabled] of Object.entries(featureOverrides)) {
-      if (feature in calculatedFeatures) {
-        (calculatedFeatures as any)[feature].enabled = enabled;
-      }
-    }
+		if (feature in calculatedFeatures && calculatedFeatures[feature]) {
+			(calculatedFeatures as any)[feature].enabled = enabled;
+		}
+	}
     
     setFeatures(calculatedFeatures);
     
@@ -265,7 +265,7 @@ export const AdaptiveVisualProvider: React.FC<AdaptiveVisualProviderProps> = ({
     }
     
     // Update audio engine
-    if (audioEngine) {
+    if (audioEngine && calculatedFeatures.audioVisualization) {
       audioEngine.setEnabled(calculatedFeatures.audioVisualization.enabled);
     }
   }, [metrics, maxGPUPercent, maxMemoryMB, maxCPUPercent, targetFPS, featureOverrides, shaderManager, audioEngine]);

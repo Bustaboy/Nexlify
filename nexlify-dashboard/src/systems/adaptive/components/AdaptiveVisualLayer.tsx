@@ -28,8 +28,15 @@ export const AdaptiveVisualLayer: React.FC = () => {
     const canvas = shaderManager.getCanvas();
     if (!canvas) return;
     
-    // Add canvas to DOM
+    // Only add canvas to DOM if not already added
     if (canvas.parentElement !== document.body) {
+      // Remove any orphaned canvases first
+      document.querySelectorAll('canvas[data-adaptive="true"]').forEach(c => {
+        if (c !== canvas && c.parentElement) {
+          c.parentElement.removeChild(c);
+        }
+      });
+      
       document.body.appendChild(canvas);
     }
     
@@ -185,6 +192,7 @@ export const AdaptiveVisualLayer: React.FC = () => {
         <div className="fixed top-4 right-4 bg-black/80 p-2 rounded text-xs font-mono text-green-400 z-50">
           <div>Rendering: {isRendering ? 'Active' : 'Inactive'}</div>
           <div>Features: {Object.values(features || {}).filter((f: any) => f.enabled).length}</div>
+          <div>Canvas Count: {document.querySelectorAll('canvas').length}</div>
         </div>
       </>
     );
