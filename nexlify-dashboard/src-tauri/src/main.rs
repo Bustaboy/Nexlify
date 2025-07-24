@@ -29,6 +29,10 @@ fn main() {
                 let rt = tokio::runtime::Runtime::new().unwrap();
                 rt.block_on(async {
                     monitoring::start_monitoring(state).await;
+					//Keep runtime alive
+					loop {
+						tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+					}
                 });
             });
             

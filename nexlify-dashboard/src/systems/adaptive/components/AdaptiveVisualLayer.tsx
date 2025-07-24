@@ -83,10 +83,13 @@ export const AdaptiveVisualLayer: React.FC = () => {
       renderMatrixRain(timestamp);
     }
     
+	// DISABLE SCANLINES TO REMOVE PULSING
+	/*
     if (features?.scanlines?.enabled) {
       renderScanlines(timestamp);
     }
-    
+    */
+	
     if (features?.glitchEffects?.enabled && shouldGlitch(timestamp)) {
       renderGlitch(timestamp);
     }
@@ -109,8 +112,8 @@ export const AdaptiveVisualLayer: React.FC = () => {
     // Set uniforms
     shaderManager.setUniform('matrixRain', 'u_time', timestamp / 1000);
     shaderManager.setUniform('matrixRain', 'u_resolution', [canvas.width, canvas.height]);
-    shaderManager.setUniform('matrixRain', 'u_density', features?.matrixRain?.density || 0);
-    shaderManager.setUniform('matrixRain', 'u_speed', features?.matrixRain?.speed || 0);
+    shaderManager.setUniform('matrixRain', 'u_density', Math.max(0.1, features?.matrixRain?.density || 0.5));
+	shaderManager.setUniform('matrixRain', 'u_speed', Math.max(0.1, features?.matrixRain?.speed || 0.5));
     shaderManager.setUniform('matrixRain', 'u_complexity', 
       features?.matrixRain?.complexity === 'complex' ? 1.0 :
       features?.matrixRain?.complexity === 'standard' ? 0.5 : 0.0

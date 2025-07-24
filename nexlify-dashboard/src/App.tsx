@@ -84,7 +84,7 @@ function App() {
             <div className="flex items-center gap-4">
               <div className={`w-3 h-3 rounded-full ${
                 isConnected ? 'bg-green-500' : 'bg-red-500'
-              } animate-pulse`} />
+              } `} />
               <span className="text-gray-400">
                 {isConnected ? 'Trinity Online' : 'Connecting...'}
               </span>
