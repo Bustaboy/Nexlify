@@ -1,0 +1,18 @@
+# Ignore all data files by default
+*.csv
+*.json
+*.parquet
+*.feather
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+
+# Ignore cache directories
+cache/
+__pycache__/
+
+# But keep sample datasets (explicitly add with git add -f)
+!sample_datasets/*.csv
+!sample_datasets/*.md
+!sample_datasets/README.md
