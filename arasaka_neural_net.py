@@ -203,6 +203,12 @@ class ArasakaNeuralNet:
                     telegram_bot=None  # TODO: inject if available
                 )
                 logger.info("🔗 Phase 1 & 2 Integration ACTIVE")
+
+                # Inject integration manager into auto-trader
+                if self.auto_trader:
+                    self.auto_trader.integration_manager = self.integration_manager
+                    logger.info("✅ Integration manager injected into auto-trader")
+
             except Exception as e:
                 logger.error(f"❌ Failed to initialize Phase 1 & 2 integration: {e}")
                 self._integration_enabled = False

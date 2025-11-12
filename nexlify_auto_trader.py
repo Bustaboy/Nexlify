@@ -182,6 +182,9 @@ class AutoExecutionEngine:
         self.is_active = False
         self.auto_trade_enabled = self.config.get('auto_trade', False)
 
+        # Phase 1 & 2 Integration Manager (will be set by neural_net)
+        self.integration_manager = None
+
         # RL Agent integration
         self.rl_agent = None
         self.use_rl = self.config.get('use_rl_agent', False)
@@ -448,6 +451,18 @@ class AutoExecutionEngine:
                         True
                     )
 
+                # Notify integration manager (Phase 1 & 2)
+                if self.integration_manager:
+                    asyncio.create_task(self.integration_manager.on_trade_executed({
+                        'symbol': symbol,
+                        'side': 'buy',
+                        'quantity': amount,
+                        'price': current_price,
+                        'exchange': exchange_id,
+                        'timestamp': datetime.now(),
+                        'fees': order.get('fee', {}).get('cost', 0) if isinstance(order.get('fee'), dict) else 0
+                    }))
+
                 return True
             else:
                 logger.error(f"❌ Trade failed: {order}")
@@ -507,6 +522,27 @@ class AutoExecutionEngine:
                         'market',
                         True
                     )
+
+                # Notify integration manager (Phase 1 & 2)
+                if self.integration_manager:
+                    # Record the sell transaction
+                    asyncio.create_task(self.integration_manager.on_trade_executed({
+                        'symbol': trade.symbol,
+                        'side': 'sell',
+                        'quantity': trade.amount,
+                        'price': current_price,
+                        'exchange': trade.exchange,
+                        'timestamp': datetime.now(),
+                        'fees': order.get('fee', {}).get('cost', 0) if isinstance(order.get('fee'), dict) else 0
+                    }))
+
+                    # Notify position closure
+                    asyncio.create_task(self.integration_manager.on_position_closed({
+                        'trade_id': trade_id,
+                        'symbol': trade.symbol,
+                        'pnl': pnl,
+                        'exit_price': current_price
+                    }))
 
                 return True
             else:
