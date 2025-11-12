@@ -15,6 +15,7 @@ aiofiles==23.2.1
 # GUI and visualization
 # tkinter comes with Python
 PyQt5==5.15.10
+PyQtChart==5.15.6
 qasync==0.24.2
 matplotlib==3.7.2
 Pillow==10.0.0

@@ -13,7 +13,7 @@ import threading
 from pathlib import Path
 
 # Add project root to path
-project_root = Path(os.path.dirname(os.path.abspath(__file__)))
+project_root = Path(os.path.dirname(os.path.abspath(__file__))).parent
 sys.path.insert(0, str(project_root))
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
@@ -111,8 +111,8 @@ class NexlifyLauncher:
     def start_neural_net(self):
         """Start the neural net API server"""
         print(f"\n{self.colors['cyan']}🧠 Starting Neural-Net API...{self.colors['reset']}")
-        
-        api_script = self.project_root / "arasaka_neural_net.py"
+
+        api_script = self.project_root / "nexlify" / "core" / "arasaka_neural_net.py"
         if not api_script.exists():
             print(f"{self.colors['red']}❌ Missing arasaka_neural_net.py!{self.colors['reset']}")
             return None
@@ -145,8 +145,8 @@ class NexlifyLauncher:
     def start_gui(self):
         """Start the cyberpunk GUI"""
         print(f"\n{self.colors['cyan']}🎮 Starting Cyberpunk GUI...{self.colors['reset']}")
-        
-        gui_script = self.project_root / "cyber_gui.py"
+
+        gui_script = self.project_root / "nexlify" / "gui" / "cyber_gui.py"
         if not gui_script.exists():
             print(f"{self.colors['red']}❌ Missing cyber_gui.py!{self.colors['reset']}")
             return None

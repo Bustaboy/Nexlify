@@ -8,7 +8,8 @@ __version__ = "2.0.7.7"
 __all__ = [
     'ArasakaNeuralNet',
     'NexlifyNeuralNet',
-    'AutoTrader',
+    'AutoExecutionEngine',
+    'AutoTrader',  # Backward compatibility alias for AutoExecutionEngine
     'TradingIntegrationManager',
     'RiskManager',
     'CircuitBreaker',
