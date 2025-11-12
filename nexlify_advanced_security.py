@@ -16,7 +16,7 @@ from pathlib import Path
 # Security libraries
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import pyotp
 import base64
 
@@ -46,8 +46,8 @@ class EncryptionManager:
             else:
                 password = self.master_password
 
-            # Use PBKDF2 to derive a key
-            kdf = PBKDF2(
+            # Use PBKDF2HMAC to derive a key
+            kdf = PBKDF2HMAC(
                 algorithm=hashes.SHA256(),
                 length=32,
                 salt=b'nexlify_salt_v1',  # Should be random and stored

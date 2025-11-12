@@ -34,6 +34,15 @@ from utils_module import (
     TimeUtils, MathUtils
 )
 
+# Import Phase 1 & 2 GUI integration
+from nexlify_gui_integration import (
+    integrate_phase1_phase2_into_gui,
+    EmergencyKillSwitchWidget,
+    TaxReportingWidget,
+    DeFiPositionsWidget,
+    ProfitManagementWidget
+)
+
 logger = logging.getLogger(__name__)
 error_handler = get_error_handler()
 
@@ -305,7 +314,13 @@ class CyberGUI(QMainWindow):
         self.sound_manager = None
         self.ai_companion = None
         self.session_manager = None
-        
+
+        # Phase 1 & 2 components
+        self.security_suite = None
+        self.tax_reporter = None
+        self.defi_integration = None
+        self.profit_manager = None
+
         # State tracking
         self.is_authenticated = False
         self.is_trading_active = False
@@ -325,28 +340,32 @@ class CyberGUI(QMainWindow):
             self.app_config = FileUtils.load_json('enhanced_config.json')
             if not self.app_config:
                 self.app_config = FileUtils.load_json('neural_config.json')
-                
+
+            # Try loading from config/ directory for Phase 1 & 2 features
+            if not self.app_config:
+                self.app_config = FileUtils.load_json('config/neural_config.json')
+
             # Initialize security
             self.security_manager = SecurityManager(
                 master_password=self.app_config.get('security', {}).get('master_password', '')
             )
-            
+
             # Initialize session manager
             self.session_manager = SessionManager(self.security_manager)
             self.session_manager.session_expired.connect(self._handle_session_expired)
             self.session_manager.session_warning.connect(self._handle_session_warning)
-            
+
             # Initialize other components
             self.audit_manager = AuditManager()
             self.sound_manager = SoundManager()
             self.sound_manager.initialize()
-            
+
             # These will be initialized after authentication
             self.neural_net = None
             self.predictive_engine = None
             self.strategy_optimizer = None
             self.ai_companion = None
-            
+
         except Exception as e:
             error_handler.log_error(e, {"method": "_init_components"})
             
@@ -378,7 +397,10 @@ class CyberGUI(QMainWindow):
         self._create_strategies_tab()
         self._create_settings_tab()
         self._create_logs_tab()
-        
+
+        # Add Phase 1 & 2 tabs
+        self._integrate_phase1_phase2_tabs()
+
         main_layout.addWidget(self.tab_widget)
         
         # Status bar
@@ -961,9 +983,27 @@ class CyberGUI(QMainWindow):
         
         # Log initial message
         self.log_widget.append_log("Nexlify Neural Trading Matrix initialized", "INFO")
-        
+
         self.tab_widget.addTab(logs, "Logs")
-        
+
+    def _integrate_phase1_phase2_tabs(self):
+        """Integrate Phase 1 & 2 features into GUI"""
+        try:
+            # Initialize Phase 1 & 2 components
+            phase_components = integrate_phase1_phase2_into_gui(self, self.app_config)
+
+            # Store references
+            self.security_suite = phase_components['security_suite']
+            self.tax_reporter = phase_components['tax_reporter']
+            self.defi_integration = phase_components['defi_integration']
+            self.profit_manager = phase_components['profit_manager']
+
+            logger.info("✅ Phase 1 & 2 features integrated into GUI")
+
+        except Exception as e:
+            logger.error(f"Failed to integrate Phase 1 & 2 features: {e}")
+            error_handler.log_error(e, {"method": "_integrate_phase1_phase2_tabs"})
+
     def _create_status_bar(self):
         """Create status bar with connection info"""
         self.status_bar = self.statusBar()
