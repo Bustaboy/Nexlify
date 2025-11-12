@@ -3,7 +3,7 @@
 from nexlify.gui.cyber_gui import CyberGUI
 from nexlify.gui.nexlify_gui_integration import GUIIntegration
 from nexlify.gui.nexlify_cyberpunk_effects import CyberpunkEffects
-from nexlify.gui.nexlify_hardware_detection import HardwareDetection
+from nexlify.gui.nexlify_hardware_detection import HardwareDetector
 
 # Ultra-Optimized System UI (optional - graceful if dependencies missing)
 try:
@@ -17,7 +17,7 @@ try:
         'CyberGUI',
         'GUIIntegration',
         'CyberpunkEffects',
-        'HardwareDetection',
+        'HardwareDetector',
         # Ultra-Optimized UI
         'UltraOptimizedConfigDialog',
         'show_ultra_optimized_config',
@@ -29,5 +29,5 @@ except ImportError:
         'CyberGUI',
         'GUIIntegration',
         'CyberpunkEffects',
-        'HardwareDetection',
+        'HardwareDetector',
     ]
