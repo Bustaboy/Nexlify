@@ -143,3 +143,4 @@ test_*.py
 *wallet*
 *private*
 !*example*
+demo_trades.json
