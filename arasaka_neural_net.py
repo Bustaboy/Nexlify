@@ -18,6 +18,11 @@ import aiohttp
 from dataclasses import dataclass
 import json
 
+# Import advanced trading features
+from nexlify_risk_manager import RiskManager
+from nexlify_circuit_breaker import CircuitBreakerManager
+from nexlify_performance_tracker import PerformanceTracker
+
 # Load environment settings from config
 config_path = "config/neural_config.json"
 if os.path.exists(config_path):
@@ -69,14 +74,20 @@ class ArasakaNeuralNet:
         self.neural_memory = {}
         self.btc_wallet = config.get('btc_wallet_address', '')
         self.is_active = True
-        
+
+        # Initialize advanced trading features
+        self.risk_manager = RiskManager(config)
+        self.circuit_manager = CircuitBreakerManager(config)
+        self.performance_tracker = PerformanceTracker(config)
+        logger.info("🎯 Advanced features initialized: Risk Manager, Circuit Breaker, Performance Tracker")
+
         # Fee configurations per exchange
         self.exchange_fees = {
             'binance': {'maker': 0.001, 'taker': 0.001, 'withdrawal': 0.0005},
             'kraken': {'maker': 0.0016, 'taker': 0.0026, 'withdrawal': 0.0005},
             'coinbase': {'maker': 0.005, 'taker': 0.005, 'withdrawal': 0.0006}
         }
-        
+
         # Gas fee estimator (for ETH/BSC/MATIC pairs)
         self.gas_fees = {
             'ETH': 0.003,  # ~$10 at current prices
@@ -137,7 +148,12 @@ class ArasakaNeuralNet:
         if not self.exchanges:
             logger.error("❌ No exchanges connected! Please check your API configuration.")
             return
-        
+
+        # Create circuit breakers for each exchange
+        for exchange_id in self.exchanges.keys():
+            self.circuit_manager.get_or_create(exchange_id)
+            logger.info(f"🔌 Circuit breaker ready for {exchange_id}")
+
         # Update BTC wallet from config
         self.btc_wallet = self.config.get('btc_wallet_address', '') or self.config.get('btc_wallet', '')
         
@@ -534,6 +550,124 @@ class ArasakaNeuralNet:
         if self.auto_trader:
             return self.auto_trader.get_statistics()
         return {}
+
+    async def fetch_ticker_safe(self, exchange_id: str, symbol: str):
+        """Fetch ticker with circuit breaker protection"""
+        breaker = self.circuit_manager.get_or_create(exchange_id)
+
+        try:
+            result = await breaker.call(
+                self.exchanges[exchange_id].fetch_ticker,
+                symbol
+            )
+            return result
+        except Exception as e:
+            logger.error(f"Failed to fetch {symbol} from {exchange_id}: {e}")
+            return None
+
+    async def execute_trade_protected(
+        self,
+        exchange_id: str,
+        symbol: str,
+        side: str,
+        quantity: float,
+        price: float,
+        confidence: float = 0.7
+    ) -> Optional[int]:
+        """
+        Execute trade with full protection:
+        1. Risk validation
+        2. Circuit breaker protection
+        3. Performance tracking
+        """
+        # 1. Get balance for risk validation
+        try:
+            balance = await self.get_balance_usd(exchange_id)
+        except:
+            balance = 10000  # Default if can't fetch
+
+        # 2. Validate with risk manager
+        validation = await self.risk_manager.validate_trade(
+            symbol=symbol,
+            side=side,
+            quantity=quantity,
+            price=price,
+            balance=balance,
+            confidence=confidence
+        )
+
+        if not validation.approved:
+            logger.warning(f"❌ Trade rejected: {validation.reason}")
+            return None
+
+        # Use adjusted size if recommended
+        final_quantity = validation.adjusted_size or quantity
+        if validation.adjusted_size:
+            logger.info(f"📊 Adjusted quantity: {quantity} → {final_quantity}")
+
+        # 3. Execute trade with circuit breaker protection
+        breaker = self.circuit_manager.get_or_create(exchange_id)
+
+        try:
+            order = await breaker.call(
+                self.exchanges[exchange_id].create_order,
+                symbol=symbol,
+                type='market',
+                side=side,
+                amount=final_quantity
+            )
+
+            # 4. Record trade in performance tracker
+            trade_id = self.performance_tracker.record_trade(
+                exchange=exchange_id,
+                symbol=symbol,
+                side=side,
+                quantity=final_quantity,
+                entry_price=order.get('price', price),
+                exit_price=None,  # Still open
+                fee=order.get('fee', {}).get('cost', 0),
+                strategy="neural_net",
+                notes=f"Confidence: {confidence:.2%}"
+            )
+
+            logger.info(f"✅ Trade executed: {symbol} {side} {final_quantity} (ID: {trade_id})")
+            logger.info(f"   Stop Loss: ${validation.stop_loss:.2f} | Take Profit: ${validation.take_profit:.2f}")
+
+            return trade_id
+
+        except Exception as e:
+            logger.error(f"Trade execution failed: {e}")
+            return None
+
+    async def close_trade_tracked(self, trade_id: int, exit_price: float):
+        """Close trade and update metrics"""
+        # Update performance tracker
+        self.performance_tracker.update_trade(
+            trade_id=trade_id,
+            exit_price=exit_price,
+            status="closed"
+        )
+        logger.info(f"📝 Trade {trade_id} closed at ${exit_price:.2f}")
+
+    async def get_balance_usd(self, exchange_id: str) -> float:
+        """Get total balance in USD"""
+        try:
+            balance = await self.exchanges[exchange_id].fetch_balance()
+            total_usd = balance.get('USDT', {}).get('total', 0)
+            total_usd += balance.get('USDC', {}).get('total', 0)
+            total_usd += balance.get('USD', {}).get('total', 0)
+            return total_usd
+        except:
+            return 10000  # Default
+
+    def get_trading_status(self) -> Dict:
+        """Get comprehensive trading status including advanced features"""
+        return {
+            'risk': self.risk_manager.get_risk_status(),
+            'circuit_breakers': self.circuit_manager.get_all_status(),
+            'health': self.circuit_manager.get_health_summary(),
+            'performance': self.performance_tracker.get_performance_metrics().to_dict()
+        }
 
     async def shutdown(self):
         """Gracefully shutdown the Neural-Net"""
