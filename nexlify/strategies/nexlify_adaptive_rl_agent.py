@@ -179,12 +179,15 @@ class HardwareProfiler:
         except Exception as e:
             logger.error(f"GPU detection error: {e}")
 
-        # Fallback: Try nvidia-smi
+        # Fallback: Try nvidia-smi with compute capability query
         if not gpu_info['available']:
             try:
                 import subprocess
+                import re
+
+                # Try to get compute capability directly
                 result = subprocess.run(
-                    ['nvidia-smi', '--query-gpu=name,memory.total', '--format=csv,noheader'],
+                    ['nvidia-smi', '--query-gpu=name,memory.total,compute_cap', '--format=csv,noheader'],
                     capture_output=True, text=True, timeout=5
                 )
 
@@ -200,70 +203,117 @@ class HardwareProfiler:
                         vram_str = parts[1].strip().split()[0]
                         gpu_info['vram_gb'] = int(vram_str) / 1024
 
-                        # Infer capabilities from GPU name (nvidia-smi fallback)
-                        gpu_name_lower = gpu_info['name'].lower()
+                        # Try to get compute capability from nvidia-smi
+                        if len(parts) >= 3:
+                            try:
+                                compute_cap = parts[2].strip()
+                                if compute_cap and compute_cap != '[Not Supported]':
+                                    gpu_info['compute_capability'] = compute_cap
+                            except:
+                                pass
 
-                        # RTX 40 series (Ada Lovelace) - Compute 8.9
-                        if 'rtx 40' in gpu_name_lower:
-                            gpu_info['compute_capability'] = '8.9'
-                            gpu_info['tensor_cores'] = True
-                            gpu_info['supports_fp16'] = True
-                            gpu_info['has_tensor_cores'] = True
-                        # RTX 30 series (Ampere) - Compute 8.6
-                        elif 'rtx 30' in gpu_name_lower:
-                            gpu_info['compute_capability'] = '8.6'
-                            gpu_info['tensor_cores'] = True
-                            gpu_info['supports_fp16'] = True
-                            gpu_info['has_tensor_cores'] = True
-                        # RTX 20 series (Turing) - Compute 7.5
-                        elif 'rtx 20' in gpu_name_lower:
-                            gpu_info['compute_capability'] = '7.5'
-                            gpu_info['tensor_cores'] = True
-                            gpu_info['supports_fp16'] = True
-                            gpu_info['has_tensor_cores'] = True
-                        # GTX 16 series (Turing, no tensor cores) - Compute 7.5
-                        elif 'gtx 16' in gpu_name_lower:
-                            gpu_info['compute_capability'] = '7.5'
-                            gpu_info['tensor_cores'] = False
-                            gpu_info['supports_fp16'] = True
-                            gpu_info['has_tensor_cores'] = False
-                        # GTX 10 series (Pascal) - Compute 6.1
-                        elif 'gtx 10' in gpu_name_lower:
-                            gpu_info['compute_capability'] = '6.1'
-                            gpu_info['tensor_cores'] = False
-                            gpu_info['supports_fp16'] = True
-                            gpu_info['has_tensor_cores'] = False
-                        # Volta (V100, Titan V) - Compute 7.0
-                        elif 'v100' in gpu_name_lower or 'titan v' in gpu_name_lower:
-                            gpu_info['compute_capability'] = '7.0'
-                            gpu_info['tensor_cores'] = True
-                            gpu_info['supports_fp16'] = True
-                            gpu_info['has_tensor_cores'] = True
-                        # Default for modern NVIDIA GPUs
-                        else:
-                            gpu_info['compute_capability'] = '7.0'  # Conservative estimate
-                            gpu_info['supports_fp16'] = True
-                            # Assume tensor cores for modern GPUs with 6GB+ VRAM
-                            if gpu_info['vram_gb'] >= 6:
+                        # If we got compute capability, use it to determine features
+                        if gpu_info['compute_capability']:
+                            try:
+                                major = float(gpu_info['compute_capability'].split('.')[0])
+                                # Tensor cores available on compute capability >= 7.0 (Volta+)
+                                if major >= 7:
+                                    gpu_info['tensor_cores'] = True
+                                    gpu_info['has_tensor_cores'] = True
+                                    gpu_info['supports_fp16'] = True
+                                elif major >= 6:
+                                    gpu_info['supports_fp16'] = True
+                            except:
+                                pass
+
+                        # Fallback: Infer from GPU name using future-proof patterns
+                        if not gpu_info['compute_capability']:
+                            gpu_name_lower = gpu_info['name'].lower()
+
+                            # Extract RTX generation number (20, 30, 40, 50, etc.)
+                            rtx_match = re.search(r'rtx\s*(\d{2})\d{2}', gpu_name_lower)
+                            gtx_match = re.search(r'gtx\s*(\d{2})\d{2}', gpu_name_lower)
+
+                            if rtx_match:
+                                generation = int(rtx_match.group(1))
+                                # RTX 20+ all have tensor cores
+                                # Future generations (50, 60, etc.) will likely have tensor cores
+                                if generation >= 40:
+                                    gpu_info['compute_capability'] = '8.9'  # Ada Lovelace (40 series)
+                                elif generation >= 30:
+                                    gpu_info['compute_capability'] = '8.6'  # Ampere (30 series)
+                                elif generation >= 20:
+                                    gpu_info['compute_capability'] = '7.5'  # Turing (20 series)
+                                else:
+                                    gpu_info['compute_capability'] = '8.9'  # Assume latest for unknown future gen
+
+                                # All RTX cards have tensor cores
                                 gpu_info['tensor_cores'] = True
                                 gpu_info['has_tensor_cores'] = True
+                                gpu_info['supports_fp16'] = True
 
-                        # Determine GPU tier based on name and VRAM
+                            elif gtx_match:
+                                generation = int(gtx_match.group(1))
+                                # GTX cards (no tensor cores until they become RTX)
+                                if generation >= 16:
+                                    gpu_info['compute_capability'] = '7.5'  # Turing
+                                elif generation >= 10:
+                                    gpu_info['compute_capability'] = '6.1'  # Pascal
+                                else:
+                                    gpu_info['compute_capability'] = '6.0'  # Older
+
+                                gpu_info['tensor_cores'] = False
+                                gpu_info['has_tensor_cores'] = False
+                                gpu_info['supports_fp16'] = True
+
+                            # Data center / professional cards
+                            elif any(x in gpu_name_lower for x in ['v100', 'a100', 'a40', 'a30', 'h100', 'h200']):
+                                # Professional cards - assume latest features
+                                if 'h100' in gpu_name_lower or 'h200' in gpu_name_lower:
+                                    gpu_info['compute_capability'] = '9.0'  # Hopper
+                                elif 'a100' in gpu_name_lower or 'a40' in gpu_name_lower:
+                                    gpu_info['compute_capability'] = '8.0'  # Ampere
+                                elif 'v100' in gpu_name_lower:
+                                    gpu_info['compute_capability'] = '7.0'  # Volta
+                                else:
+                                    gpu_info['compute_capability'] = '8.0'  # Conservative modern estimate
+
+                                gpu_info['tensor_cores'] = True
+                                gpu_info['has_tensor_cores'] = True
+                                gpu_info['supports_fp16'] = True
+
+                            # Unknown modern NVIDIA GPU - use conservative estimates
+                            else:
+                                logger.warning(f"Unknown NVIDIA GPU: {gpu_info['name']}, using conservative estimates")
+                                gpu_info['compute_capability'] = '7.5'  # Conservative modern estimate
+                                gpu_info['supports_fp16'] = True
+                                # Assume tensor cores for GPUs with 6GB+ VRAM (likely modern)
+                                if gpu_info['vram_gb'] >= 6:
+                                    gpu_info['tensor_cores'] = True
+                                    gpu_info['has_tensor_cores'] = True
+                                else:
+                                    gpu_info['tensor_cores'] = False
+                                    gpu_info['has_tensor_cores'] = False
+
+                        # Determine GPU tier based on VRAM (future-proof)
                         vram = gpu_info['vram_gb']
-                        if 'rtx 4090' in gpu_name_lower or 'rtx 4080' in gpu_name_lower or vram >= 20:
-                            gpu_info['tier'] = 'ultra'  # RTX 4090, 4080, A100
-                        elif 'rtx 40' in gpu_name_lower or 'rtx 30' in gpu_name_lower or vram >= 10:
-                            gpu_info['tier'] = 'high'  # RTX 4070, 3080, 3090
-                        elif 'rtx 20' in gpu_name_lower or 'gtx 1660' in gpu_name_lower or vram >= 6:
-                            gpu_info['tier'] = 'mid'  # RTX 2060, 2070, GTX 1660
-                        elif 'gtx 16' in gpu_name_lower or 'gtx 10' in gpu_name_lower or vram >= 3:
-                            gpu_info['tier'] = 'low_mid'  # GTX 1050, 1060
+                        if vram >= 20:
+                            gpu_info['tier'] = 'ultra'  # 20GB+: RTX 4090, A100, H100
+                        elif vram >= 12:
+                            gpu_info['tier'] = 'high'  # 12-20GB: RTX 4080, 3090, 4070 Ti
+                        elif vram >= 8:
+                            gpu_info['tier'] = 'mid_high'  # 8-12GB: RTX 4070, 3080, 4060 Ti
+                        elif vram >= 6:
+                            gpu_info['tier'] = 'mid'  # 6-8GB: RTX 4060, 3060, 2060
+                        elif vram >= 4:
+                            gpu_info['tier'] = 'low_mid'  # 4-6GB: GTX 1660, 1060
                         else:
-                            gpu_info['tier'] = 'low'  # Older GPUs
+                            gpu_info['tier'] = 'low'  # <4GB: Older GPUs
 
                         logger.info(f"GPU: {gpu_info['name']} with {gpu_info['vram_gb']:.1f} GB VRAM (nvidia-smi)")
 
-            except Exception:
+            except Exception as e:
+                logger.debug(f"nvidia-smi detection failed: {e}")
                 pass
 
         if not gpu_info['available']:
