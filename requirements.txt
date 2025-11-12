@@ -51,6 +51,9 @@ pyotp==2.9.0
 argon2-cffi==23.1.0
 qrcode==7.4.2
 
+# Web3/DeFi (Phase 2)
+web3==6.20.3
+
 # Logging and monitoring
 loguru==0.7.2
 python-json-logger==2.0.7

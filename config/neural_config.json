@@ -99,5 +99,63 @@
     "auto_baseline_update": false,
     "trigger_killswitch_on_critical": true,
     "allowed_processes": ["python", "python3", "nexlify", "ccxt"]
+  },
+
+  "tax_reporting": {
+    "enabled": true,
+    "jurisdiction": "us",
+    "cost_basis_method": "fifo",
+    "long_term_threshold_days": 365,
+    "database_path": "data/trading.db",
+    "auto_generate_reports": true,
+    "report_frequency": "yearly"
+  },
+
+  "defi_integration": {
+    "enabled": true,
+    "idle_threshold": 1000,
+    "min_apy": 5.0,
+    "max_risk": "medium",
+    "auto_compound": true,
+    "compound_threshold": 50,
+    "networks": ["ethereum", "polygon"],
+    "protocols": {
+      "uniswap_v3": {
+        "enabled": true,
+        "min_apy": 5.0,
+        "max_risk": "medium"
+      },
+      "aave": {
+        "enabled": true,
+        "min_apy": 3.0,
+        "max_risk": "low"
+      },
+      "pancakeswap": {
+        "enabled": false,
+        "min_apy": 8.0,
+        "max_risk": "high"
+      }
+    }
+  },
+
+  "profit_management": {
+    "enabled": true,
+    "min_operating_balance": 1000,
+    "default_strategy": "threshold",
+    "default_percentage": 50,
+    "default_threshold": 1000,
+    "auto_compound": true,
+    "compound_percentage": 50,
+    "database_path": "data/trading.db",
+    "withdrawal_destinations": {
+      "cold_wallet": {
+        "enabled": true,
+        "address": ""
+      },
+      "bank_account": {
+        "enabled": false,
+        "details": ""
+      }
+    }
   }
 }
