@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Nexlify Cyberpunk Effects Module
-Visual and audio effects for the cyberpunk-themed interface
+Nexlify Modern UI Effects Module
+Visual and audio effects for the modern interface
 """
 
 import logging
@@ -15,7 +15,8 @@ logger = logging.getLogger(__name__)
 
 class CyberpunkEffects:
     """
-    Manages visual effects for the cyberpunk interface
+    Manages visual effects for the modern interface
+    Note: Class name retained for backward compatibility
     """
 
     def __init__(self, config: Dict = None):
@@ -24,56 +25,45 @@ class CyberpunkEffects:
         self.glow_intensity = self.config.get('glow_intensity', 20)
         self.animation_speed = self.config.get('animation_speed', 200)
 
-        logger.info("✨ Cyberpunk Effects initialized")
+        logger.info("✨ Modern UI Effects initialized")
 
-    def apply_glow_effect(self, widget, color: str = "#00ffff"):
+    def apply_glow_effect(self, widget, color: str = "#2563eb"):
         """
-        Apply neon glow effect to a widget
+        Apply subtle shadow effect to a widget (modern design)
 
         Args:
             widget: PyQt5 widget to apply effect to
-            color: Hex color for the glow
+            color: Hex color for the shadow (optional, uses subtle gray)
         """
-        if not self.effects_enabled:
+        # Skip glow effects for modern design (glow_intensity should be 0)
+        if not self.effects_enabled or self.glow_intensity == 0:
             return
 
         try:
-            # Create glow effect using Qt graphics effects
+            # Create subtle drop shadow using Qt graphics effects
             from PyQt5.QtWidgets import QGraphicsDropShadowEffect
             from PyQt5.QtGui import QColor
 
-            glow = QGraphicsDropShadowEffect()
-            glow.setBlurRadius(self.glow_intensity)
-            glow.setColor(QColor(color))
-            glow.setOffset(0, 0)
-            widget.setGraphicsEffect(glow)
+            shadow = QGraphicsDropShadowEffect()
+            shadow.setBlurRadius(10)  # Subtle blur
+            shadow.setColor(QColor(0, 0, 0, 25))  # Very subtle black shadow
+            shadow.setOffset(0, 2)  # Slight offset downward
+            widget.setGraphicsEffect(shadow)
 
         except Exception as e:
-            logger.debug(f"Could not apply glow effect: {e}")
+            logger.debug(f"Could not apply shadow effect: {e}")
 
     def create_scan_line_effect(self) -> str:
         """
-        Generate CSS for CRT scan line effect
+        Scan line effect disabled for modern design
 
         Returns:
-            CSS string for scan lines
+            Empty string (no scan lines for modern UI)
         """
-        if not self.effects_enabled:
-            return ""
+        # Scan lines disabled for modern, clean design
+        return ""
 
-        return """
-        QWidget {
-            background-image: repeating-linear-gradient(
-                0deg,
-                transparent,
-                transparent 2px,
-                rgba(0, 255, 255, 0.03) 2px,
-                rgba(0, 255, 255, 0.03) 4px
-            );
-        }
-        """
-
-    def create_pulse_animation(self, widget, color: str = "#00ffff"):
+    def create_pulse_animation(self, widget, color: str = "#2563eb"):
         """
         Create pulsing animation effect
 

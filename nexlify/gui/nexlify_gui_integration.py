@@ -43,7 +43,7 @@ class PINAuthDialog(QDialog):
         # Title
         title = QLabel("Enter your PIN to access Nexlify")
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #00ffff;")
+        title.setStyleSheet("font-size: 16px; font-weight: 600; color: #1e293b;")
         layout.addWidget(title)
 
         # PIN input
@@ -55,10 +55,10 @@ class PINAuthDialog(QDialog):
             QLineEdit {
                 font-size: 24px;
                 padding: 10px;
-                border: 2px solid #00ffff;
-                border-radius: 5px;
-                background: #1f1f1f;
-                color: #00ffff;
+                border: 2px solid #2563eb;
+                border-radius: 6px;
+                background: #ffffff;
+                color: #1e293b;
             }
         """)
         self.pin_input.returnPressed.connect(self.validate_pin)
@@ -67,7 +67,7 @@ class PINAuthDialog(QDialog):
         # Status label
         self.status_label = QLabel("")
         self.status_label.setAlignment(Qt.AlignCenter)
-        self.status_label.setStyleSheet("color: #ff0000; font-size: 12px;")
+        self.status_label.setStyleSheet("color: #ef4444; font-size: 12px;")
         layout.addWidget(self.status_label)
 
         # Buttons
@@ -77,14 +77,14 @@ class PINAuthDialog(QDialog):
         self.login_btn.clicked.connect(self.validate_pin)
         self.login_btn.setStyleSheet("""
             QPushButton {
-                background: #00ffff;
-                color: #000;
-                font-weight: bold;
+                background: #2563eb;
+                color: white;
+                font-weight: 500;
                 padding: 10px;
-                border-radius: 5px;
+                border-radius: 6px;
             }
             QPushButton:hover {
-                background: #00dddd;
+                background: #3b82f6;
             }
         """)
         btn_layout.addWidget(self.login_btn)
@@ -93,13 +93,14 @@ class PINAuthDialog(QDialog):
         cancel_btn.clicked.connect(self.reject)
         cancel_btn.setStyleSheet("""
             QPushButton {
-                background: #333;
-                color: #fff;
+                background: #e8ecf1;
+                color: #1e293b;
                 padding: 10px;
-                border-radius: 5px;
+                border-radius: 6px;
+                font-weight: 500;
             }
             QPushButton:hover {
-                background: #444;
+                background: #cbd5e1;
             }
         """)
         btn_layout.addWidget(cancel_btn)
@@ -136,12 +137,12 @@ class EmergencyKillSwitchWidget(QWidget):
 
         # Title
         title = QLabel("🚨 Emergency Kill Switch")
-        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #ff0000;")
+        title.setStyleSheet("font-size: 18px; font-weight: 600; color: #ef4444;")
         layout.addWidget(title)
 
         # Status
         self.status_label = QLabel()
-        self.status_label.setStyleSheet("font-size: 14px; color: #00ffff;")
+        self.status_label.setStyleSheet("font-size: 14px; color: #2563eb;")
         layout.addWidget(self.status_label)
 
         # Big red button
@@ -150,18 +151,18 @@ class EmergencyKillSwitchWidget(QWidget):
         self.kill_btn.clicked.connect(self.trigger_kill_switch)
         self.kill_btn.setStyleSheet("""
             QPushButton {
-                background: #ff0000;
-                color: #fff;
+                background: #ef4444;
+                color: white;
                 font-size: 24px;
-                font-weight: bold;
-                border: 3px solid #ff4444;
-                border-radius: 10px;
+                font-weight: 600;
+                border: none;
+                border-radius: 8px;
             }
             QPushButton:hover {
-                background: #dd0000;
+                background: #dc2626;
             }
             QPushButton:pressed {
-                background: #bb0000;
+                background: #b91c1c;
             }
         """)
         layout.addWidget(self.kill_btn)
@@ -193,12 +194,12 @@ class EmergencyKillSwitchWidget(QWidget):
 
         if status['is_active']:
             self.status_label.setText("⚠️ KILL SWITCH ACTIVE - Trading Stopped")
-            self.status_label.setStyleSheet("font-size: 14px; color: #ff0000; font-weight: bold;")
+            self.status_label.setStyleSheet("font-size: 14px; color: #ef4444; font-weight: 600;")
             self.kill_btn.setEnabled(False)
             self.reset_btn.setEnabled(not status['is_locked'])
         else:
             self.status_label.setText("✅ System Operational")
-            self.status_label.setStyleSheet("font-size: 14px; color: #00ff00;")
+            self.status_label.setStyleSheet("font-size: 14px; color: #10b981;")
             self.kill_btn.setEnabled(True)
             self.reset_btn.setEnabled(False)
 
@@ -262,7 +263,7 @@ class TaxReportingWidget(QWidget):
 
         # Title
         title = QLabel("💰 Tax Reporting")
-        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #00ff00;")
+        title.setStyleSheet("font-size: 18px; font-weight: 600; color: #10b981;")
         layout.addWidget(title)
 
         # Summary
@@ -364,12 +365,12 @@ class DeFiPositionsWidget(QWidget):
 
         # Title
         title = QLabel("🌊 DeFi Integration")
-        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #00ffff;")
+        title.setStyleSheet("font-size: 18px; font-weight: 600; color: #2563eb;")
         layout.addWidget(title)
 
         # Portfolio summary
         self.portfolio_label = QLabel()
-        self.portfolio_label.setStyleSheet("font-size: 14px; color: #00ff00;")
+        self.portfolio_label.setStyleSheet("font-size: 14px; color: #10b981;")
         layout.addWidget(self.portfolio_label)
 
         # Positions table
@@ -475,7 +476,7 @@ class ProfitManagementWidget(QWidget):
 
         # Title
         title = QLabel("💸 Profit Management")
-        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #00ff00;")
+        title.setStyleSheet("font-size: 18px; font-weight: 600; color: #10b981;")
         layout.addWidget(title)
 
         # Summary
