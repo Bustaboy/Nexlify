@@ -8,7 +8,7 @@ This module provides 100+ features across multiple categories:
 - Market microstructure (20+)
 - Statistical features (15+)
 - Time-based features (10+)
-- Sentiment indicators (5+)
+- Sentiment indicators (10+)
 """
 
 import numpy as np
@@ -16,6 +16,14 @@ import pandas as pd
 from typing import Dict, List, Optional, Tuple
 import logging
 from datetime import datetime, timedelta
+import asyncio
+
+# Import sentiment analyzer
+try:
+    from nexlify.ml.nexlify_sentiment_analysis import SentimentAnalyzer
+    SENTIMENT_AVAILABLE = True
+except ImportError:
+    SENTIMENT_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -27,17 +35,34 @@ class FeatureEngineer:
     Generates 100+ features optimized for ML/RL models
     """
 
-    def __init__(self, lookback_periods: Optional[List[int]] = None):
+    def __init__(self,
+                 lookback_periods: Optional[List[int]] = None,
+                 enable_sentiment: bool = True,
+                 sentiment_config: Optional[Dict] = None):
         """
         Initialize feature engineer
 
         Args:
             lookback_periods: List of periods for rolling calculations [7, 14, 30, 60]
+            enable_sentiment: Enable sentiment analysis features
+            sentiment_config: Configuration for sentiment analyzer (API keys, etc.)
         """
         self.lookback_periods = lookback_periods or [7, 14, 30, 60]
         self.feature_names = []
+        self.enable_sentiment = enable_sentiment and SENTIMENT_AVAILABLE
 
-        logger.info("🔧 Feature Engineer initialized")
+        # Initialize sentiment analyzer if enabled
+        self.sentiment_analyzer = None
+        if self.enable_sentiment:
+            try:
+                self.sentiment_analyzer = SentimentAnalyzer(sentiment_config)
+                logger.info("🔧 Feature Engineer initialized (with sentiment analysis)")
+            except Exception as e:
+                logger.warning(f"Sentiment analyzer failed to initialize: {e}")
+                self.enable_sentiment = False
+                logger.info("🔧 Feature Engineer initialized (without sentiment)")
+        else:
+            logger.info("🔧 Feature Engineer initialized (without sentiment)")
 
     def engineer_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -79,6 +104,10 @@ class FeatureEngineer:
 
         # 9. Market microstructure
         result = self._add_microstructure_features(result)
+
+        # 10. Sentiment features (async, cached)
+        if self.enable_sentiment:
+            result = self._add_sentiment_features(result)
 
         # Fill NaN values
         result = result.fillna(method='bfill').fillna(0)
@@ -373,6 +402,43 @@ class FeatureEngineer:
 
         return df
 
+    def _add_sentiment_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Add sentiment analysis features
+
+        Uses cached sentiment data to avoid API rate limits
+        """
+        if not self.sentiment_analyzer:
+            return df
+
+        # Detect symbol from data (assume BTC for now, can be extended)
+        # In production, symbol should be passed as parameter
+        symbol = "BTC"  # Default
+
+        try:
+            # Fetch sentiment (cached for 5 minutes)
+            loop = asyncio.get_event_loop()
+            sentiment = loop.run_until_complete(
+                self.sentiment_analyzer.get_sentiment(symbol)
+            )
+
+            # Get sentiment features
+            sentiment_features = self.sentiment_analyzer.get_sentiment_features(sentiment)
+
+            # Add to dataframe (same value for all rows, as sentiment is point-in-time)
+            for feature_name, value in sentiment_features.items():
+                df[feature_name] = value
+
+            logger.debug(f"Added {len(sentiment_features)} sentiment features")
+
+        except Exception as e:
+            logger.warning(f"Failed to add sentiment features: {e}")
+            # Add default values
+            df['sentiment_overall'] = 0.0
+            df['sentiment_confidence'] = 0.0
+
+        return df
+
     def _calculate_rsi(self, prices: pd.Series, period: int = 14) -> pd.Series:
         """Calculate RSI"""
         delta = prices.diff()
@@ -441,7 +507,8 @@ class FeatureEngineer:
             'momentum': [col for col in self.feature_names if any(x in col for x in ['roc', 'cci', 'williams'])],
             'statistical': [col for col in self.feature_names if any(x in col for x in ['skew', 'kurt', 'zscore'])],
             'pattern': [col for col in self.feature_names if any(x in col for x in ['doji', 'hammer', 'engulfing', 'cross'])],
-            'time': [col for col in self.feature_names if any(x in col for x in ['hour', 'day', 'month', 'weekend', 'session'])]
+            'time': [col for col in self.feature_names if any(x in col for x in ['hour', 'day', 'month', 'weekend', 'session'])],
+            'sentiment': [col for col in self.feature_names if 'sentiment' in col or 'fear_greed' in col or 'whale' in col]
         }
 
 
