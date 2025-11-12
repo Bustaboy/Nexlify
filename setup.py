@@ -9,10 +9,10 @@ from pathlib import Path
 
 # Read the contents of README file
 this_directory = Path(__file__).parent
-long_description = (this_directory / "README.md").read_text()
+llong_description = (this_directory / "README.md").read_text(encoding='utf-8') 
 
 # Read requirements
-requirements = (this_directory / "requirements.txt").read_text().splitlines()
+requirements = (this_directory / "requirements.txt").read_text(encoding='utf-8').splitlines()
 
 # Filter out comments and empty lines
 requirements = [
