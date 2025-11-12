@@ -8,68 +8,68 @@ setlocal enabledelayedexpansion
 
 echo.
 echo ================================================================================
-echo   [94m^🚀 Nexlify ML/RL 1000-Round Training[0m
+echo   Nexlify ML/RL 1000-Round Training
 echo ================================================================================
 echo.
 
 REM Check Python version
-echo [93mChecking Python version...[0m
+echo Checking Python version...
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo [91mError: Python not found. Please install Python 3.9+[0m
+    echo Error: Python not found. Please install Python 3.9+
     pause
     exit /b 1
 )
 
 for /f "tokens=2" %%i in ('python --version 2^>^&1') do set PYTHON_VERSION=%%i
-echo [92m✓ Python %PYTHON_VERSION%[0m
+echo [OK] Python %PYTHON_VERSION%
 
 REM Check if in correct directory
 if not exist "scripts\train_ml_rl_1000_rounds.py" (
-    echo [91mError: Please run this script from the Nexlify root directory[0m
+    echo Error: Please run this script from the Nexlify root directory
     pause
     exit /b 1
 )
 
 REM Check/create virtual environment
 if not exist "venv" (
-    echo [93mCreating virtual environment...[0m
+    echo Creating virtual environment...
     python -m venv venv
-    echo [92m✓ Virtual environment created[0m
+    echo [OK] Virtual environment created
 )
 
 REM Activate virtual environment
-echo [93mActivating virtual environment...[0m
+echo Activating virtual environment...
 call venv\Scripts\activate.bat
 if errorlevel 1 (
-    echo [91mError: Failed to activate virtual environment[0m
+    echo Error: Failed to activate virtual environment
     pause
     exit /b 1
 )
 
 REM Check dependencies
-echo [93mChecking dependencies...[0m
+echo Checking dependencies...
 python -c "import numpy" >nul 2>&1
 if errorlevel 1 (
-    echo [93mInstalling dependencies (this may take a few minutes)...[0m
+    echo Installing dependencies (this may take a few minutes)...
     python -m pip install --upgrade pip >nul 2>&1
     pip install -r requirements.txt
     if errorlevel 1 (
-        echo [91mError: Failed to install dependencies[0m
+        echo Error: Failed to install dependencies
         pause
         exit /b 1
     )
-    echo [92m✓ Dependencies installed[0m
+    echo [OK] Dependencies installed
 ) else (
-    echo [92m✓ Dependencies already installed[0m
+    echo [OK] Dependencies already installed
 )
 
 REM Create necessary directories
-echo [93mCreating directories...[0m
+echo Creating directories...
 if not exist "models\ml_rl_1000" mkdir models\ml_rl_1000
 if not exist "logs" mkdir logs
 if not exist "data" mkdir data
-echo [92m✓ Directories ready[0m
+echo [OK] Directories ready
 
 REM Parse command line arguments
 set AGENT_TYPE=adaptive
@@ -128,7 +128,7 @@ if "%~1"=="--help" (
     pause
     exit /b 0
 )
-echo [91mUnknown option: %~1[0m
+echo Unknown option: %~1
 echo Use --help for usage information
 pause
 exit /b 1
@@ -137,30 +137,30 @@ exit /b 1
 
 REM Display configuration
 echo.
-echo [94mTraining Configuration:[0m
-echo   Agent Type:      [92m%AGENT_TYPE%[0m
-echo   Initial Balance: [92m$%BALANCE%[0m
-echo   Data Days:       [92m%DATA_DAYS%[0m
-echo   Symbol:          [92m%SYMBOL%[0m
+echo Training Configuration:
+echo   Agent Type:      %AGENT_TYPE%
+echo   Initial Balance: $%BALANCE%
+echo   Data Days:       %DATA_DAYS%
+echo   Symbol:          %SYMBOL%
 if not "%RESUME%"=="" (
-    echo   Resume From:     [92m%RESUME:~9%[0m
+    echo   Resume From:     %RESUME:~9%
 )
 echo.
 
 REM Confirm before starting
 set /p CONFIRM="Start training? (Y/N): "
 if /i not "%CONFIRM%"=="Y" (
-    echo [93mTraining cancelled[0m
+    echo Training cancelled
     pause
     exit /b 0
 )
 
 REM Start training
 echo.
-echo [92mStarting 1000-round training...[0m
+echo Starting 1000-round training...
 echo.
-echo [93mNote: This will take several hours. Progress is saved every 50 episodes.[0m
-echo [93mYou can safely interrupt with Ctrl+C and resume later.[0m
+echo Note: This will take several hours. Progress is saved every 50 episodes.
+echo You can safely interrupt with Ctrl+C and resume later.
 echo.
 
 python scripts\train_ml_rl_1000_rounds.py --agent-type %AGENT_TYPE% --balance %BALANCE% --data-days %DATA_DAYS% --symbol "%SYMBOL%" %RESUME%
@@ -168,16 +168,16 @@ python scripts\train_ml_rl_1000_rounds.py --agent-type %AGENT_TYPE% --balance %B
 REM Check if training completed successfully
 if errorlevel 1 (
     echo.
-    echo [91m================================================================================[0m
-    echo [91m  ❌ Training Failed or Interrupted[0m
-    echo [91m================================================================================[0m
+    echo ================================================================================
+    echo   Training Failed or Interrupted
+    echo ================================================================================
     echo.
-    echo Check logs: [93mlogs\ml_rl_1000_training.log[0m
+    echo Check logs: logs\ml_rl_1000_training.log
     echo.
     if exist "models\ml_rl_1000\checkpoint_ep50.pth" (
         echo Progress was saved. Resume with:
         for /f %%i in ('dir /b /o-d models\ml_rl_1000\checkpoint_ep*.pth 2^>nul') do (
-            echo   [94m%~nx0 --resume models\ml_rl_1000\%%i[0m
+            echo   %~nx0 --resume models\ml_rl_1000\%%i
             goto :found_checkpoint
         )
         :found_checkpoint
@@ -188,21 +188,21 @@ if errorlevel 1 (
 
 REM Training completed successfully
 echo.
-echo [92m================================================================================[0m
-echo [92m  ✅ Training Completed Successfully![0m
-echo [92m================================================================================[0m
+echo ================================================================================
+echo   Training Completed Successfully!
+echo ================================================================================
 echo.
-echo Results available in: [92mmodels\ml_rl_1000\[0m
-echo   - Best model: [92mbest_model.pth[0m
-echo   - Final model: [92mfinal_model_1000.pth[0m
-echo   - Report: [92mtraining_report_1000.png[0m
-echo   - Summary: [92mtraining_summary_1000.txt[0m
+echo Results available in: models\ml_rl_1000\
+echo   - Best model: best_model.pth
+echo   - Final model: final_model_1000.pth
+echo   - Report: training_report_1000.png
+echo   - Summary: training_summary_1000.txt
 echo.
 echo View the report:
-echo   [94mstart models\ml_rl_1000\training_report_1000.png[0m  (Windows)
+echo   start models\ml_rl_1000\training_report_1000.png  (Windows)
 echo.
 echo Read the summary:
-echo   [94mtype models\ml_rl_1000\training_summary_1000.txt[0m
+echo   type models\ml_rl_1000\training_summary_1000.txt
 echo.
 
 pause
