@@ -68,7 +68,8 @@ class NexlifySetup:
             self.project_root / "data",
             self.project_root / "models",
             self.project_root / "backups",
-            self.project_root / "reports"
+            self.project_root / "reports",
+            self.project_root / "reports" / "tax"
         ]
         
         for directory in directories:
