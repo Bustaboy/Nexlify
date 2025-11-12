@@ -29,12 +29,22 @@ import time
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+# Fix Windows console encoding for emojis
+if sys.platform == 'win32':
+    # Try to set UTF-8 encoding for Windows console
+    try:
+        import io
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    except:
+        pass
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('logs/ml_rl_1000_training.log'),
+        logging.FileHandler('logs/ml_rl_1000_training.log', encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
@@ -201,9 +211,10 @@ def train_1000_rounds(
         if hw['gpu']['available']:
             print(f"   GPU: {hw['gpu']['name']}")
             print(f"        VRAM: {hw['gpu']['vram_gb']:.1f} GB ({hw['gpu']['tier'].upper()})")
-            print(f"        Compute: {hw['gpu']['compute_capability']}")
-            print(f"        Features: FP16={'✅' if hw['gpu']['supports_fp16'] else '❌'}, "
-                  f"Tensor Cores={'✅' if hw['gpu']['has_tensor_cores'] else '❌'}")
+            print(f"        Compute: {hw['gpu'].get('compute_capability', 'Unknown')}")
+            fp16_support = '✅' if hw['gpu'].get('supports_fp16', False) else '❌'
+            tensor_cores = '✅' if hw['gpu'].get('has_tensor_cores', False) else '❌'
+            print(f"        Features: FP16={fp16_support}, Tensor Cores={tensor_cores}")
         else:
             print(f"   GPU: Not available (CPU-only mode)")
 
