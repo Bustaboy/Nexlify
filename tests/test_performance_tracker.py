@@ -15,7 +15,7 @@ import csv
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from nexlify_performance_tracker import (
+from nexlify.analytics.nexlify_performance_tracker import (
     PerformanceTracker,
     PerformanceMetrics,
     Trade

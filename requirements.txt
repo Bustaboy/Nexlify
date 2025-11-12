@@ -14,14 +14,18 @@ aiofiles==23.2.1
 
 # GUI and visualization
 # tkinter comes with Python
+PyQt5==5.15.10
+qasync==0.24.2
 matplotlib==3.7.2
 Pillow==10.0.0
+seaborn==0.13.0
 
 # Machine Learning / AI
 scikit-learn==1.3.0
 xgboost==2.0.0
 tensorflow==2.13.0
 keras==2.13.0
+torch==2.1.0
 joblib==1.3.2
 
 # Technical analysis
@@ -108,3 +112,8 @@ mypy==1.5.1
 # Additional async utilities
 anyio==3.7.1
 trio==0.22.2
+
+# Optional: Sound & Notifications (uncomment if needed)
+# playsound==1.3.0
+# plyer==2.1.0
+# win10toast==0.9  # Windows only
