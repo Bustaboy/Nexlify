@@ -30,7 +30,8 @@ joblib==1.3.2
 
 # Technical analysis
 ta==0.10.2
-pandas-ta==0.3.14b  # Latest stable beta version
+# pandas-ta: Using GitHub development version for Python 3.11 compatibility
+git+https://github.com/twopirllc/pandas-ta.git@development
 
 # Database
 sqlalchemy==2.0.21
