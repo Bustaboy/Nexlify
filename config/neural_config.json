@@ -1,0 +1,44 @@
+{
+  "exchanges": {},
+  "btc_wallet_address": "",
+  "min_withdrawal": 100,
+  "auto_trade": false,
+
+  "risk_management": {
+    "enabled": true,
+    "max_position_size": 0.05,
+    "max_daily_loss": 0.05,
+    "stop_loss_percent": 0.02,
+    "take_profit_percent": 0.05,
+    "use_kelly_criterion": true,
+    "kelly_fraction": 0.5,
+    "min_kelly_confidence": 0.6,
+    "max_concurrent_trades": 3
+  },
+
+  "circuit_breaker": {
+    "enabled": true,
+    "failure_threshold": 3,
+    "timeout_seconds": 300,
+    "half_open_max_calls": 1
+  },
+
+  "performance_tracking": {
+    "enabled": true,
+    "database_path": "data/trading.db",
+    "calculate_sharpe_ratio": true,
+    "risk_free_rate": 0.02,
+    "track_drawdown": true,
+    "export_formats": ["json", "csv"]
+  },
+
+  "environment": {
+    "debug": false,
+    "log_level": "INFO",
+    "api_port": 8000,
+    "database_url": "sqlite:///data/trading.db",
+    "emergency_contact": "",
+    "telegram_bot_token": "",
+    "telegram_chat_id": ""
+  }
+}
