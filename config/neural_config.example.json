@@ -1,6 +1,6 @@
 {
   "exchanges": {},
-  "btc_wallet_address": "",
+  "btc_wallet_address": "YOUR_WALLET_ADDRESS_HERE",
   "min_withdrawal": 100,
   "auto_trade": false,
   "enable_phase1_phase2_integration": true,
@@ -38,13 +38,13 @@
     "log_level": "INFO",
     "api_port": 8000,
     "database_url": "sqlite:///data/trading.db",
-    "emergency_contact": "",
-    "telegram_bot_token": "",
-    "telegram_chat_id": ""
+    "emergency_contact": "YOUR_EMAIL_OR_PHONE",
+    "telegram_bot_token": "YOUR_TELEGRAM_BOT_TOKEN",
+    "telegram_chat_id": "YOUR_TELEGRAM_CHAT_ID"
   },
 
   "security": {
-    "pin": "2077",
+    "pin": "YOUR_4_TO_8_DIGIT_PIN",
     "default_user": "nexlify_user"
   },
 
@@ -151,11 +151,11 @@
     "withdrawal_destinations": {
       "cold_wallet": {
         "enabled": true,
-        "address": ""
+        "address": "YOUR_COLD_WALLET_ADDRESS"
       },
       "bank_account": {
         "enabled": false,
-        "details": ""
+        "details": "YOUR_BANK_DETAILS"
       }
     }
   }

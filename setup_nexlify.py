@@ -169,7 +169,7 @@ class NexlifySetup:
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Status](https://img.shields.io/badge/status-active-success.svg)
 
-> "In Night City, you're either the hunter or the prey. This Neural-Net ensures you're always the hunter."
+> "With Nexlify's Neural-Net, you're always one step ahead in the trading game."
 
 ## 🚀 Features
 
@@ -271,7 +271,7 @@ MIT License - see LICENSE file
 
 ---
 
-*Built with 💚 in Night City*
+*Built with intelligence and precision* 🤖💰
 """
         
         readme_file = self.project_root / "README.md"

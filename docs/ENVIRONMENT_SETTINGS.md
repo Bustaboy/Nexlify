@@ -342,4 +342,4 @@ database_url = "postgresql://admin:password123@localhost"  # Plain text
 
 ---
 
-*In Night City, your environment shapes your destiny. Configure wisely, trade profitably.* 🌃🤖💰
+*With Nexlify, your environment shapes success. Configure wisely, trade profitably.* 🤖💰
