@@ -85,11 +85,29 @@ class CyberpunkEffects:
             return
 
         try:
-            from PyQt5.QtCore import QPropertyAnimation, QEasingCurve
+            from PyQt5.QtCore import QPropertyAnimation, QEasingCurve, QAbstractAnimation
+            from PyQt5.QtWidgets import QGraphicsOpacityEffect
 
-            # This would create a pulsing opacity animation
-            # Simplified implementation - full version would use QPropertyAnimation
-            pass
+            # Create opacity effect
+            opacity_effect = QGraphicsOpacityEffect()
+            widget.setGraphicsEffect(opacity_effect)
+
+            # Create animation
+            animation = QPropertyAnimation(opacity_effect, b"opacity")
+            animation.setDuration(self.animation_speed * 5)  # 1 second for full cycle
+            animation.setStartValue(1.0)
+            animation.setKeyValueAt(0.5, 0.3)  # Fade to 30% at midpoint
+            animation.setEndValue(1.0)
+            animation.setEasingCurve(QEasingCurve.InOutQuad)
+            animation.setLoopCount(-1)  # Infinite loop
+
+            # Start animation
+            animation.start(QAbstractAnimation.DeleteWhenStopped)
+
+            # Store reference so it doesn't get garbage collected
+            if not hasattr(widget, '_animations'):
+                widget._animations = []
+            widget._animations.append(animation)
 
         except Exception as e:
             logger.debug(f"Could not create pulse animation: {e}")
@@ -117,13 +135,25 @@ class CyberpunkEffects:
 
     def play_typing_sound(self):
         """Play keyboard typing sound effect"""
-        # Placeholder - would integrate with SoundManager
-        pass
+        # This would typically play a sound file
+        # For now, it's a placeholder that can be connected later
+        pass  # Sound files not included in distribution
 
     def play_notification_sound(self, notification_type: str = "info"):
         """Play notification sound"""
-        # Placeholder - would integrate with SoundManager
-        pass
+        # Map notification types to sound effects
+        sound_map = {
+            'info': 'notification',
+            'success': 'profit',
+            'warning': 'notification',
+            'error': 'emergency_alarm'
+        }
+
+        sound_name = sound_map.get(notification_type, 'notification')
+
+        # This would play the sound through SoundManager
+        # For now, it's a placeholder
+        pass  # Sound files not included in distribution
 
 
 class SoundManager:

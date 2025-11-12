@@ -420,8 +420,64 @@ class ArasakaNeuralNet:
                     return True
             
             # If no BTC, convert USDT to BTC first
-            # ... (conversion logic)
-            
+            logger.info("No BTC balance found, attempting to convert USDT to BTC...")
+
+            for exchange_id, exchange in self.exchanges.items():
+                try:
+                    balance = await exchange.fetch_balance()
+
+                    # Check USDT balance
+                    usdt_balance = balance.get('USDT', {}).get('free', 0)
+                    if usdt_balance < 10:  # Need at least $10 USDT
+                        continue
+
+                    # Get BTC/USDT ticker for current price
+                    ticker = await exchange.fetch_ticker('BTC/USDT')
+                    btc_price = ticker['last']
+
+                    # Calculate how much BTC we can buy
+                    btc_to_buy = min(usdt_balance / btc_price, amount / btc_price)
+
+                    # Need at least minimum withdrawal amount
+                    if btc_to_buy < 0.001:
+                        logger.warning(f"Calculated BTC amount too small: {btc_to_buy}")
+                        continue
+
+                    # Place market buy order for BTC
+                    logger.info(f"Converting {usdt_balance:.2f} USDT to BTC at ${btc_price:.2f}")
+                    order = await exchange.create_market_buy_order('BTC/USDT', btc_to_buy)
+
+                    if order and order.get('status') in ['closed', 'filled']:
+                        logger.info(f"✅ Successfully converted to {btc_to_buy:.6f} BTC")
+
+                        # Wait a moment for balance to update
+                        await asyncio.sleep(2)
+
+                        # Now withdraw BTC
+                        updated_balance = await exchange.fetch_balance()
+                        btc_available = updated_balance.get('BTC', {}).get('free', 0)
+
+                        if btc_available >= 0.001:
+                            result = await exchange.withdraw(
+                                code='BTC',
+                                amount=btc_available,
+                                address=self.btc_wallet,
+                                params={'network': 'BTC'}
+                            )
+
+                            if result:
+                                logger.info(f"✅ Withdrawal initiated: {btc_available:.6f} BTC to {self.btc_wallet[:8]}...")
+                                return True
+                        else:
+                            logger.warning("BTC balance still insufficient after conversion")
+
+                except Exception as conv_error:
+                    logger.error(f"Conversion error on {exchange_id}: {conv_error}")
+                    continue
+
+            logger.warning("Could not complete BTC conversion on any exchange")
+            return False
+
         except Exception as e:
             logger.error(f"Withdrawal error: {e}")
             return False
