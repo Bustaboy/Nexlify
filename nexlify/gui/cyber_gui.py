@@ -55,30 +55,33 @@ GRACE_PERIOD_MINUTES = 5  # Grace period before forcing re-auth
 
 @dataclass
 class GUIConfig:
-    """GUI Configuration with cyberpunk theme"""
-    # Colors
-    bg_primary = "#0a0a0a"
-    bg_secondary = "#151515"
-    bg_tertiary = "#1f1f1f"
-    accent_primary = "#00ffff"  # Cyan
-    accent_secondary = "#ff00ff"  # Magenta
-    accent_success = "#00ff00"  # Green
-    accent_warning = "#ffff00"  # Yellow
-    accent_error = "#ff0000"    # Red
-    text_primary = "#ffffff"
-    text_secondary = "#b0b0b0"
-    text_dim = "#606060"
-    
+    """GUI Configuration with modern theme"""
+    # Colors - Modern, clean palette
+    bg_primary = "#ffffff"        # Clean white background
+    bg_secondary = "#f5f7fa"      # Light gray background
+    bg_tertiary = "#e8ecf1"       # Slightly darker gray
+    bg_card = "#ffffff"           # Card backgrounds
+    accent_primary = "#2563eb"    # Modern blue
+    accent_secondary = "#3b82f6"  # Lighter blue
+    accent_success = "#10b981"    # Green
+    accent_warning = "#f59e0b"    # Amber
+    accent_error = "#ef4444"      # Red
+    text_primary = "#1e293b"      # Dark gray for text
+    text_secondary = "#64748b"    # Medium gray
+    text_dim = "#94a3b8"          # Light gray
+    border_color = "#e2e8f0"      # Subtle borders
+    shadow_color = "rgba(0, 0, 0, 0.1)"  # Soft shadows
+
     # Fonts
-    font_family = "Consolas"
-    font_size_small = 10
-    font_size_normal = 12
-    font_size_large = 14
-    font_size_header = 18
-    
+    font_family = "Segoe UI, -apple-system, system-ui, sans-serif"
+    font_size_small = 11
+    font_size_normal = 13
+    font_size_large = 15
+    font_size_header = 20
+
     # Animation
     animation_duration = 200
-    glow_intensity = 20
+    glow_intensity = 0  # No glow effects for modern design
     
 class RateLimitedButton(QPushButton):
     """Button with built-in rate limiting and loading states"""
@@ -216,20 +219,20 @@ class LogWidget(QPlainTextEdit):
         # Add timestamp and format
         timestamp = datetime.now().strftime("%H:%M:%S")
         
-        # Color based on level
+        # Color based on level - Modern colors for light theme
         colors = {
-            "INFO": "#00ff00",
-            "WARNING": "#ffff00", 
-            "ERROR": "#ff0000",
-            "DEBUG": "#00ffff"
+            "INFO": "#10b981",      # Green
+            "WARNING": "#f59e0b",   # Amber
+            "ERROR": "#ef4444",     # Red
+            "DEBUG": "#2563eb"      # Blue
         }
-        color = colors.get(level, "#ffffff")
-        
+        color = colors.get(level, "#1e293b")
+
         # Append with HTML formatting
         self.appendHtml(
-            f'<span style="color: #606060">[{timestamp}]</span> '
-            f'<span style="color: {color}">[{level}]</span> '
-            f'<span style="color: #ffffff">{message}</span>'
+            f'<span style="color: #64748b">[{timestamp}]</span> '
+            f'<span style="color: {color}; font-weight: 600">[{level}]</span> '
+            f'<span style="color: #1e293b">{message}</span>'
         )
         
         # Auto-scroll to bottom
@@ -1037,270 +1040,315 @@ class CyberGUI(QMainWindow):
         self.session_timer.start(1000)  # Update every second
         
     def _apply_cyberpunk_theme(self):
-        """Apply cyberpunk visual theme"""
+        """Apply modern visual theme"""
         style = f"""
-        /* Main Window */
+        /* Main Window - Clean white background */
         QMainWindow {{
-            background-color: {self.config.bg_primary};
-        }}
-        
-        /* Header */
-        #header_frame {{
             background-color: {self.config.bg_secondary};
-            border-bottom: 2px solid {self.config.accent_primary};
         }}
         
+        /* Header - Modern gradient header */
+        #header_frame {{
+            background-color: {self.config.bg_card};
+            border-bottom: 1px solid {self.config.border_color};
+            padding: 16px;
+        }}
+
         #header_title {{
-            color: {self.config.accent_primary};
+            color: {self.config.text_primary};
             font-size: {self.config.font_size_header}px;
-            font-weight: bold;
+            font-weight: 600;
             font-family: {self.config.font_family};
         }}
-        
+
         #header_subtitle {{
             color: {self.config.text_secondary};
             font-size: {self.config.font_size_normal}px;
             font-family: {self.config.font_family};
         }}
-        
-        /* Status LEDs */
+
+        /* Status LEDs - Modern indicators */
         #status_led_on {{
             background-color: {self.config.accent_success};
-            border-radius: 10px;
-            border: 1px solid {self.config.accent_success};
+            border-radius: 8px;
+            border: none;
         }}
-        
+
         #status_led_off {{
-            background-color: {self.config.bg_tertiary};
-            border-radius: 10px;
-            border: 1px solid {self.config.text_dim};
+            background-color: {self.config.text_dim};
+            border-radius: 8px;
+            border: none;
         }}
-        
+
         #status_label {{
             color: {self.config.text_secondary};
             font-size: {self.config.font_size_small}px;
+            font-weight: 500;
         }}
         
-        /* Tabs */
+        /* Tabs - Modern tab design */
         QTabWidget::pane {{
-            background-color: {self.config.bg_secondary};
-            border: 1px solid {self.config.bg_tertiary};
+            background-color: {self.config.bg_card};
+            border: 1px solid {self.config.border_color};
+            border-radius: 8px;
+            margin-top: -1px;
         }}
-        
+
         QTabBar::tab {{
-            background-color: {self.config.bg_tertiary};
+            background-color: transparent;
             color: {self.config.text_secondary};
-            padding: 8px 16px;
-            margin-right: 2px;
+            padding: 10px 20px;
+            margin-right: 4px;
             font-family: {self.config.font_family};
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
         }}
-        
+
         QTabBar::tab:selected {{
-            background-color: {self.config.bg_secondary};
             color: {self.config.accent_primary};
             border-bottom: 2px solid {self.config.accent_primary};
         }}
-        
+
         QTabBar::tab:hover {{
-            background-color: {self.config.bg_secondary};
             color: {self.config.text_primary};
+            background-color: {self.config.bg_tertiary};
         }}
         
-        /* Groups */
+        /* Groups - Card-based design */
         QGroupBox {{
-            background-color: {self.config.bg_secondary};
-            border: 1px solid {self.config.bg_tertiary};
-            border-radius: 4px;
-            margin-top: 8px;
-            padding-top: 8px;
+            background-color: {self.config.bg_card};
+            border: 1px solid {self.config.border_color};
+            border-radius: 8px;
+            margin-top: 16px;
+            padding-top: 16px;
             font-family: {self.config.font_family};
             color: {self.config.text_primary};
         }}
-        
+
         QGroupBox::title {{
-            color: {self.config.accent_primary};
-            left: 10px;
-            top: -8px;
-            background-color: {self.config.bg_secondary};
-            padding: 0 5px;
+            color: {self.config.text_primary};
+            font-weight: 600;
+            left: 12px;
+            top: -10px;
+            background-color: {self.config.bg_card};
+            padding: 0 8px;
         }}
         
-        /* Tables */
+        /* Tables - Modern table design */
         QTableView {{
-            background-color: {self.config.bg_tertiary};
+            background-color: {self.config.bg_card};
             alternate-background-color: {self.config.bg_secondary};
             color: {self.config.text_primary};
-            gridline-color: {self.config.bg_primary};
+            gridline-color: {self.config.border_color};
             selection-background-color: {self.config.accent_primary};
-            selection-color: {self.config.bg_primary};
+            selection-color: white;
             font-family: {self.config.font_family};
-        }}
-        
-        QHeaderView::section {{
-            background-color: {self.config.bg_secondary};
-            color: {self.config.accent_primary};
-            padding: 5px;
-            border: none;
-            font-weight: bold;
-        }}
-        
-        /* Inputs */
-        QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {{
-            background-color: {self.config.bg_tertiary};
-            border: 1px solid {self.config.bg_primary};
-            color: {self.config.text_primary};
-            padding: 5px;
-            font-family: {self.config.font_family};
-        }}
-        
-        QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{
-            border: 1px solid {self.config.accent_primary};
-            outline: none;
-        }}
-        
-        /* Buttons */
-        QPushButton {{
-            background-color: {self.config.bg_tertiary};
-            border: 1px solid {self.config.accent_primary};
-            color: {self.config.accent_primary};
-            padding: 8px 16px;
-            font-family: {self.config.font_family};
-            font-weight: bold;
-        }}
-        
-        QPushButton:hover {{
-            background-color: {self.config.accent_primary};
-            color: {self.config.bg_primary};
-        }}
-        
-        QPushButton:pressed {{
-            background-color: {self.config.accent_secondary};
-        }}
-        
-        QPushButton:disabled {{
-            background-color: {self.config.bg_tertiary};
-            border: 1px solid {self.config.text_dim};
-            color: {self.config.text_dim};
-        }}
-        
-        /* Special Buttons */
-        #buy_button {{
-            border-color: {self.config.accent_success};
-            color: {self.config.accent_success};
-        }}
-        
-        #buy_button:hover {{
-            background-color: {self.config.accent_success};
-            color: {self.config.bg_primary};
-        }}
-        
-        #sell_button {{
-            border-color: {self.config.accent_error};
-            color: {self.config.accent_error};
-        }}
-        
-        #sell_button:hover {{
-            background-color: {self.config.accent_error};
-            color: {self.config.bg_primary};
-        }}
-        
-        #emergency_button {{
-            border-color: {self.config.accent_error};
-            color: {self.config.accent_error};
-            font-size: {self.config.font_size_large}px;
-        }}
-        
-        #emergency_button:hover {{
-            background-color: {self.config.accent_error};
-            color: {self.config.bg_primary};
-        }}
-        
-        /* Scrollbars */
-        QScrollBar:vertical {{
-            background-color: {self.config.bg_secondary};
-            width: 12px;
-            border: none;
-        }}
-        
-        QScrollBar::handle:vertical {{
-            background-color: {self.config.accent_primary};
-            min-height: 20px;
+            border: 1px solid {self.config.border_color};
             border-radius: 6px;
         }}
+
+        QHeaderView::section {{
+            background-color: {self.config.bg_secondary};
+            color: {self.config.text_primary};
+            padding: 8px;
+            border: none;
+            border-bottom: 1px solid {self.config.border_color};
+            font-weight: 600;
+            font-size: {self.config.font_size_small}px;
+        }}
+
+        /* Inputs - Modern input fields */
+        QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {{
+            background-color: {self.config.bg_card};
+            border: 1px solid {self.config.border_color};
+            color: {self.config.text_primary};
+            padding: 8px 12px;
+            font-family: {self.config.font_family};
+            border-radius: 6px;
+        }}
+
+        QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{
+            border: 2px solid {self.config.accent_primary};
+            outline: none;
+        }}
+
+        QComboBox::drop-down {{
+            border: none;
+            padding-right: 8px;
+        }}
         
+        /* Buttons - Modern button design */
+        QPushButton {{
+            background-color: {self.config.accent_primary};
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            font-family: {self.config.font_family};
+            font-weight: 500;
+            border-radius: 6px;
+        }}
+
+        QPushButton:hover {{
+            background-color: {self.config.accent_secondary};
+        }}
+
+        QPushButton:pressed {{
+            background-color: #1d4ed8;
+        }}
+
+        QPushButton:disabled {{
+            background-color: {self.config.bg_tertiary};
+            color: {self.config.text_dim};
+        }}
+
+        /* Special Buttons */
+        #buy_button {{
+            background-color: {self.config.accent_success};
+        }}
+
+        #buy_button:hover {{
+            background-color: #059669;
+        }}
+
+        #sell_button {{
+            background-color: {self.config.accent_error};
+        }}
+
+        #sell_button:hover {{
+            background-color: #dc2626;
+        }}
+
+        #emergency_button {{
+            background-color: {self.config.accent_error};
+            font-size: {self.config.font_size_large}px;
+            padding: 12px 24px;
+        }}
+
+        #emergency_button:hover {{
+            background-color: #dc2626;
+        }}
+        
+        /* Scrollbars - Minimal scrollbars */
+        QScrollBar:vertical {{
+            background-color: {self.config.bg_secondary};
+            width: 10px;
+            border: none;
+            border-radius: 5px;
+        }}
+
+        QScrollBar::handle:vertical {{
+            background-color: {self.config.text_dim};
+            min-height: 30px;
+            border-radius: 5px;
+        }}
+
+        QScrollBar::handle:vertical:hover {{
+            background-color: {self.config.text_secondary};
+        }}
+
         QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
             background: none;
             border: none;
         }}
+
+        QScrollBar:horizontal {{
+            background-color: {self.config.bg_secondary};
+            height: 10px;
+            border: none;
+            border-radius: 5px;
+        }}
+
+        QScrollBar::handle:horizontal {{
+            background-color: {self.config.text_dim};
+            min-width: 30px;
+            border-radius: 5px;
+        }}
+
+        QScrollBar::handle:horizontal:hover {{
+            background-color: {self.config.text_secondary};
+        }}
         
-        /* Labels */
+        /* Labels - Modern typography */
         QLabel {{
             color: {self.config.text_primary};
             font-family: {self.config.font_family};
         }}
-        
+
         #price_display {{
             color: {self.config.accent_primary};
             font-size: {self.config.font_size_header}px;
-            font-weight: bold;
+            font-weight: 600;
         }}
-        
+
         #stat_value {{
             color: {self.config.accent_success};
-            font-weight: bold;
-        }}
-        
-        #portfolio_value {{
-            color: {self.config.accent_primary};
             font-size: {self.config.font_size_large}px;
-            font-weight: bold;
+            font-weight: 600;
         }}
-        
+
+        #portfolio_value {{
+            color: {self.config.text_primary};
+            font-size: {self.config.font_size_large}px;
+            font-weight: 600;
+        }}
+
         #user_info {{
             color: {self.config.text_secondary};
             font-size: {self.config.font_size_small}px;
         }}
-        
-        /* Status Bar */
+
+        /* Status Bar - Clean status bar */
         QStatusBar {{
-            background-color: {self.config.bg_secondary};
+            background-color: {self.config.bg_card};
             color: {self.config.text_secondary};
-            border-top: 1px solid {self.config.bg_tertiary};
+            border-top: 1px solid {self.config.border_color};
+            padding: 4px;
         }}
-        
-        /* Tooltips */
+
+        /* Tooltips - Modern tooltips */
         QToolTip {{
-            background-color: {self.config.bg_tertiary};
-            color: {self.config.text_primary};
-            border: 1px solid {self.config.accent_primary};
-            padding: 5px;
+            background-color: {self.config.text_primary};
+            color: white;
+            border: none;
+            padding: 8px 12px;
             font-family: {self.config.font_family};
+            border-radius: 6px;
         }}
-        
-        /* Log Widget */
+
+        /* Log Widget - Clean log display */
         QPlainTextEdit {{
-            background-color: {self.config.bg_tertiary};
+            background-color: {self.config.bg_card};
             color: {self.config.text_primary};
-            font-family: 'Consolas', 'Monaco', monospace;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
             font-size: {self.config.font_size_small}px;
             selection-background-color: {self.config.accent_primary};
+            border: 1px solid {self.config.border_color};
+            border-radius: 6px;
+            padding: 8px;
         }}
-        
-        /* Checkboxes */
+
+        /* Checkboxes - Modern checkboxes */
         QCheckBox {{
             color: {self.config.text_primary};
             font-family: {self.config.font_family};
+            spacing: 8px;
         }}
-        
+
         QCheckBox::indicator {{
-            width: 16px;
-            height: 16px;
-            background-color: {self.config.bg_tertiary};
-            border: 1px solid {self.config.accent_primary};
+            width: 18px;
+            height: 18px;
+            background-color: {self.config.bg_card};
+            border: 2px solid {self.config.border_color};
+            border-radius: 4px;
         }}
-        
+
+        QCheckBox::indicator:hover {{
+            border-color: {self.config.accent_primary};
+        }}
+
         QCheckBox::indicator:checked {{
             background-color: {self.config.accent_primary};
+            border-color: {self.config.accent_primary};
         }}
         """
         
