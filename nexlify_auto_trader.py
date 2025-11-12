@@ -6,6 +6,7 @@ Fully autonomous trading system with risk management
 
 import asyncio
 import logging
+import numpy as np
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 from dataclasses import dataclass
@@ -181,6 +182,12 @@ class AutoExecutionEngine:
         self.is_active = False
         self.auto_trade_enabled = self.config.get('auto_trade', False)
 
+        # RL Agent integration
+        self.rl_agent = None
+        self.use_rl = self.config.get('use_rl_agent', False)
+        if self.use_rl:
+            self._load_rl_agent()
+
         # Statistics
         self.total_trades = 0
         self.winning_trades = 0
@@ -189,11 +196,54 @@ class AutoExecutionEngine:
 
         logger.info("🤖 Auto-Execution Engine initialized")
 
+    def _load_rl_agent(self):
+        """Load trained RL agent"""
+        try:
+            from nexlify_rl_agent import DQNAgent
+            from pathlib import Path
+
+            model_path = Path("models/rl_agent_trained.pth")
+
+            if not model_path.exists():
+                logger.warning("⚠️ RL model not found, using rule-based trading")
+                self.use_rl = False
+                return
+
+            # Create agent (state_size=8, action_size=3)
+            self.rl_agent = DQNAgent(state_size=8, action_size=3)
+            self.rl_agent.load(str(model_path))
+
+            logger.info("🧠 RL Agent loaded successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to load RL agent: {e}")
+            self.use_rl = False
+
+    def _get_rl_state(self, pair_data: Dict, balance: float) -> np.ndarray:
+        """Convert market data to RL state representation"""
+        current_price = pair_data.get('current_price', 0)
+
+        # State: [balance, position, position_price, current_price,
+        #         price_change, RSI, MACD, volume_ratio]
+        state = np.array([
+            balance / 10000,  # Normalized balance
+            0,  # No current position for new trade
+            0,  # No entry price yet
+            current_price / 10000,  # Normalized price
+            pair_data.get('price_change', 0),
+            pair_data.get('rsi', 0.5),
+            pair_data.get('macd', 0),
+            pair_data.get('volume_ratio', 0.5)
+        ], dtype=np.float32)
+
+        return state
+
     def enable(self):
         """Enable auto-trading"""
         self.auto_trade_enabled = True
         self.is_active = True
-        logger.info("✅ Auto-trading ENABLED")
+        mode = "RL-powered" if self.use_rl else "rule-based"
+        logger.info(f"✅ Auto-trading ENABLED ({mode})")
 
     def disable(self):
         """Disable auto-trading"""
@@ -262,18 +312,32 @@ class AutoExecutionEngine:
                         'exchanges': pair.exchanges
                     }
 
-                    # Check if should trade
-                    should_trade, reason = self.risk_manager.should_trade(
-                        pair_data,
-                        balance,
-                        len(self.active_trades)
-                    )
+                    # Check with RL agent first (if enabled)
+                    rl_approved = True
+                    if self.use_rl and self.rl_agent:
+                        state = self._get_rl_state(pair_data, balance)
+                        action = self.rl_agent.act(state, training=False)
 
-                    if should_trade:
-                        logger.info(f"🎯 Trade opportunity: {symbol} ({reason})")
-                        await self.execute_trade(pair)
-                    else:
-                        logger.debug(f"⏭️ Skipping {symbol}: {reason}")
+                        # Action: 0=Hold, 1=Buy, 2=Sell
+                        # Only proceed if RL says Buy (action=1)
+                        if action != 1:
+                            rl_approved = False
+                            logger.debug(f"🤖 RL Agent: Skip {symbol} (action={action})")
+
+                    if rl_approved:
+                        # Check with risk manager
+                        should_trade, reason = self.risk_manager.should_trade(
+                            pair_data,
+                            balance,
+                            len(self.active_trades)
+                        )
+
+                        if should_trade:
+                            rl_tag = "🤖 RL+" if self.use_rl else ""
+                            logger.info(f"🎯 {rl_tag} Trade opportunity: {symbol} ({reason})")
+                            await self.execute_trade(pair)
+                        else:
+                            logger.debug(f"⏭️ Skipping {symbol}: {reason}")
 
                 # Sleep before next check (30 seconds)
                 await asyncio.sleep(30)
