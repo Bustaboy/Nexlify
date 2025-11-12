@@ -347,7 +347,7 @@ class SmartCache:
         # Two-tier cache
         self.memory_cache = LRUCache(max_size_mb=memory_cache_mb)
         self.disk_cache = ChunkedCompressedStorage(
-            cache_dir=cache_dir / 'disk_cache',
+            cache_dir=self.cache_dir / 'disk_cache',
             chunk_size_kb=1024
         ) if enable_compression else None
 
