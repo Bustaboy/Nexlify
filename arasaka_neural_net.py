@@ -148,9 +148,29 @@ class ArasakaNeuralNet:
         if env_config.get('telegram_bot_token'):
             logger.info("🤖 Telegram bot integration enabled")
         
+        # Initialize auto-trader (if enabled in config)
+        self.auto_trader = None
+        if self.config.get('auto_trade', False):
+            try:
+                from nexlify_auto_trader import AutoExecutionEngine
+                self.auto_trader = AutoExecutionEngine(
+                    neural_net=self,
+                    audit_manager=None,  # Will be set by GUI if available
+                    config=self.config
+                )
+                logger.info("🤖 Auto-Execution Engine initialized")
+            except ImportError as e:
+                logger.warning(f"Auto-trader not available: {e}")
+
         # Start autonomous systems
         asyncio.create_task(self.neural_scanner())
         asyncio.create_task(self.profit_optimizer())
+
+        # Start auto-trader if enabled
+        if self.auto_trader:
+            asyncio.create_task(self.auto_trader.start())
+            logger.info("🚀 Auto-Trading ENABLED")
+
         logger.info("🚀 Neural-Net fully operational - Welcome to Nexlify")
     
     async def neural_scanner(self):
@@ -499,15 +519,35 @@ class ArasakaNeuralNet:
         
         return display_pairs
     
+    def toggle_auto_trading(self, enabled: bool):
+        """Enable or disable auto-trading"""
+        if self.auto_trader:
+            if enabled:
+                self.auto_trader.enable()
+            else:
+                self.auto_trader.disable()
+        else:
+            logger.warning("Auto-trader not initialized")
+
+    def get_auto_trader_stats(self) -> Dict:
+        """Get auto-trader statistics"""
+        if self.auto_trader:
+            return self.auto_trader.get_statistics()
+        return {}
+
     async def shutdown(self):
         """Gracefully shutdown the Neural-Net"""
         logger.info("🔌 Shutting down Arasaka Neural-Net...")
         self.is_active = False
-        
+
+        # Stop auto-trader first
+        if self.auto_trader:
+            await self.auto_trader.stop()
+
         # Close exchange connections
         for exchange in self.exchanges.values():
             await exchange.close()
-        
+
         logger.info("👋 Neural-Net offline. Stay safe in the Matrix!")
 
 # Usage example
