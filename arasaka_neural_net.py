@@ -81,6 +81,10 @@ class ArasakaNeuralNet:
         self.performance_tracker = PerformanceTracker(config)
         logger.info("🎯 Advanced features initialized: Risk Manager, Circuit Breaker, Performance Tracker")
 
+        # Initialize Phase 1 & 2 Integration
+        self.integration_manager = None  # Will be initialized async
+        self._integration_enabled = config.get('enable_phase1_phase2_integration', True)
+
         # Fee configurations per exchange
         self.exchange_fees = {
             'binance': {'maker': 0.001, 'taker': 0.001, 'withdrawal': 0.0005},
@@ -186,6 +190,22 @@ class ArasakaNeuralNet:
         if self.auto_trader:
             asyncio.create_task(self.auto_trader.start())
             logger.info("🚀 Auto-Trading ENABLED")
+
+        # Initialize Phase 1 & 2 Integration
+        if self._integration_enabled:
+            try:
+                from nexlify_trading_integration import create_integrated_trading_manager
+                self.integration_manager = await create_integrated_trading_manager(self.config)
+                self.integration_manager.inject_dependencies(
+                    neural_net=self,
+                    risk_manager=self.risk_manager,
+                    exchange_manager=self.exchanges,
+                    telegram_bot=None  # TODO: inject if available
+                )
+                logger.info("🔗 Phase 1 & 2 Integration ACTIVE")
+            except Exception as e:
+                logger.error(f"❌ Failed to initialize Phase 1 & 2 integration: {e}")
+                self._integration_enabled = False
 
         logger.info("🚀 Neural-Net fully operational - Welcome to Nexlify")
     
@@ -633,6 +653,18 @@ class ArasakaNeuralNet:
             logger.info(f"✅ Trade executed: {symbol} {side} {final_quantity} (ID: {trade_id})")
             logger.info(f"   Stop Loss: ${validation.stop_loss:.2f} | Take Profit: ${validation.take_profit:.2f}")
 
+            # 5. Notify integration manager (Phase 1 & 2)
+            if self._integration_enabled and self.integration_manager:
+                asyncio.create_task(self.integration_manager.on_trade_executed({
+                    'symbol': symbol,
+                    'side': side,
+                    'quantity': final_quantity,
+                    'price': order.get('price', price),
+                    'exchange': exchange_id,
+                    'timestamp': datetime.now(),
+                    'fees': order.get('fee', {}).get('cost', 0)
+                }))
+
             return trade_id
 
         except Exception as e:
@@ -648,6 +680,19 @@ class ArasakaNeuralNet:
             status="closed"
         )
         logger.info(f"📝 Trade {trade_id} closed at ${exit_price:.2f}")
+
+        # Notify integration manager (Phase 1 & 2)
+        if self._integration_enabled and self.integration_manager:
+            # Get trade info from performance tracker
+            trade_info = self.performance_tracker.get_trade(trade_id)
+            if trade_info:
+                pnl = trade_info.get('pnl', 0)
+                asyncio.create_task(self.integration_manager.on_position_closed({
+                    'trade_id': trade_id,
+                    'symbol': trade_info.get('symbol'),
+                    'pnl': pnl,
+                    'exit_price': exit_price
+                }))
 
     async def get_balance_usd(self, exchange_id: str) -> float:
         """Get total balance in USD"""

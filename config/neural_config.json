@@ -3,6 +3,7 @@
   "btc_wallet_address": "",
   "min_withdrawal": 100,
   "auto_trade": false,
+  "enable_phase1_phase2_integration": true,
 
   "risk_management": {
     "enabled": true,
