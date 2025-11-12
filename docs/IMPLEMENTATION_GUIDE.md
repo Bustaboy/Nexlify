@@ -53,11 +53,8 @@ This will:
 
 ### 4. Launch the System
 ```bash
-# Smart launcher (recommended)
+# Launcher (recommended)
 python nexlify_launcher.py
-
-# OR simple launcher
-python launch.py
 
 # OR Windows batch file
 start_nexlify.bat
@@ -97,8 +94,8 @@ On first launch, the GUI displays an onboarding wizard:
    - System initializes and starts scanning
 
 ### Step 2: PIN Security
-- Default PIN: `2077`
-- Change immediately in Settings tab
+- Set a secure PIN during first launch
+- Change PIN anytime in Settings tab
 - 5 failed attempts = 5-minute lockout
 
 ## 🔐 Exchange Setup
@@ -267,7 +264,7 @@ OrderBook → Pattern Recognition → Confidence Score
 
 ## 🔒 Security Checklist
 
-- [ ] Changed default PIN from 2077
+- [ ] Set secure PIN
 - [ ] API keys have minimum permissions
 - [ ] Testnet verified before mainnet
 - [ ] Backup of configuration created
@@ -291,4 +288,4 @@ OrderBook → Pattern Recognition → Confidence Score
 
 ---
 
-*Remember: In Night City, knowledge is power. In trading, preparation is profit.* 🌃🤖💰
+*Remember: With Nexlify, knowledge is power. In trading, preparation is profit.* 🤖💰

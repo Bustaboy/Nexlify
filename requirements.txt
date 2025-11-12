@@ -1,4 +1,4 @@
-# Night City Trader - Python Requirements
+# Nexlify - Python Requirements
 # Python 3.9+ required
 
 # Core trading libraries
