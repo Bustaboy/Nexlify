@@ -9,15 +9,16 @@ from pathlib import Path
 
 # Read the contents of README file
 this_directory = Path(__file__).parent
-long_description = (this_directory / "README.md").read_text(encoding='utf-8')
+try:
+    long_description = (this_directory / "README.md").read_text(encoding='utf-8')
+except Exception:
+    long_description = "AI-Powered Cryptocurrency Trading Platform"
 
-# Read requirements
-requirements = (this_directory / "requirements.txt").read_text(encoding='utf-8').splitlines()
-
-# Filter out comments and empty lines
+# Core requirements only (install from requirements.txt separately)
 requirements = [
-    req.strip() for req in requirements
-    if req.strip() and not req.startswith('#')
+    "ccxt>=4.1.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
 ]
 
 setup(
