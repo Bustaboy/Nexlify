@@ -136,6 +136,7 @@ legacy/
 *.test.py
 *_test.py
 test_*.py
+test_*.json
 
 # API Keys and Wallets (extra safety)
 *api_key*
