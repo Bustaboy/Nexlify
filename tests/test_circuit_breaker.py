@@ -13,7 +13,7 @@ import os
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from nexlify_circuit_breaker import (
+from nexlify.risk.nexlify_circuit_breaker import (
     ExchangeCircuitBreaker,
     CircuitBreakerManager,
     CircuitState

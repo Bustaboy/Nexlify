@@ -3,23 +3,8 @@ Nexlify - AI-Powered Cryptocurrency Trading Platform
 """
 __version__ = "2.0.7.7"
 
-# Re-export main components for easy access
-from nexlify.core import (
-    ArasakaNeuralNet,
-    NexlifyNeuralNet,
-    AutoTrader,
-    TradingIntegrationManager
-)
-
-from nexlify.risk import (
-    RiskManager,
-    CircuitBreaker,
-    FlashCrashProtection,
-    EmergencyKillSwitch
-)
-
-from nexlify.security import SecuritySuite
-
+# For now, make imports lazy to avoid circular dependencies during testing
+# Users can import from specific submodules: from nexlify.core import ArasakaNeuralNet
 __all__ = [
     'ArasakaNeuralNet',
     'NexlifyNeuralNet',

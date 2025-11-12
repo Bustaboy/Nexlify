@@ -133,10 +133,10 @@ sandbox/
 experiments/
 old_versions/
 legacy/
-*.test.py
-*_test.py
-test_*.py
+# Only ignore test data files, not test code
 test_*.json
+*_test_data.json
+test_output/
 
 # API Keys and Wallets (extra safety)
 *api_key*

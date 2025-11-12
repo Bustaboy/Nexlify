@@ -199,6 +199,21 @@ class RiskManager:
         # Calculate trade value
         trade_value = quantity * price
 
+        # Check for zero balance (edge case)
+        if balance <= 0:
+            return TradeValidation(
+                approved=False,
+                reason="Insufficient balance"
+            )
+
+        # Calculate stop-loss and take-profit first (needed for all validations)
+        if side == "buy":
+            stop_loss = price * (1 - self.stop_loss_percent)
+            take_profit = price * (1 + self.take_profit_percent)
+        else:  # sell
+            stop_loss = price * (1 + self.stop_loss_percent)
+            take_profit = price * (1 - self.take_profit_percent)
+
         # 1. Check position size limit
         position_size_ratio = trade_value / balance
         if position_size_ratio > self.max_position_size:
@@ -215,6 +230,8 @@ class RiskManager:
                 approved=False,
                 reason=f"Position size {position_size_ratio*100:.2f}% exceeds limit {self.max_position_size*100:.1f}%",
                 adjusted_size=adjusted_quantity,
+                stop_loss=stop_loss,
+                take_profit=take_profit,
                 warnings=[f"Suggested size: {adjusted_quantity:.6f} {symbol.split('/')[0]}"]
             )
 
@@ -255,15 +272,7 @@ class RiskManager:
                     f"(confidence: {confidence*100:.0f}%)"
                 )
 
-        # 5. Calculate stop-loss and take-profit
-        if side == "buy":
-            stop_loss = price * (1 - self.stop_loss_percent)
-            take_profit = price * (1 + self.take_profit_percent)
-        else:  # sell
-            stop_loss = price * (1 + self.stop_loss_percent)
-            take_profit = price * (1 - self.take_profit_percent)
-
-        # 6. Check remaining daily loss allowance
+        # 5. Check remaining daily loss allowance
         remaining_loss_allowance = (self.max_daily_loss - self.metrics.daily_loss) * balance
         potential_loss = trade_value * self.stop_loss_percent
 

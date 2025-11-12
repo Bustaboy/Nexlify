@@ -15,7 +15,7 @@ import os
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from nexlify_risk_manager import RiskManager, TradeValidation, RiskMetrics
+from nexlify.risk.nexlify_risk_manager import RiskManager, TradeValidation, RiskMetrics
 
 
 @pytest.fixture
@@ -362,7 +362,7 @@ class TestConcurrentTrades:
         validation = await risk_manager.validate_trade(
             symbol="BTC/USDT",
             side="buy",
-            quantity=0.1,
+            quantity=0.01,  # Fixed: $500 = 5% of $10000 balance
             price=50000.0,
             balance=10000.0,
             confidence=0.7
@@ -378,7 +378,7 @@ class TestConcurrentTrades:
         validation = await risk_manager.validate_trade(
             symbol="BTC/USDT",
             side="buy",
-            quantity=0.1,
+            quantity=0.01,  # Fixed: $500 = 5% of $10000 balance
             price=50000.0,
             balance=10000.0,
             confidence=0.7
