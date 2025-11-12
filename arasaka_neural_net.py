@@ -148,9 +148,29 @@ class ArasakaNeuralNet:
         if env_config.get('telegram_bot_token'):
             logger.info("🤖 Telegram bot integration enabled")
         
+        # Initialize auto-trader (if enabled in config)
+        self.auto_trader = None
+        if self.config.get('auto_trade', False):
+            try:
+                from nexlify_auto_trader import AutoExecutionEngine
+                self.auto_trader = AutoExecutionEngine(
+                    neural_net=self,
+                    audit_manager=None,  # Will be set by GUI if available
+                    config=self.config
+                )
+                logger.info("🤖 Auto-Execution Engine initialized")
+            except ImportError as e:
+                logger.warning(f"Auto-trader not available: {e}")
+
         # Start autonomous systems
         asyncio.create_task(self.neural_scanner())
         asyncio.create_task(self.profit_optimizer())
+
+        # Start auto-trader if enabled
+        if self.auto_trader:
+            asyncio.create_task(self.auto_trader.start())
+            logger.info("🚀 Auto-Trading ENABLED")
+
         logger.info("🚀 Neural-Net fully operational - Welcome to Nexlify")
     
     async def neural_scanner(self):
@@ -420,8 +440,64 @@ class ArasakaNeuralNet:
                     return True
             
             # If no BTC, convert USDT to BTC first
-            # ... (conversion logic)
-            
+            logger.info("No BTC balance found, attempting to convert USDT to BTC...")
+
+            for exchange_id, exchange in self.exchanges.items():
+                try:
+                    balance = await exchange.fetch_balance()
+
+                    # Check USDT balance
+                    usdt_balance = balance.get('USDT', {}).get('free', 0)
+                    if usdt_balance < 10:  # Need at least $10 USDT
+                        continue
+
+                    # Get BTC/USDT ticker for current price
+                    ticker = await exchange.fetch_ticker('BTC/USDT')
+                    btc_price = ticker['last']
+
+                    # Calculate how much BTC we can buy
+                    btc_to_buy = min(usdt_balance / btc_price, amount / btc_price)
+
+                    # Need at least minimum withdrawal amount
+                    if btc_to_buy < 0.001:
+                        logger.warning(f"Calculated BTC amount too small: {btc_to_buy}")
+                        continue
+
+                    # Place market buy order for BTC
+                    logger.info(f"Converting {usdt_balance:.2f} USDT to BTC at ${btc_price:.2f}")
+                    order = await exchange.create_market_buy_order('BTC/USDT', btc_to_buy)
+
+                    if order and order.get('status') in ['closed', 'filled']:
+                        logger.info(f"✅ Successfully converted to {btc_to_buy:.6f} BTC")
+
+                        # Wait a moment for balance to update
+                        await asyncio.sleep(2)
+
+                        # Now withdraw BTC
+                        updated_balance = await exchange.fetch_balance()
+                        btc_available = updated_balance.get('BTC', {}).get('free', 0)
+
+                        if btc_available >= 0.001:
+                            result = await exchange.withdraw(
+                                code='BTC',
+                                amount=btc_available,
+                                address=self.btc_wallet,
+                                params={'network': 'BTC'}
+                            )
+
+                            if result:
+                                logger.info(f"✅ Withdrawal initiated: {btc_available:.6f} BTC to {self.btc_wallet[:8]}...")
+                                return True
+                        else:
+                            logger.warning("BTC balance still insufficient after conversion")
+
+                except Exception as conv_error:
+                    logger.error(f"Conversion error on {exchange_id}: {conv_error}")
+                    continue
+
+            logger.warning("Could not complete BTC conversion on any exchange")
+            return False
+
         except Exception as e:
             logger.error(f"Withdrawal error: {e}")
             return False
@@ -443,15 +519,35 @@ class ArasakaNeuralNet:
         
         return display_pairs
     
+    def toggle_auto_trading(self, enabled: bool):
+        """Enable or disable auto-trading"""
+        if self.auto_trader:
+            if enabled:
+                self.auto_trader.enable()
+            else:
+                self.auto_trader.disable()
+        else:
+            logger.warning("Auto-trader not initialized")
+
+    def get_auto_trader_stats(self) -> Dict:
+        """Get auto-trader statistics"""
+        if self.auto_trader:
+            return self.auto_trader.get_statistics()
+        return {}
+
     async def shutdown(self):
         """Gracefully shutdown the Neural-Net"""
         logger.info("🔌 Shutting down Arasaka Neural-Net...")
         self.is_active = False
-        
+
+        # Stop auto-trader first
+        if self.auto_trader:
+            await self.auto_trader.stop()
+
         # Close exchange connections
         for exchange in self.exchanges.values():
             await exchange.close()
-        
+
         logger.info("👋 Neural-Net offline. Stay safe in the Matrix!")
 
 # Usage example
