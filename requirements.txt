@@ -67,7 +67,7 @@ pytest-cov==4.1.0
 pytest-mock==3.11.1
 
 # Data validation
-pydantic==2.4.2
+pydantic==1.10.13  # Using 1.x for compatibility with TensorFlow 2.13.0
 jsonschema==4.19.1
 marshmallow==3.20.1
 
