@@ -592,8 +592,83 @@ class ProfitManagementWidget(QWidget):
             )
 
 
+class GUIIntegration:
+    """
+    Main GUI Integration class for Phase 1 & 2 features
+    """
+
+    def __init__(self, config: Dict):
+        """Initialize GUI Integration with configuration"""
+        self.config = config
+        self.security_suite = None
+        self.tax_reporter = None
+        self.defi_integration = None
+        self.profit_manager = None
+
+    async def initialize(self):
+        """Initialize all Phase 1 & 2 managers"""
+        self.security_suite = SecuritySuite(self.config)
+        await self.security_suite.initialize()
+
+        self.tax_reporter = TaxReporter(self.config)
+        self.defi_integration = DeFiIntegration(self.config)
+        self.profit_manager = ProfitManager(self.config)
+
+        logger.info("✅ GUIIntegration initialized")
+
+    def inject_dependencies(self, risk_manager=None, exchange_manager=None, telegram_bot=None):
+        """Inject external dependencies into security suite"""
+        if self.security_suite:
+            self.security_suite.inject_external_dependencies(
+                risk_manager=risk_manager,
+                exchange_manager=exchange_manager,
+                telegram_bot=telegram_bot
+            )
+
+    def integrate_into_main_window(self, main_window: QMainWindow):
+        """
+        Integrate Phase 1 & 2 features into existing GUI
+
+        Call this method from cyber_gui.py to add new tabs
+        """
+        # Get main tab widget (assuming it exists)
+        if hasattr(main_window, 'tab_widget'):
+            tabs = main_window.tab_widget
+
+            # Add Phase 1 tabs
+            if self.security_suite:
+                kill_switch_tab = EmergencyKillSwitchWidget(self.security_suite)
+                tabs.addTab(kill_switch_tab, "🚨 Emergency")
+
+            # Add Phase 2 tabs
+            if self.tax_reporter:
+                tax_tab = TaxReportingWidget(self.tax_reporter)
+                tabs.addTab(tax_tab, "💰 Tax Reports")
+
+            if self.defi_integration:
+                defi_tab = DeFiPositionsWidget(self.defi_integration)
+                tabs.addTab(defi_tab, "🌊 DeFi")
+
+            if self.profit_manager:
+                profit_tab = ProfitManagementWidget(self.profit_manager)
+                tabs.addTab(profit_tab, "💸 Withdrawals")
+
+            logger.info("✅ Phase 1 & 2 features integrated into GUI")
+
+    def get_managers(self):
+        """Get all initialized managers"""
+        return {
+            'security_suite': self.security_suite,
+            'tax_reporter': self.tax_reporter,
+            'defi_integration': self.defi_integration,
+            'profit_manager': self.profit_manager
+        }
+
+
 def integrate_phase1_phase2_into_gui(main_window: QMainWindow, config: Dict):
     """
+    Legacy function for backward compatibility
+
     Integrate Phase 1 & 2 features into existing GUI
 
     Call this function from cyber_gui.py to add new tabs
