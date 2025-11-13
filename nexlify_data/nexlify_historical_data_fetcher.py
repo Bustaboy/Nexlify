@@ -478,13 +478,13 @@ class HistoricalDataFetcher:
         quality_score = max(0, 100 - penalties)
 
         return DataQualityMetrics(
-            total_candles=total_candles,
-            missing_candles=missing_candles,
-            duplicate_candles=duplicate_candles,
-            invalid_ohlc=invalid_ohlc,
-            zero_volume_candles=zero_volume_candles,
-            extreme_price_jumps=extreme_price_jumps,
-            quality_score=quality_score
+            total_candles=int(total_candles),
+            missing_candles=int(missing_candles),
+            duplicate_candles=int(duplicate_candles),
+            invalid_ohlc=int(invalid_ohlc),
+            zero_volume_candles=int(zero_volume_candles),
+            extreme_price_jumps=int(extreme_price_jumps),
+            quality_score=float(quality_score)
         )
 
     def _load_from_cache(self, config: FetchConfig) -> Optional[pd.DataFrame]:
@@ -516,6 +516,17 @@ class HistoricalDataFetcher:
             # Save DataFrame
             df.to_parquet(cache_file, index=False)
 
+            # Convert quality metrics to dict and ensure all values are JSON serializable
+            quality_metrics_dict = asdict(quality_metrics)
+            # Convert numpy types to native Python types
+            for key, value in quality_metrics_dict.items():
+                if hasattr(value, 'item'):  # numpy scalar
+                    quality_metrics_dict[key] = value.item()
+                elif isinstance(value, (np.integer, np.int64)):
+                    quality_metrics_dict[key] = int(value)
+                elif isinstance(value, (np.floating, np.float64)):
+                    quality_metrics_dict[key] = float(value)
+
             # Save metadata
             metadata = {
                 'config': {
@@ -525,7 +536,7 @@ class HistoricalDataFetcher:
                     'start_date': config.start_date.isoformat(),
                     'end_date': config.end_date.isoformat()
                 },
-                'quality_metrics': asdict(quality_metrics),
+                'quality_metrics': quality_metrics_dict,
                 'cached_at': datetime.now().isoformat()
             }
 
