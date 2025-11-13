@@ -286,8 +286,19 @@ class UltimateTrainingPipeline:
             kelly_fraction=0.5
         )
 
-    def create_agent_config(self, custom_params: Optional[Dict] = None) -> AgentConfig:
-        """Create agent configuration"""
+    def create_agent_config(
+        self,
+        custom_params: Optional[Dict] = None,
+        disable_early_stopping: bool = False
+    ) -> AgentConfig:
+        """
+        Create agent configuration
+
+        Args:
+            custom_params: Custom parameter overrides
+            disable_early_stopping: If True, sets early_stop_patience to a very high value
+                                   (useful for initial training runs)
+        """
         config = AgentConfig(
             # Architecture (will be set based on state size)
             hidden_layers=[256, 256, 128],
@@ -331,8 +342,8 @@ class UltimateTrainingPipeline:
             use_data_augmentation=True,
             augmentation_probability=0.5,
 
-            # Early stopping
-            early_stop_patience=10,
+            # Early stopping (disabled for initial runs, enabled for retraining)
+            early_stop_patience=999999 if disable_early_stopping else 30,
             early_stop_threshold=0.01,
 
             # Metrics
@@ -536,8 +547,8 @@ class UltimateTrainingPipeline:
                 enable_arbitrage=True
             )
 
-            # Create agent
-            config = self.create_agent_config()
+            # Create agent (disable early stopping for initial runs - let them complete fully)
+            config = self.create_agent_config(disable_early_stopping=True)
             agent = AdvancedDQNAgent(
                 state_size=train_env.state_size,
                 action_size=train_env.action_size,
