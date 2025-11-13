@@ -113,29 +113,64 @@ if cuda_available:
 # ============================================================================
 print("\n[TEST 3] Exchange Connectivity...")
 
-try:
-    exchange = ccxt.binance()
+# Try multiple exchanges in case of geo-blocking
+exchanges_to_try = [
+    ('kraken', 'BTC/USD'),
+    ('coinbase', 'BTC/USD'),
+    ('binance', 'BTC/USDT'),
+    ('bybit', 'BTC/USDT'),
+    ('okx', 'BTC/USDT'),
+]
 
-    # Test fetch ticker (very quick)
-    start = time.time()
-    ticker = exchange.fetch_ticker('BTC/USDT')
-    elapsed = time.time() - start
+exchange_working = False
+working_exchange = None
 
-    test_status("Fetch ticker", True,
-               f"BTC/USDT: ${ticker['last']:.2f} ({elapsed:.2f}s)")
+for exchange_name, symbol in exchanges_to_try:
+    try:
+        exchange = getattr(ccxt, exchange_name)()
 
-    # Test fetch OHLCV
-    start = time.time()
-    ohlcv = exchange.fetch_ohlcv('BTC/USDT', '1h', limit=10)
-    elapsed = time.time() - start
+        # Test fetch ticker (very quick)
+        start = time.time()
+        ticker = exchange.fetch_ticker(symbol)
+        elapsed = time.time() - start
 
-    if len(ohlcv) == 10:
-        test_status("Fetch OHLCV", True, f"Got {len(ohlcv)} candles ({elapsed:.2f}s)")
-    else:
-        test_status("Fetch OHLCV", False, f"Expected 10 candles, got {len(ohlcv)}")
+        test_status(f"Fetch ticker ({exchange_name})", True,
+                   f"{symbol}: ${ticker['last']:.2f} ({elapsed:.2f}s)")
 
-except Exception as e:
-    test_status("Exchange connectivity", False, str(e))
+        # Test fetch OHLCV
+        start = time.time()
+        ohlcv = exchange.fetch_ohlcv(symbol, '1h', limit=10)
+        elapsed = time.time() - start
+
+        if len(ohlcv) == 10:
+            test_status(f"Fetch OHLCV ({exchange_name})", True,
+                       f"Got {len(ohlcv)} candles ({elapsed:.2f}s)")
+            exchange_working = True
+            working_exchange = exchange_name
+            break
+        else:
+            test_status(f"Fetch OHLCV ({exchange_name})", False,
+                       f"Expected 10 candles, got {len(ohlcv)}")
+
+    except Exception as e:
+        error_msg = str(e)
+        if "restricted location" in error_msg.lower() or "451" in error_msg:
+            test_status(f"{exchange_name} connectivity", False,
+                       "Geo-blocked (restricted location)", warning=True)
+        else:
+            test_status(f"{exchange_name} connectivity", False, str(e)[:100])
+
+if not exchange_working:
+    test_status("Exchange connectivity", False,
+               "All exchanges failed or geo-blocked. Cannot fetch data!")
+    print("\n    CRITICAL: No exchange is accessible from your location.")
+    print("    Binance appears to be geo-blocking you.")
+    print("\n    Solutions:")
+    print("    1. Use a VPN to access from an allowed region")
+    print("    2. Use pre-downloaded historical data")
+    print("    3. Use a different exchange (Kraken, Coinbase work in most regions)")
+else:
+    print(f"\n    SUCCESS: {working_exchange} is accessible and working!")
 
 
 # ============================================================================
