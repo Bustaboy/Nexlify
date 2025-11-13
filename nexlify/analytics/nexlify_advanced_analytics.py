@@ -79,7 +79,8 @@ class AdvancedAnalytics:
         self,
         equity_curve: List[float],
         trades: List[Dict],
-        dates: List[datetime]
+        dates: List[datetime],
+        timeframe: str = '1h'
     ) -> PerformanceMetrics:
         """
         Calculate comprehensive performance metrics
@@ -88,12 +89,24 @@ class AdvancedAnalytics:
             equity_curve: List of portfolio values over time
             trades: List of trade dictionaries with pnl data
             dates: List of timestamps for equity curve
+            timeframe: Timeframe of data ('1m', '5m', '15m', '1h', '4h', '1d', etc.)
 
         Returns:
             PerformanceMetrics dataclass with all metrics
         """
         if len(equity_curve) < 2:
             return PerformanceMetrics()
+
+        # Calculate periods per year for annualization
+        timeframe_to_periods = {
+            '1m': 525600,   # 365 * 24 * 60
+            '5m': 105120,   # 365 * 24 * 12
+            '15m': 35040,   # 365 * 24 * 4
+            '1h': 8760,     # 365 * 24
+            '4h': 2190,     # 365 * 6
+            '1d': 365,      # 365
+        }
+        periods_per_year = timeframe_to_periods.get(timeframe, 8760)
 
         metrics = PerformanceMetrics()
 
@@ -112,18 +125,18 @@ class AdvancedAnalytics:
         if years > 0:
             metrics.annualized_return = ((equity[-1] / equity[0]) ** (1 / years) - 1) * 100
 
-        # Volatility
-        metrics.volatility = np.std(returns) * np.sqrt(252) * 100  # Annualized
+        # Volatility (annualized based on timeframe)
+        metrics.volatility = np.std(returns) * np.sqrt(periods_per_year) * 100
 
-        # Sharpe Ratio
-        excess_returns = returns - (self.risk_free_rate / 252)
+        # Sharpe Ratio (annualized based on timeframe)
+        excess_returns = returns - (self.risk_free_rate / periods_per_year)
         if np.std(returns) > 0:
-            metrics.sharpe_ratio = (np.mean(excess_returns) / np.std(returns)) * np.sqrt(252)
+            metrics.sharpe_ratio = (np.mean(excess_returns) / np.std(returns)) * np.sqrt(periods_per_year)
 
-        # Sortino Ratio (uses only downside deviation)
+        # Sortino Ratio (uses only downside deviation, annualized based on timeframe)
         downside_returns = returns[returns < 0]
         if len(downside_returns) > 0 and np.std(downside_returns) > 0:
-            metrics.sortino_ratio = (np.mean(excess_returns) / np.std(downside_returns)) * np.sqrt(252)
+            metrics.sortino_ratio = (np.mean(excess_returns) / np.std(downside_returns)) * np.sqrt(periods_per_year)
 
         # Maximum Drawdown
         peak = np.maximum.accumulate(equity)
@@ -232,9 +245,17 @@ class AdvancedAnalytics:
     def calculate_rolling_sharpe(
         self,
         equity_curve: List[float],
-        window: int = 30
+        window: int = 30,
+        timeframe: str = '1h'
     ) -> List[float]:
         """Calculate rolling Sharpe ratio over time"""
+        # Calculate periods per year for annualization
+        timeframe_to_periods = {
+            '1m': 525600, '5m': 105120, '15m': 35040,
+            '1h': 8760, '4h': 2190, '1d': 365
+        }
+        periods_per_year = timeframe_to_periods.get(timeframe, 8760)
+
         equity = np.array(equity_curve)
         returns = np.diff(equity) / equity[:-1]
 
@@ -242,10 +263,10 @@ class AdvancedAnalytics:
 
         for i in range(window, len(returns)):
             window_returns = returns[i-window:i]
-            excess_returns = window_returns - (self.risk_free_rate / 252)
+            excess_returns = window_returns - (self.risk_free_rate / periods_per_year)
 
             if np.std(window_returns) > 0:
-                sharpe = (np.mean(excess_returns) / np.std(window_returns)) * np.sqrt(252)
+                sharpe = (np.mean(excess_returns) / np.std(window_returns)) * np.sqrt(periods_per_year)
                 rolling_sharpe.append(sharpe)
             else:
                 rolling_sharpe.append(0)

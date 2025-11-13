@@ -398,9 +398,14 @@ class PaperTradingOrchestrator:
         stats = paper_engine.get_statistics()
 
         # Calculate Sharpe ratio
+        # Note: Equity updates are based on snapshot frequency, not fixed timeframe
+        # Using hourly annualization (8760) as default since most training uses 1h data
+        # For daily data, this would overestimate Sharpe by ~5.9x
+        # TODO: Make this configurable based on actual update frequency
         if len(paper_engine.equity_curve) > 1:
             returns = np.diff(paper_engine.equity_curve) / paper_engine.equity_curve[:-1]
-            sharpe = np.mean(returns) / np.std(returns) * np.sqrt(252) if np.std(returns) > 0 else 0
+            periods_per_year = 8760  # Hourly updates (365 * 24)
+            sharpe = np.mean(returns) / np.std(returns) * np.sqrt(periods_per_year) if np.std(returns) > 0 else 0
         else:
             sharpe = 0
 

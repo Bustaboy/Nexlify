@@ -10,6 +10,7 @@
 
 # Ignore cache directories
 cache/
+historical_cache/
 __pycache__/
 
 # But keep sample datasets (explicitly add with git add -f)

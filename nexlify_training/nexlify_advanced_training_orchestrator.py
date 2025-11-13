@@ -349,7 +349,8 @@ class AdvancedTrainingOrchestrator:
         phase: TrainingPhase,
         agent: UltraOptimizedDQNAgent,
         training_data: pd.DataFrame,
-        data_quality_score: float
+        data_quality_score: float,
+        timeframe: str = '1h'
     ) -> List[TrainingMetrics]:
         """
         Train agent for one curriculum phase
@@ -359,6 +360,7 @@ class AdvancedTrainingOrchestrator:
             agent: RL agent to train
             training_data: Prepared training data
             data_quality_score: Quality score of the data
+            timeframe: Timeframe of the data (for Sharpe annualization)
 
         Returns:
             List of training metrics for each episode
@@ -380,7 +382,8 @@ class AdvancedTrainingOrchestrator:
             initial_balance=phase.initial_balance,
             fee_rate=phase.fee_rate,
             slippage=0.0005,
-            market_data=prices
+            market_data=prices,
+            timeframe=timeframe  # Pass timeframe for correct Sharpe annualization
         )
 
         best_episode_reward = float('-inf')
@@ -557,7 +560,8 @@ class AdvancedTrainingOrchestrator:
                     phase=phase,
                     agent=agent,
                     training_data=training_data,
-                    data_quality_score=quality_score
+                    data_quality_score=quality_score,
+                    timeframe=timeframe
                 )
 
                 # Save phase results

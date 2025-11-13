@@ -95,7 +95,8 @@ class StrategyBacktester:
         strategy_name: str,
         historical_data: pd.DataFrame,
         initial_capital: float = 10000,
-        strategy_config: Dict = None
+        strategy_config: Dict = None,
+        timeframe: str = '1h'
     ) -> BacktestResult:
         """
         Run a complete backtest
@@ -105,6 +106,7 @@ class StrategyBacktester:
             historical_data: DataFrame with OHLCV data
             initial_capital: Starting capital
             strategy_config: Strategy-specific configuration
+            timeframe: Timeframe of data ('1m', '5m', '15m', '1h', '4h', '1d', etc.)
 
         Returns:
             BacktestResult with complete performance metrics
@@ -209,7 +211,8 @@ class StrategyBacktester:
             equity_curve=equity_curve,
             dates=dates,
             initial_capital=initial_capital,
-            final_capital=capital
+            final_capital=capital,
+            timeframe=timeframe
         )
 
         logger.info(f"✅ Backtest complete: {strategy_name}")
@@ -237,9 +240,21 @@ class StrategyBacktester:
         equity_curve: List[float],
         dates: List[datetime],
         initial_capital: float,
-        final_capital: float
+        final_capital: float,
+        timeframe: str = '1h'
     ) -> BacktestResult:
         """Calculate comprehensive performance metrics"""
+
+        # Calculate periods per year for Sharpe ratio annualization
+        timeframe_to_periods = {
+            '1m': 525600,   # 365 * 24 * 60
+            '5m': 105120,   # 365 * 24 * 12
+            '15m': 35040,   # 365 * 24 * 4
+            '1h': 8760,     # 365 * 24
+            '4h': 2190,     # 365 * 6
+            '1d': 365,      # 365
+        }
+        periods_per_year = timeframe_to_periods.get(timeframe, 8760)
 
         # Basic returns
         total_return = final_capital - initial_capital
@@ -275,16 +290,16 @@ class StrategyBacktester:
         # Calculate returns series
         returns = np.diff(equity_curve) / equity_curve[:-1]
 
-        # Sharpe Ratio (assuming daily data, annualized)
+        # Sharpe Ratio (annualized based on timeframe)
         if len(returns) > 0:
-            sharpe_ratio = (np.mean(returns) / np.std(returns)) * np.sqrt(252) if np.std(returns) > 0 else 0
+            sharpe_ratio = (np.mean(returns) / np.std(returns)) * np.sqrt(periods_per_year) if np.std(returns) > 0 else 0
         else:
             sharpe_ratio = 0
 
-        # Sortino Ratio (uses only downside deviation)
+        # Sortino Ratio (uses only downside deviation, annualized based on timeframe)
         downside_returns = returns[returns < 0]
         if len(downside_returns) > 0 and np.std(downside_returns) > 0:
-            sortino_ratio = (np.mean(returns) / np.std(downside_returns)) * np.sqrt(252)
+            sortino_ratio = (np.mean(returns) / np.std(downside_returns)) * np.sqrt(periods_per_year)
         else:
             sortino_ratio = 0
 
