@@ -5,11 +5,17 @@ Comprehensive Test Suite for Nexlify Training Pipeline
 Tests all critical components to identify issues before full training runs.
 Run this BEFORE starting any multi-hour training session!
 
-Usage:
+Usage (Standalone):
     python test_training_pipeline.py
     python test_training_pipeline.py --verbose
     python test_training_pipeline.py --quick  # Skip slow tests
     python test_training_pipeline.py --coverage  # Include test coverage scan
+
+Usage (Pytest with Coverage):
+    pip install pytest pytest-cov
+    pytest test_training_pipeline.py --cov=. --cov-report=html --cov-report=term
+    pytest test_training_pipeline.py -m "not slow" --cov=.  # Skip slow tests
+    # View HTML report: htmlcov/index.html
 """
 
 import sys
