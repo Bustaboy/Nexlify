@@ -711,7 +711,7 @@ Examples:
     # Data parameters
     parser.add_argument('--pairs', nargs='+', default=['BTC/USDT', 'ETH/USDT', 'SOL/USDT'])
     parser.add_argument('--exchange', type=str, default='auto',
-                        help='Exchange to use (default: auto). Use "auto" for automatic selection')
+                        help='Exchange to use. Use "auto" for automatic best exchange selection, or specify: coinbase, bitstamp, bitfinex, kraken (default: auto)')
     parser.add_argument('--years', type=int, default=2)
     parser.add_argument('--balance', type=float, default=10000)
 
