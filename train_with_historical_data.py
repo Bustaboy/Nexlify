@@ -34,6 +34,7 @@ from nexlify_training.nexlify_advanced_training_orchestrator import AdvancedTrai
 from nexlify_training.nexlify_model_evaluator import ModelEvaluator
 from nexlify_data.nexlify_historical_data_fetcher import HistoricalDataFetcher, FetchConfig
 from nexlify_rl_models.nexlify_ultra_optimized_rl_agent import UltraOptimizedDQNAgent
+from nexlify_preflight_checker import PreFlightChecker
 
 logging.basicConfig(
     level=logging.INFO,
@@ -427,6 +428,18 @@ Examples:
         help='Quick test mode (1 year, 3 iterations)'
     )
 
+    parser.add_argument(
+        '--automated',
+        action='store_true',
+        help='Fully automated mode (skip all prompts, use fallbacks)'
+    )
+
+    parser.add_argument(
+        '--skip-preflight',
+        action='store_true',
+        help='Skip pre-flight checks (not recommended)'
+    )
+
     args = parser.parse_args()
 
     # Print banner
@@ -445,6 +458,28 @@ Examples:
     print(f"Quick test: {args.quick_test}")
     print(f"Device: {'CUDA' if torch.cuda.is_available() else 'CPU'}")
     print("="*80 + "\n")
+
+    # Create output directory
+    Path(args.output).mkdir(parents=True, exist_ok=True)
+
+    # Run pre-flight checks unless skipped
+    if not args.skip_preflight:
+        logger.info("Running pre-flight checks...")
+        checker = PreFlightChecker(symbol=args.symbol, exchange=args.exchange)
+        can_proceed, check_results = checker.run_all_checks(automated_mode=args.automated)
+
+        # Save pre-flight report
+        checker.save_report(f"{args.output}/preflight_report.json")
+
+        if not can_proceed:
+            logger.error("Pre-flight checks failed. Aborting training.")
+            logger.info("\nTo skip pre-flight checks (not recommended):")
+            logger.info("  python train_with_historical_data.py --skip-preflight ...")
+            return 1
+
+        logger.info("\n✓ Pre-flight checks passed. Starting training...\n")
+    else:
+        logger.warning("⚠ Pre-flight checks skipped (not recommended)\n")
 
     # Create orchestrator
     orchestrator = AutoRetrainingOrchestrator(

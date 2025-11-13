@@ -80,15 +80,17 @@ class HistoricalDataFetcher:
         '1w': 604800
     }
 
-    def __init__(self, cache_dir: str = "./data/historical_cache"):
+    def __init__(self, cache_dir: str = "./data/historical_cache", automated_mode: bool = True):
         """
         Initialize the historical data fetcher
 
         Args:
             cache_dir: Directory for caching downloaded data
+            automated_mode: If True, uses fallbacks and never blocks on user input
         """
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.automated_mode = automated_mode
 
         # Initialize exchanges
         self.exchanges = {}
@@ -100,7 +102,9 @@ class HistoricalDataFetcher:
             'successful_requests': 0,
             'failed_requests': 0,
             'cached_requests': 0,
-            'total_candles_fetched': 0
+            'total_candles_fetched': 0,
+            'exchanges_available': len(self.exchanges),
+            'exchanges_failed': 0
         }
 
     def _initialize_exchanges(self):
@@ -143,35 +147,44 @@ class HistoricalDataFetcher:
                 quality_metrics = self._validate_data_quality(cached_data, config)
                 return cached_data, quality_metrics
 
-        # Fetch from exchange
-        df = self._fetch_with_retry(config, max_retries)
+        # Fetch from exchange with error handling
+        try:
+            df = self._fetch_with_retry(config, max_retries)
 
-        if df is not None and not df.empty:
-            # Validate and clean data
-            if config.validate_quality:
-                df = self._clean_data(df, config)
-                quality_metrics = self._validate_data_quality(df, config)
-                logger.info(f"Data quality score: {quality_metrics.quality_score:.1f}/100")
+            if df is not None and not df.empty:
+                # Validate and clean data
+                if config.validate_quality:
+                    df = self._clean_data(df, config)
+                    quality_metrics = self._validate_data_quality(df, config)
+                    logger.info(f"Data quality score: {quality_metrics.quality_score:.1f}/100")
+                else:
+                    quality_metrics = DataQualityMetrics(
+                        total_candles=len(df),
+                        missing_candles=0,
+                        duplicate_candles=0,
+                        invalid_ohlc=0,
+                        zero_volume_candles=0,
+                        extreme_price_jumps=0,
+                        quality_score=100.0
+                    )
+
+                # Save to cache
+                if config.cache_enabled:
+                    self._save_to_cache(df, config, quality_metrics)
+
+                self.fetch_stats['total_candles_fetched'] += len(df)
+                return df, quality_metrics
             else:
-                quality_metrics = DataQualityMetrics(
-                    total_candles=len(df),
-                    missing_candles=0,
-                    duplicate_candles=0,
-                    invalid_ohlc=0,
-                    zero_volume_candles=0,
-                    extreme_price_jumps=0,
-                    quality_score=100.0
-                )
+                logger.error(f"Failed to fetch data for {config.symbol}")
+                return pd.DataFrame(), DataQualityMetrics(0, 0, 0, 0, 0, 0, 0.0)
 
-            # Save to cache
-            if config.cache_enabled:
-                self._save_to_cache(df, config, quality_metrics)
-
-            self.fetch_stats['total_candles_fetched'] += len(df)
-            return df, quality_metrics
-        else:
-            logger.error(f"Failed to fetch data for {config.symbol}")
-            return pd.DataFrame(), DataQualityMetrics(0, 0, 0, 0, 0, 0, 0.0)
+        except Exception as e:
+            logger.error(f"Error fetching data for {config.symbol}: {e}")
+            if self.automated_mode:
+                logger.warning("Automated mode: returning empty DataFrame")
+                return pd.DataFrame(), DataQualityMetrics(0, 0, 0, 0, 0, 0, 0.0)
+            else:
+                raise
 
     def _fetch_with_retry(
         self,

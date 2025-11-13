@@ -59,11 +59,42 @@ cd /path/to/Nexlify
 # Make training script executable
 chmod +x train_with_historical_data.py
 
-# Verify installation
+# Run pre-flight check to verify everything works
+python nexlify_preflight_checker.py --symbol BTC/USDT --automated
+
+# If all checks pass, you're ready to train!
 python train_with_historical_data.py --help
 ```
 
 ## 📖 Usage
+
+### Pre-Flight Check (Recommended)
+
+Before training, run the pre-flight checker to validate all systems:
+```bash
+# Interactive check (asks for confirmation if issues found)
+python nexlify_preflight_checker.py --symbol BTC/USDT --exchange binance
+
+# Automated check (no prompts)
+python nexlify_preflight_checker.py --symbol BTC/USDT --automated
+
+# Save report to file
+python nexlify_preflight_checker.py --symbol BTC/USDT --save-report preflight.json
+```
+
+The pre-flight checker validates:
+- ✅ Internet connectivity
+- ✅ Exchange API availability and symbol accessibility
+- ✅ Fear & Greed Index API
+- ✅ Hardware (GPU, CPU, RAM)
+- ✅ Python dependencies
+- ✅ Disk space
+
+If any critical issues are found, you'll get:
+- Clear explanation of the problem
+- Impact assessment (how much it will degrade training)
+- Step-by-step troubleshooting guide
+- Choice to continue or abort
 
 ### Basic Training
 
@@ -71,6 +102,8 @@ Train on 5 years of BTC data with curriculum learning:
 ```bash
 python train_with_historical_data.py --symbol BTC/USDT --years 5
 ```
+
+Note: Pre-flight checks run automatically before training starts!
 
 ### Quick Test
 
@@ -115,6 +148,30 @@ python train_with_historical_data.py \
 | `--output` | str | ./training_output | Output directory |
 | `--no-curriculum` | flag | False | Disable curriculum learning |
 | `--quick-test` | flag | False | Quick test mode (1 year, 3 iterations) |
+| `--automated` | flag | False | **Fully automated mode** (no prompts, uses fallbacks) |
+| `--skip-preflight` | flag | False | Skip pre-flight checks (not recommended) |
+
+### Automated Mode
+
+Use `--automated` for fully unattended training:
+```bash
+# Perfect for cron jobs, background training, or remote servers
+python train_with_historical_data.py --symbol BTC/USDT --automated
+
+# The script will:
+# - Skip all user prompts
+# - Use fallback values if external APIs fail
+# - Continue training even if some features are unavailable
+# - Generate complete logs for review
+```
+
+**When to use `--automated`:**
+- Running in cron jobs or scheduled tasks
+- Background training on remote servers
+- CI/CD pipelines
+- When you can't monitor the training actively
+
+**Note:** Pre-flight checks still run in automated mode but won't prompt for user input.
 
 ## 📂 Output Structure
 
@@ -122,6 +179,7 @@ After training, you'll find:
 
 ```
 training_output/
+├── preflight_report.json                      # Pre-flight check results
 ├── best_model/
 │   ├── best_model_iter3_score85.2.pt          # Best model checkpoint
 │   └── best_model_metadata.json               # Model metadata
@@ -136,6 +194,12 @@ training_output/
 │   └── comparisons/                           # Model comparisons
 └── final_training_report.json                 # Complete training summary
 ```
+
+The `preflight_report.json` contains:
+- All validation checks performed
+- Status of each component (pass/warning/fail)
+- Impact assessment for any issues
+- Troubleshooting guidance
 
 ## 📊 Understanding Results
 
@@ -281,6 +345,28 @@ CUDA_VISIBLE_DEVICES="" python train_with_historical_data.py ...
 ```
 
 ## 🐛 Troubleshooting
+
+### Issue: Pre-flight checks fail
+**Solution**: The pre-flight checker provides specific guidance for each failure. Common issues:
+
+```bash
+# Run pre-flight check to see detailed diagnostics
+python nexlify_preflight_checker.py --symbol BTC/USDT
+
+# If you want to proceed anyway (not recommended):
+python train_with_historical_data.py --skip-preflight ...
+
+# For automated training (uses fallbacks for failures):
+python train_with_historical_data.py --automated ...
+```
+
+**Common pre-flight failures:**
+
+1. **Internet connectivity**: Check your network connection
+2. **Exchange API unavailable**: Try a different exchange with `--exchange kraken`
+3. **Symbol not found**: Verify symbol format (e.g., BTC/USDT not BTC-USDT)
+4. **Insufficient RAM**: Close other applications or reduce data with `--years 1`
+5. **Missing dependencies**: Run `pip install -r requirements.txt`
 
 ### Issue: "No data fetched"
 **Solution**: Check internet connection and exchange availability

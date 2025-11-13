@@ -29,20 +29,31 @@ class ExternalFeatureEnricher:
     Enriches OHLCV data with external features for better training
     """
 
-    def __init__(self, cache_dir: str = "./data/external_cache"):
+    def __init__(self, cache_dir: str = "./data/external_cache", automated_mode: bool = True):
         """
         Initialize external feature enricher
 
         Args:
             cache_dir: Directory for caching external data
+            automated_mode: If True, never raises exceptions, uses fallbacks instead
         """
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.automated_mode = automated_mode
 
         self.api_endpoints = {
             'fear_greed': 'https://api.alternative.me/fng/',
             'crypto_news': 'https://min-api.cryptocompare.com/data/v2/news/',
             'blockchain_info': 'https://api.blockchain.info/stats'
+        }
+
+        # Track which features succeeded
+        self.features_loaded = {
+            'fear_greed': False,
+            'onchain': False,
+            'social': False,
+            'temporal': False,
+            'regime': False
         }
 
     def enrich_dataframe(
@@ -67,30 +78,82 @@ class ExternalFeatureEnricher:
             Enriched DataFrame
         """
         df = df.copy()
+        initial_columns = len(df.columns)
 
         logger.info(f"Enriching {len(df)} candles with external features...")
 
         # Extract base asset (e.g., 'BTC' from 'BTC/USDT')
         base_asset = symbol.split('/')[0]
 
+        # Add features with fallback handling
         if include_sentiment:
-            df = self._add_fear_greed_index(df)
+            try:
+                df = self._add_fear_greed_index(df)
+                self.features_loaded['fear_greed'] = True
+            except Exception as e:
+                logger.warning(f"Failed to add Fear & Greed Index: {e}")
+                if not self.automated_mode:
+                    raise
+                # Add neutral defaults
+                df['fear_greed_index'] = 50
+                df['fear_greed_normalized'] = 0.5
+                df['market_sentiment'] = 'Neutral'
+                df['is_extreme_fear'] = 0
+                df['is_fear'] = 0
+                df['is_greed'] = 0
+                df['is_extreme_greed'] = 0
 
         if include_onchain and base_asset == 'BTC':
-            df = self._add_onchain_metrics(df)
+            try:
+                df = self._add_onchain_metrics(df)
+                self.features_loaded['onchain'] = True
+            except Exception as e:
+                logger.warning(f"Failed to add on-chain metrics: {e}")
+                if not self.automated_mode:
+                    raise
 
         if include_social:
-            df = self._add_social_sentiment(df, base_asset)
+            try:
+                df = self._add_social_sentiment(df, base_asset)
+                self.features_loaded['social'] = True
+            except Exception as e:
+                logger.warning(f"Failed to add social sentiment: {e}")
+                if not self.automated_mode:
+                    raise
 
-        # Add time-based features
-        df = self._add_temporal_features(df)
+        # Add time-based features (should always work)
+        try:
+            df = self._add_temporal_features(df)
+            self.features_loaded['temporal'] = True
+        except Exception as e:
+            logger.error(f"Failed to add temporal features: {e}")
+            if not self.automated_mode:
+                raise
 
-        # Add market regime indicators
-        df = self._add_market_regime(df)
+        # Add market regime indicators (should always work)
+        try:
+            df = self._add_market_regime(df)
+            self.features_loaded['regime'] = True
+        except Exception as e:
+            logger.error(f"Failed to add market regime: {e}")
+            if not self.automated_mode:
+                raise
 
-        logger.info(f"✓ Added {len(df.columns) - 6} external features")
+        features_added = len(df.columns) - initial_columns
+        logger.info(f"✓ Added {features_added} external features")
+        self._log_feature_status()
 
         return df
+
+    def _log_feature_status(self):
+        """Log which features were successfully loaded"""
+        loaded = [k for k, v in self.features_loaded.items() if v]
+        failed = [k for k, v in self.features_loaded.items() if not v]
+
+        if loaded:
+            logger.info(f"✓ Loaded features: {', '.join(loaded)}")
+        if failed:
+            logger.warning(f"⚠ Failed features: {', '.join(failed)} (using fallbacks)")
 
     def _add_fear_greed_index(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -177,19 +240,33 @@ class ExternalFeatureEnricher:
         return df
 
     def _fetch_fear_greed(self, limit: int = 365) -> List[Dict]:
-        """Fetch Fear & Greed Index data"""
+        """Fetch Fear & Greed Index data with robust error handling"""
         url = f"{self.api_endpoints['fear_greed']}?limit={limit}"
 
         for attempt in range(3):
             try:
-                response = requests.get(url, timeout=10)
+                response = requests.get(url, timeout=5)  # Shorter timeout for automation
                 response.raise_for_status()
                 data = response.json()
-                return data['data']
+                if 'data' in data and data['data']:
+                    return data['data']
+                else:
+                    logger.warning("Fear & Greed API returned empty data")
+                    return []
+            except requests.exceptions.Timeout:
+                logger.warning(f"Fear & Greed API timeout (attempt {attempt + 1}/3)")
+                if attempt < 2:
+                    time.sleep(1)  # Shorter wait for automation
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"Fear & Greed API request failed: {e} (attempt {attempt + 1}/3)")
+                if attempt < 2:
+                    time.sleep(1)
             except Exception as e:
-                if attempt == 2:
+                logger.error(f"Unexpected error fetching Fear & Greed: {e}")
+                if attempt == 2 and self.automated_mode:
+                    return []  # Return empty in automated mode
+                elif attempt == 2:
                     raise
-                time.sleep(2 ** attempt)
 
         return []
 
