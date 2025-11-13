@@ -1,5 +1,11 @@
 # Nexlify Advanced Training with Historical Data
 
+## ⚡ **For Maximum Profitability: Use Multi-Strategy Training!**
+
+🎯 **Recommended:** [`train_comprehensive_multi_strategy.py`](MULTI_STRATEGY_TRAINING.md) trains on **ALL strategies** simultaneously (spot trading + staking + DeFi + arbitrage) for 2-3x better returns!
+
+📖 **This document** covers the standard single-pair spot trading system. For comprehensive training on all features, see [Multi-Strategy Training Guide](MULTI_STRATEGY_TRAINING.md).
+
 ## 🚀 Overview
 
 This comprehensive training system pulls extensive historical data from the internet and uses advanced techniques to train your ML/RL models for optimal trading performance.
