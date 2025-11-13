@@ -19,7 +19,7 @@ pip install -r requirements.txt
 **ALWAYS run the test suite before starting training** to catch issues early:
 
 ```bash
-# Quick test (30 seconds)
+# Quick test (30 seconds) - TESTS WHICH EXCHANGES WORK!
 python test_training_pipeline.py --quick
 
 # Full tests with coverage (2-3 minutes)
@@ -32,13 +32,26 @@ pytest test_training_pipeline.py --cov=. --cov-report=html --cov-report=term
 
 This validates:
 - All dependencies are installed
-- Exchange connectivity works
+- **Exchange connectivity works (critical!)** - Tests Kraken, Coinbase, Binance, etc.
 - GPU is detected (if available)
 - Agent and environment can be created
 - Training loop functions properly
 - Model save/load works
 
 **If tests fail, DO NOT proceed to training!** Fix the issues first.
+
+### ⚠️ Binance Geo-Blocking
+
+**If you see "restricted location" errors:**
+
+Binance blocks users from USA and other regions. **Solution: Use Kraken instead!**
+
+```bash
+# Use Kraken (works globally)
+python train_ultimate_full_pipeline.py --exchange kraken --pairs BTC/USD ETH/USD --automated
+```
+
+See [GEO_BLOCKING_GUIDE.md](GEO_BLOCKING_GUIDE.md) for complete solutions.
 
 See [TESTING.md](TESTING.md) for detailed testing documentation.
 
@@ -275,17 +288,23 @@ python train_with_historical_data.py --exchange kraken --symbol BTC/USD
 # Fastest test
 python train_ultimate_full_pipeline.py --quick-test
 
-# Best for production (BTC only)
+# Best for production (BTC only, Binance)
 python train_ultimate_full_pipeline.py --pairs BTC/USDT --initial-runs 5 --automated
 
-# Multi-pair production
-python train_ultimate_full_pipeline.py --pairs BTC/USDT ETH/USDT SOL/USDT --initial-episodes 1000
+# Best for production (Kraken - if Binance is geo-blocked)
+python train_ultimate_full_pipeline.py --exchange kraken --pairs BTC/USD --initial-runs 5 --automated
+
+# Multi-pair production (Binance)
+python train_ultimate_full_pipeline.py --pairs BTC/USDT ETH/USDT SOL/USDT --initial-episodes 1000 --automated
+
+# Multi-pair production (Kraken - works globally)
+python train_ultimate_full_pipeline.py --exchange kraken --pairs BTC/USD ETH/USD SOL/USD --initial-episodes 1000 --automated
 
 # Historical data with auto-retrain
 python train_with_historical_data.py --symbol BTC/USDT --years 5 --automated
 
 # Conservative risk settings
-python train_ultimate_full_pipeline.py --stop-loss 0.01 --take-profit 0.03 --max-position 0.03
+python train_ultimate_full_pipeline.py --exchange kraken --pairs BTC/USD --stop-loss 0.01 --take-profit 0.03 --max-position 0.03 --automated
 ```
 
 ---
