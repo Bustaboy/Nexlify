@@ -14,6 +14,36 @@ pip install -r requirements.txt
 
 ---
 
+## Step 0: Run Tests First! (CRITICAL)
+
+**ALWAYS run the test suite before starting training** to catch issues early:
+
+```bash
+# Quick test (30 seconds)
+python test_training_pipeline.py --quick
+
+# Full tests with coverage (2-3 minutes)
+python test_training_pipeline.py --coverage
+
+# Or use pytest with HTML coverage report
+pip install pytest pytest-cov
+pytest test_training_pipeline.py --cov=. --cov-report=html --cov-report=term
+```
+
+This validates:
+- All dependencies are installed
+- Exchange connectivity works
+- GPU is detected (if available)
+- Agent and environment can be created
+- Training loop functions properly
+- Model save/load works
+
+**If tests fail, DO NOT proceed to training!** Fix the issues first.
+
+See [TESTING.md](TESTING.md) for detailed testing documentation.
+
+---
+
 ## Quick Start (Recommended)
 
 ### Option 1: Quick Test (Fast - ~30 minutes)
