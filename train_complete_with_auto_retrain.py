@@ -463,14 +463,13 @@ class CompleteAutoRetrainingOrchestrator:
                 self.no_improvement_count += 1
                 logger.info(f"No improvement ({self.no_improvement_count}/{self.patience})")
 
-            # Check stopping criteria
+            # Check stopping criteria - patience is the primary mechanism
             if self.no_improvement_count >= self.patience:
                 logger.info(f"\n⚠️ Stopping: No improvement for {self.patience} iterations")
                 break
 
-            if improvement_pct < self.improvement_threshold and iteration > 1:
-                logger.info(f"\n⚠️ Stopping: Improvement ({improvement_pct:.2f}%) below threshold ({self.improvement_threshold}%)")
-                break
+            # Note: Removed conflicting improvement_threshold check
+            # The threshold is informational only - patience handles stopping naturally
 
             iteration += 1
 
@@ -518,12 +517,30 @@ class CompleteAutoRetrainingOrchestrator:
         train_start = end_date - timedelta(days=years * 365)
         val_start = end_date - timedelta(days=90)  # Last 90 days for validation
 
+        # Auto-select best exchange if requested
+        selected_exchanges = {}  # Track best exchange per pair
+        if exchange.lower() == 'auto':
+            logger.info("🤖 Auto-selecting best exchange for each trading pair...")
+            for pair in pairs:
+                best_exchange, _, _ = fetcher.select_best_exchange(
+                    symbol=pair,
+                    timeframe='1h',
+                    start_date=train_start,
+                    end_date=val_start
+                )
+                selected_exchanges[pair] = best_exchange
+        else:
+            # Use the specified exchange for all pairs
+            for pair in pairs:
+                selected_exchanges[pair] = exchange
+
         # Training data
         train_market_data = {}
         for pair in pairs:
-            logger.info(f"Fetching training data for {pair}...")
+            pair_exchange = selected_exchanges[pair]
+            logger.info(f"Fetching training data for {pair} from {pair_exchange}...")
             config = FetchConfig(
-                exchange=exchange,
+                exchange=pair_exchange,
                 symbol=pair,
                 timeframe='1h',
                 start_date=train_start,
@@ -534,14 +551,15 @@ class CompleteAutoRetrainingOrchestrator:
             if not df.empty:
                 df = enricher.enrich_dataframe(df, symbol=pair)
                 train_market_data[pair] = df['close'].values
-                logger.info(f"✓ {pair}: {len(df)} training candles")
+                logger.info(f"✓ {pair}: {len(df)} training candles (quality: {quality.quality_score:.1f}/100)")
 
         # Validation data
         val_market_data = {}
         for pair in pairs:
-            logger.info(f"Fetching validation data for {pair}...")
+            pair_exchange = selected_exchanges[pair]
+            logger.info(f"Fetching validation data for {pair} from {pair_exchange}...")
             config = FetchConfig(
-                exchange=exchange,
+                exchange=pair_exchange,
                 symbol=pair,
                 timeframe='1h',
                 start_date=val_start,
@@ -669,7 +687,8 @@ Examples:
 
     parser.add_argument('--pairs', nargs='+', default=['BTC/USDT', 'ETH/USDT', 'SOL/USDT'],
                         help='Trading pairs')
-    parser.add_argument('--exchange', type=str, default='binance', help='Exchange')
+    parser.add_argument('--exchange', type=str, default='auto',
+                        help='Exchange (coinbase, bitstamp, bitfinex, kraken, or "auto" to select best)')
     parser.add_argument('--initial-episodes', type=int, default=300,
                         help='Episodes per initial run')
     parser.add_argument('--retrain-episodes', type=int, default=200,
@@ -713,6 +732,20 @@ Examples:
         args.initial_runs = 2
         args.max_iterations = 3
         logger.info("⚡ Quick test mode")
+
+    # Automated mode adjustments - optimize for unattended training
+    if args.automated:
+        # Only adjust if user didn't explicitly set values
+        if args.improvement_threshold == 1.0:  # Default value
+            args.improvement_threshold = 0.1  # Accept smaller improvements
+        if args.patience == 3:  # Default value
+            args.patience = 10  # More patient with plateaus
+        if args.max_iterations == 10:  # Default value
+            args.max_iterations = 100  # Remove practical limit (patience will stop it naturally)
+        logger.info("🤖 Automated mode: Adjusted stopping criteria for thorough training")
+        logger.info(f"  - Improvement threshold: {args.improvement_threshold}% (accepts tiny gains)")
+        logger.info(f"  - Patience: {args.patience} iterations (tolerates longer plateaus)")
+        logger.info(f"  - Max iterations: {args.max_iterations} (patience will stop naturally)")
 
     # Print configuration
     print("\n" + "="*80)

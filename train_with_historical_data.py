@@ -222,14 +222,13 @@ class AutoRetrainingOrchestrator:
                         self.no_improvement_count += 1
                         logger.info(f"No improvement ({self.no_improvement_count}/{self.patience})")
 
-                    # Check stopping criteria
+                    # Check stopping criteria - patience is the primary mechanism
                     if self.no_improvement_count >= self.patience:
                         logger.info(f"\n⚠️ Stopping: No improvement for {self.patience} iterations")
                         break
 
-                    if improvement_pct < self.improvement_threshold and iteration > 1:
-                        logger.info(f"\n⚠️ Stopping: Improvement ({improvement_pct:.2f}%) below threshold ({self.improvement_threshold}%)")
-                        break
+                    # Note: Removed conflicting improvement_threshold check
+                    # The threshold is informational only - patience handles stopping naturally
 
                 else:
                     logger.warning("No best model found in this iteration")
@@ -377,8 +376,8 @@ Examples:
     parser.add_argument(
         '--exchange',
         type=str,
-        default='binance',
-        help='Exchange name (default: binance)'
+        default='coinbase',
+        help='Exchange name (default: coinbase). Options: coinbase, bitstamp, bitfinex, kraken'
     )
 
     parser.add_argument(
@@ -441,6 +440,20 @@ Examples:
     )
 
     args = parser.parse_args()
+
+    # Automated mode adjustments - optimize for unattended training
+    if args.automated:
+        # Only adjust if user didn't explicitly set values
+        if args.threshold == 1.0:  # Default value
+            args.threshold = 0.1  # Accept smaller improvements
+        if args.patience == 3:  # Default value
+            args.patience = 10  # More patient with plateaus
+        if args.max_iterations == 10:  # Default value
+            args.max_iterations = 100  # Remove practical limit (patience will stop it naturally)
+        logger.info("🤖 Automated mode: Adjusted stopping criteria for thorough training")
+        logger.info(f"  - Improvement threshold: {args.threshold}% (accepts tiny gains)")
+        logger.info(f"  - Patience: {args.patience} iterations (tolerates longer plateaus)")
+        logger.info(f"  - Max iterations: {args.max_iterations} (patience will stop naturally)")
 
     # Print banner
     print("\n" + "="*80)

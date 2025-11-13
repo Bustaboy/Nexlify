@@ -692,6 +692,96 @@ class HistoricalDataFetcher:
 
         logger.info(f"Removed {files_removed} cache files")
 
+    def select_best_exchange(
+        self,
+        symbol: str,
+        timeframe: str,
+        start_date: datetime,
+        end_date: datetime,
+        preferred_exchanges: Optional[List[str]] = None
+    ) -> Tuple[str, pd.DataFrame, DataQualityMetrics]:
+        """
+        Automatically select the best exchange by comparing data quality
+
+        Args:
+            symbol: Trading pair (e.g., 'BTC/USDT')
+            timeframe: Candle timeframe
+            start_date: Start date
+            end_date: End date
+            preferred_exchanges: List of exchanges to try (None = all available)
+
+        Returns:
+            Tuple of (best_exchange_name, DataFrame, quality_metrics)
+        """
+        if preferred_exchanges is None:
+            # Prefer exchanges with good historical data (not Binance due to geoblocking)
+            preferred_exchanges = ['coinbase', 'bitstamp', 'bitfinex', 'kraken', 'huobi']
+
+        logger.info(f"\n🔍 Auto-selecting best exchange for {symbol}...")
+        logger.info(f"Testing exchanges: {', '.join(preferred_exchanges)}")
+
+        results = []
+
+        for exchange_name in preferred_exchanges:
+            if exchange_name not in self.exchanges:
+                logger.warning(f"  ⊘ {exchange_name}: Not initialized")
+                continue
+
+            try:
+                config = FetchConfig(
+                    exchange=exchange_name,
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    start_date=start_date,
+                    end_date=end_date,
+                    cache_enabled=True,
+                    validate_quality=True
+                )
+
+                logger.info(f"  → Testing {exchange_name}...")
+                df, quality = self.fetch_historical_data(config)
+
+                if df.empty:
+                    logger.info(f"    ✗ No data available")
+                    continue
+
+                # Score based on: quality, completeness, and data volume
+                completeness = len(df) / quality.total_candles if quality.total_candles > 0 else 0
+                score = (
+                    quality.quality_score * 0.6 +  # 60% weight on quality
+                    completeness * 100 * 0.3 +     # 30% weight on completeness
+                    min(len(df) / 1000, 1.0) * 100 * 0.1  # 10% weight on volume
+                )
+
+                logger.info(
+                    f"    ✓ Quality: {quality.quality_score:.1f}/100, "
+                    f"Candles: {len(df):,}, Score: {score:.1f}"
+                )
+
+                results.append({
+                    'exchange': exchange_name,
+                    'df': df,
+                    'quality': quality,
+                    'score': score
+                })
+
+            except Exception as e:
+                logger.warning(f"    ✗ Error: {str(e)[:100]}")
+                continue
+
+        if not results:
+            raise ValueError(
+                f"No exchange could provide data for {symbol}. "
+                f"Tried: {', '.join(preferred_exchanges)}"
+            )
+
+        # Select best exchange
+        best = max(results, key=lambda x: x['score'])
+        logger.info(f"\n✅ Selected: {best['exchange']} (score: {best['score']:.1f}/100)")
+        logger.info(f"   Data points: {len(best['df']):,}, Quality: {best['quality'].quality_score:.1f}/100")
+
+        return best['exchange'], best['df'], best['quality']
+
 
 # Convenience function for quick data fetching
 def fetch_data(
