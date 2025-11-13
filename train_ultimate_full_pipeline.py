@@ -121,7 +121,7 @@ class UltimateTrainingPipeline:
     def run_preflight_checks(self) -> bool:
         """Run pre-flight validation checks"""
         if self.args.skip_preflight:
-            logger.info("⚠️  Skipping pre-flight checks")
+            logger.info("WARNING: Skipping pre-flight checks")
             return True
 
         logger.info("\n" + "="*80)
@@ -140,7 +140,7 @@ class UltimateTrainingPipeline:
                     return False
 
         if all_passed:
-            logger.info("✅ All pre-flight checks passed\n")
+            logger.info("OK: All pre-flight checks passed\n")
 
         return all_passed
 
@@ -205,7 +205,7 @@ class UltimateTrainingPipeline:
         if not train_data or not val_data:
             raise ValueError("Failed to fetch sufficient data")
 
-        logger.info(f"\n✅ Data fetching complete")
+        logger.info(f"\nOK: Data fetching complete")
         logger.info(f"   Training samples: {len(list(train_data.values())[0])}")
         logger.info(f"   Validation samples: {len(list(val_data.values())[0])}")
 
@@ -561,7 +561,7 @@ class UltimateTrainingPipeline:
         logger.info(f"  Trailing stop: {risk_limits.trailing_stop_percent*100:.1f}%")
         logger.info(f"  Max position: {risk_limits.max_position_size*100:.1f}%")
         logger.info(f"  Max trades: {risk_limits.max_concurrent_trades}")
-        logger.info(f"  Kelly Criterion: {'✅' if risk_limits.use_kelly_criterion else '❌'}")
+        logger.info(f"  Kelly Criterion: {'YES' if risk_limits.use_kelly_criterion else 'NO'}")
 
         # Step 4: Multi-start initialization
         best_initial_model, best_initial_score, all_initial_models = self.run_multi_start_initialization(
@@ -616,7 +616,7 @@ class UltimateTrainingPipeline:
         with open(summary_path, 'w') as f:
             json.dump(summary, f, indent=2, default=str)
 
-        logger.info(f"✅ Summary saved: {summary_path}")
+        logger.info(f"OK: Summary saved: {summary_path}")
 
         return summary
 
@@ -678,7 +678,7 @@ Examples:
         args.years = 1
         args.initial_runs = 2
         args.initial_episodes = 100
-        logger.info("⚡ Quick test mode activated")
+        logger.info("Quick test mode activated")
 
     # Print configuration
     print("\n" + "="*100)
@@ -689,16 +689,16 @@ Examples:
     print(f"Initial runs: {args.initial_runs} × {args.initial_episodes} episodes")
     print(f"Device: {'CUDA' if torch.cuda.is_available() else 'CPU'}")
     print("\nML/RL Features Enabled:")
-    print("  ✅ Double DQN (reduces overestimation)")
-    print("  ✅ Dueling DQN (separates value/advantage)")
-    print("  ✅ Prioritized Experience Replay (better sampling)")
-    print("  ✅ N-step returns (n=3, better credit assignment)")
-    print("  ✅ Stochastic Weight Averaging (better generalization)")
-    print("  ✅ Gradient clipping (stability)")
-    print("  ✅ LR scheduling (adaptive learning)")
-    print("  ✅ L2 regularization (prevents overfitting)")
-    print("  ✅ Early stopping (efficiency)")
-    print("  ✅ Data augmentation (robustness)")
+    print("  [X] Double DQN (reduces overestimation)")
+    print("  [X] Dueling DQN (separates value/advantage)")
+    print("  [X] Prioritized Experience Replay (better sampling)")
+    print("  [X] N-step returns (n=3, better credit assignment)")
+    print("  [X] Stochastic Weight Averaging (better generalization)")
+    print("  [X] Gradient clipping (stability)")
+    print("  [X] LR scheduling (adaptive learning)")
+    print("  [X] L2 regularization (prevents overfitting)")
+    print("  [X] Early stopping (efficiency)")
+    print("  [X] Data augmentation (robustness)")
     print("\nRisk Management:")
     print(f"  Stop-loss: {args.stop_loss*100:.1f}%")
     print(f"  Take-profit: {args.take_profit*100:.1f}%")
@@ -711,7 +711,7 @@ Examples:
 
     if summary:
         print("\n" + "="*100)
-        print("✅ TRAINING COMPLETE!")
+        print("*** TRAINING COMPLETE! ***")
         print("="*100)
         print(f"Best model: {summary['best_model_path']}")
         print(f"Best score: {summary['best_score']:.2f}")
@@ -724,7 +724,7 @@ Examples:
         print("="*100)
         return 0
     else:
-        print("\n❌ Training failed")
+        print("\n*** Training failed ***")
         return 1
 
 
