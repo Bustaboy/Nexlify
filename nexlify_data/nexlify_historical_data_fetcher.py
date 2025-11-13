@@ -264,6 +264,28 @@ class HistoricalDataFetcher:
                         # Convert timestamp to datetime
                         df_batch['timestamp'] = pd.to_datetime(df_batch['timestamp'], unit='ms')
 
+                        # Check if exchange honored the 'since' parameter
+                        first_candle_time = df_batch['timestamp'].iloc[0]
+                        requested_start_time = pd.to_datetime(current_start)
+                        time_diff_days = (first_candle_time - requested_start_time).total_seconds() / 86400
+
+                        # If the first candle is more than 30 days after the requested start, warn
+                        if time_diff_days > 30:
+                            logger.warning(
+                                f"Exchange returned data from {first_candle_time} "
+                                f"but requested data from {requested_start_time}. "
+                                f"Gap: {time_diff_days:.0f} days. "
+                                f"Exchange may not have historical data this far back."
+                            )
+                            # If this is the first batch and we're way off, it means no historical data
+                            if len(all_candles) == 0:
+                                logger.error(
+                                    f"Cannot fetch historical data starting from {config.start_date}. "
+                                    f"Exchange only has data from {first_candle_time} onwards."
+                                )
+                                # Continue with what we can get rather than failing completely
+                                logger.info("Continuing with available data range...")
+
                         all_candles.append(df_batch)
 
                         # Update progress
@@ -319,22 +341,57 @@ class HistoricalDataFetcher:
 
             df = df.sort_values('timestamp').reset_index(drop=True)
 
+            # Check what date range we actually have before filtering
+            pre_filter_start = df['timestamp'].min()
+            pre_filter_end = df['timestamp'].max()
+
             # Filter to requested date range
-            df = df[
+            df_filtered = df[
                 (df['timestamp'] >= config.start_date) &
                 (df['timestamp'] <= config.end_date)
             ]
-            final_count = len(df)
+            final_count = len(df_filtered)
 
-            # Log detailed information
+            # If filtering removed everything, check if it's because data is outside range
+            if final_count == 0 and raw_count > 0:
+                # Check if all data is newer than requested range
+                if pre_filter_start > config.end_date:
+                    logger.warning(
+                        f"All {raw_count} fetched candles are NEWER than requested range. "
+                        f"Fetched: {pre_filter_start} to {pre_filter_end}, "
+                        f"Requested: {config.start_date} to {config.end_date}"
+                    )
+                # Check if all data is older than requested range
+                elif pre_filter_end < config.start_date:
+                    logger.warning(
+                        f"All {raw_count} fetched candles are OLDER than requested range. "
+                        f"Fetched: {pre_filter_start} to {pre_filter_end}, "
+                        f"Requested: {config.start_date} to {config.end_date}"
+                    )
+                else:
+                    logger.warning(
+                        f"All {raw_count} fetched candles were filtered out. "
+                        f"Fetched: {pre_filter_start} to {pre_filter_end}, "
+                        f"Requested: {config.start_date} to {config.end_date}"
+                    )
+
+                # Use unfiltered data if automated mode
+                if self.automated_mode:
+                    logger.info("Automated mode: Using all available data instead of empty result")
+                    df_filtered = df
+                    final_count = len(df_filtered)
+
+            # Log detailed information with actual date ranges
+            actual_start = df_filtered['timestamp'].min() if len(df_filtered) > 0 else None
+            actual_end = df_filtered['timestamp'].max() if len(df_filtered) > 0 else None
+
             logger.info(f"✓ Fetched {raw_count} raw candles, removed {raw_count - after_dedup_count} duplicates, "
                        f"filtered to {final_count} candles in date range")
 
-            if final_count == 0 and raw_count > 0:
-                logger.warning(f"All {raw_count} fetched candles were outside the requested date range "
-                             f"({config.start_date} to {config.end_date})")
+            if actual_start and actual_end:
+                logger.info(f"  Final data range: {actual_start} to {actual_end}")
 
-            return df
+            return df_filtered
 
         logger.warning("No candles were successfully fetched from any batch")
         return None
