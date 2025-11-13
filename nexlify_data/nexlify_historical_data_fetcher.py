@@ -154,7 +154,13 @@ class HistoricalDataFetcher:
             if df is not None and not df.empty:
                 # Validate and clean data
                 if config.validate_quality:
+                    logger.info("Cleaning data...")
                     df = self._clean_data(df, config)
+
+                    if df.empty:
+                        logger.error(f"All data was filtered out during cleaning for {config.symbol}")
+                        return pd.DataFrame(), DataQualityMetrics(0, 0, 0, 0, 0, 0, 0.0)
+
                     quality_metrics = self._validate_data_quality(df, config)
                     logger.info(f"Data quality score: {quality_metrics.quality_score:.1f}/100")
                 else:
@@ -175,7 +181,7 @@ class HistoricalDataFetcher:
                 self.fetch_stats['total_candles_fetched'] += len(df)
                 return df, quality_metrics
             else:
-                logger.error(f"Failed to fetch data for {config.symbol}")
+                logger.error(f"Failed to fetch data for {config.symbol}: No data returned from exchange")
                 return pd.DataFrame(), DataQualityMetrics(0, 0, 0, 0, 0, 0, 0.0)
 
         except Exception as e:
@@ -305,9 +311,12 @@ class HistoricalDataFetcher:
         # Combine all batches
         if all_candles:
             df = pd.concat(all_candles, ignore_index=True)
+            raw_count = len(df)
 
             # Remove duplicates and sort
             df = df.drop_duplicates(subset=['timestamp'])
+            after_dedup_count = len(df)
+
             df = df.sort_values('timestamp').reset_index(drop=True)
 
             # Filter to requested date range
@@ -315,10 +324,19 @@ class HistoricalDataFetcher:
                 (df['timestamp'] >= config.start_date) &
                 (df['timestamp'] <= config.end_date)
             ]
+            final_count = len(df)
 
-            logger.info(f"✓ Fetched {len(df)} candles")
+            # Log detailed information
+            logger.info(f"✓ Fetched {raw_count} raw candles, removed {raw_count - after_dedup_count} duplicates, "
+                       f"filtered to {final_count} candles in date range")
+
+            if final_count == 0 and raw_count > 0:
+                logger.warning(f"All {raw_count} fetched candles were outside the requested date range "
+                             f"({config.start_date} to {config.end_date})")
+
             return df
 
+        logger.warning("No candles were successfully fetched from any batch")
         return None
 
     def _create_progress_bar(self, total: int):
@@ -327,12 +345,16 @@ class HistoricalDataFetcher:
             def __init__(self, total):
                 self.total = total
                 self.current = 0
+                self.last_log_percent = 0
 
             def update(self, n):
                 self.current += n
                 if self.total > 0:
                     progress = min(100, (self.current / self.total) * 100)
-                    logger.info(f"Progress: {progress:.1f}% ({self.current}/{self.total} candles)")
+                    # Only log every 10% to reduce noise
+                    if progress - self.last_log_percent >= 10 or progress >= 100:
+                        logger.info(f"Progress: {progress:.1f}% ({self.current}/{self.total} candles fetched in batches)")
+                        self.last_log_percent = progress
 
             def __enter__(self):
                 return self
@@ -353,8 +375,6 @@ class HistoricalDataFetcher:
         Returns:
             Cleaned DataFrame
         """
-        logger.info("Cleaning data...")
-
         original_count = len(df)
 
         # Remove rows with any NaN values
