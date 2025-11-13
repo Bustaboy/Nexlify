@@ -146,13 +146,13 @@ class UltimateTrainingPipeline:
 
     def fetch_data(self) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
         """
-        Fetch and prepare historical data
+        Fetch and prepare historical data with automatic exchange selection
 
         Returns:
             (training_data, validation_data)
         """
         logger.info("\n" + "="*80)
-        logger.info("DATA FETCHING")
+        logger.info("DATA FETCHING WITH QUALITY VERIFICATION")
         logger.info("="*80)
 
         fetcher = HistoricalDataFetcher(automated_mode=self.args.automated)
@@ -164,30 +164,84 @@ class UltimateTrainingPipeline:
 
         train_data = {}
         val_data = {}
+        selected_exchanges = {}  # Track which exchange was used for each pair
+
+        # Determine if we should auto-select exchanges
+        use_auto_select = (
+            hasattr(self.args, 'use_best_exchange') and self.args.use_best_exchange
+        ) or self.args.exchange.lower() == 'auto'
 
         for pair in self.args.pairs:
-            logger.info(f"\nFetching {pair}...")
+            logger.info(f"\n{'='*60}")
+            logger.info(f"Fetching {pair}")
+            logger.info('='*60)
 
-            # Training data
-            train_config = FetchConfig(
-                exchange=self.args.exchange,
-                symbol=pair,
-                timeframe='1h',
-                start_date=train_start,
-                end_date=val_start,
-                cache_enabled=True
-            )
+            # Select best exchange if enabled
+            if use_auto_select:
+                logger.info(f"🔍 Auto-selecting best exchange for {pair}...")
+                try:
+                    best_exchange, df_train, quality_train = fetcher.select_best_exchange(
+                        symbol=pair,
+                        timeframe='1h',
+                        start_date=train_start,
+                        end_date=val_start,
+                        preferred_exchanges=['coinbase', 'bitstamp', 'bitfinex', 'kraken', 'huobi']
+                    )
+                    selected_exchanges[pair] = best_exchange
+                    logger.info(f"✅ Selected {best_exchange} for {pair} (quality: {quality_train.quality_score:.1f}/100)")
+                except ValueError as e:
+                    logger.error(f"Failed to find suitable exchange for {pair}: {e}")
+                    logger.info("Falling back to specified exchange...")
+                    best_exchange = self.args.exchange
+                    selected_exchanges[pair] = best_exchange
+                    train_config = FetchConfig(
+                        exchange=best_exchange,
+                        symbol=pair,
+                        timeframe='1h',
+                        start_date=train_start,
+                        end_date=val_start,
+                        cache_enabled=True
+                    )
+                    df_train, quality_train = fetcher.fetch_historical_data(train_config)
+            else:
+                # Use specified exchange
+                selected_exchanges[pair] = self.args.exchange
+                logger.info(f"Using specified exchange: {self.args.exchange}")
+                train_config = FetchConfig(
+                    exchange=self.args.exchange,
+                    symbol=pair,
+                    timeframe='1h',
+                    start_date=train_start,
+                    end_date=val_start,
+                    cache_enabled=True
+                )
+                df_train, quality_train = fetcher.fetch_historical_data(train_config)
 
-            df_train, quality_train = fetcher.fetch_historical_data(train_config)
+            # Validate training data quality
+            if df_train.empty:
+                logger.error(f"No training data available for {pair} from {selected_exchanges[pair]}")
+                continue
 
-            if not df_train.empty:
-                df_train = enricher.enrich_dataframe(df_train, symbol=pair)
-                train_data[pair] = df_train['close'].values
-                logger.info(f"  Training: {len(df_train)} candles, quality: {quality_train.quality_score:.1f}/100")
+            min_quality = getattr(self.args, 'min_quality', 70.0)  # Lower default for multi-pair
+            min_candles = getattr(self.args, 'min_candles', 500)   # Lower default for multi-pair
 
-            # Validation data
+            if quality_train.quality_score < min_quality:
+                logger.warning(
+                    f"⚠️  {pair} training data quality ({quality_train.quality_score:.1f}) "
+                    f"below minimum ({min_quality})"
+                )
+            if len(df_train) < min_candles:
+                logger.warning(
+                    f"⚠️  {pair} has only {len(df_train)} candles (minimum: {min_candles})"
+                )
+
+            df_train = enricher.enrich_dataframe(df_train, symbol=pair)
+            train_data[pair] = df_train['close'].values
+            logger.info(f"  ✓ Training: {len(df_train)} candles, quality: {quality_train.quality_score:.1f}/100")
+
+            # Fetch validation data from same exchange
             val_config = FetchConfig(
-                exchange=self.args.exchange,
+                exchange=selected_exchanges[pair],
                 symbol=pair,
                 timeframe='1h',
                 start_date=val_start,
@@ -200,14 +254,22 @@ class UltimateTrainingPipeline:
             if not df_val.empty:
                 df_val = enricher.enrich_dataframe(df_val, symbol=pair)
                 val_data[pair] = df_val['close'].values
-                logger.info(f"  Validation: {len(df_val)} candles, quality: {quality_val.quality_score:.1f}/100")
+                logger.info(f"  ✓ Validation: {len(df_val)} candles, quality: {quality_val.quality_score:.1f}/100")
+            else:
+                logger.error(f"No validation data available for {pair}")
 
         if not train_data or not val_data:
-            raise ValueError("Failed to fetch sufficient data")
+            raise ValueError("Failed to fetch sufficient data for any trading pair")
 
-        logger.info(f"\nOK: Data fetching complete")
-        logger.info(f"   Training samples: {len(list(train_data.values())[0])}")
-        logger.info(f"   Validation samples: {len(list(val_data.values())[0])}")
+        logger.info(f"\n{'='*80}")
+        logger.info("DATA FETCHING SUMMARY")
+        logger.info('='*80)
+        logger.info(f"Pairs loaded: {len(train_data)}")
+        for pair in train_data:
+            logger.info(f"  {pair}: {selected_exchanges[pair]}")
+        logger.info(f"Training samples: {len(list(train_data.values())[0])}")
+        logger.info(f"Validation samples: {len(list(val_data.values())[0])}")
+        logger.info('='*80)
 
         return train_data, val_data
 
@@ -648,9 +710,20 @@ Examples:
 
     # Data parameters
     parser.add_argument('--pairs', nargs='+', default=['BTC/USDT', 'ETH/USDT', 'SOL/USDT'])
-    parser.add_argument('--exchange', type=str, default='binance')
+    parser.add_argument('--exchange', type=str, default='auto',
+                        help='Exchange to use (default: auto). Use "auto" for automatic selection')
     parser.add_argument('--years', type=int, default=2)
     parser.add_argument('--balance', type=float, default=10000)
+
+    # Dataset quality parameters
+    parser.add_argument('--use-best-exchange', action='store_true', default=True,
+                        help='Automatically select best exchange for each pair (default: True)')
+    parser.add_argument('--no-best-exchange', action='store_false', dest='use_best_exchange',
+                        help='Disable automatic exchange selection')
+    parser.add_argument('--min-quality', type=float, default=70.0,
+                        help='Minimum data quality score (0-100, default: 70.0)')
+    parser.add_argument('--min-candles', type=int, default=500,
+                        help='Minimum candles required per pair (default: 500)')
 
     # Training parameters
     parser.add_argument('--initial-runs', type=int, default=3)
