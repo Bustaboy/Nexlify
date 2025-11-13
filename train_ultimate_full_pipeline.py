@@ -185,7 +185,7 @@ class UltimateTrainingPipeline:
                         timeframe='1h',
                         start_date=train_start,
                         end_date=val_start,
-                        preferred_exchanges=['coinbase', 'bitstamp', 'bitfinex', 'kraken', 'huobi']
+                        preferred_exchanges=['coinbase', 'bitstamp', 'bitfinex', 'kraken']
                     )
                     selected_exchanges[pair] = best_exchange
                     logger.info(f"✅ Selected {best_exchange} for {pair} (quality: {quality_train.quality_score:.1f}/100)")

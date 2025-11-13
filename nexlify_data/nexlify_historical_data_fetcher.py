@@ -714,8 +714,8 @@ class HistoricalDataFetcher:
             Tuple of (best_exchange_name, DataFrame, quality_metrics)
         """
         if preferred_exchanges is None:
-            # Prefer exchanges with good historical data (not Binance due to geoblocking)
-            preferred_exchanges = ['coinbase', 'bitstamp', 'bitfinex', 'kraken', 'huobi']
+            # Prefer exchanges with good historical data (not Binance due to geoblocking, not Huobi due to API issues)
+            preferred_exchanges = ['coinbase', 'bitstamp', 'bitfinex', 'kraken']
 
         logger.info(f"\n🔍 Auto-selecting best exchange for {symbol}...")
         logger.info(f"Testing exchanges: {', '.join(preferred_exchanges)}")
