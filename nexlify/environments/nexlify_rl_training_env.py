@@ -60,7 +60,8 @@ class TradingEnvironment:
                  use_paper_trading: bool = True,
                  market_data: Optional[pd.DataFrame] = None,
                  engineer_features: bool = False,
-                 timeframe: str = '1h'):
+                 timeframe: str = '1h',
+                 use_improved_rewards: bool = True):
         """
         Initialize trading environment
 
@@ -75,6 +76,7 @@ class TradingEnvironment:
             market_data: Historical market data for training
             engineer_features: Whether to engineer features from market data
             timeframe: Timeframe of data ('1m', '5m', '15m', '1h', '4h', '1d', etc.)
+            use_improved_rewards: Use improved reward function (default: True)
         """
         # Environment config
         self.initial_balance = initial_balance
@@ -133,6 +135,11 @@ class TradingEnvironment:
         self.total_trades = 0
         self.winning_trades = 0
 
+        # Reward function configuration
+        self.use_improved_rewards = use_improved_rewards
+        self.recent_returns = []  # Track recent returns for volatility calculation
+        self.recent_returns_window = 20  # Window for calculating return volatility
+
         # Action space: 0=Buy, 1=Sell, 2=Hold
         self.ACTION_BUY = 0
         self.ACTION_SELL = 1
@@ -142,6 +149,7 @@ class TradingEnvironment:
         logger.info(f"   Balance: ${initial_balance:,.2f}")
         logger.info(f"   State size: {state_size}, Action size: {action_size}")
         logger.info(f"   Paper trading: {'enabled' if use_paper_trading else 'disabled'}")
+        logger.info(f"   Reward function: {'Improved (risk-adjusted)' if use_improved_rewards else 'Legacy'}")
 
     def reset(self) -> np.ndarray:
         """
@@ -169,6 +177,7 @@ class TradingEnvironment:
         # Reset episode tracking
         self.total_trades = 0
         self.winning_trades = 0
+        self.recent_returns = []  # Reset returns tracking for volatility calculation
 
         # Generate or load initial price
         if self.market_data is not None and len(self.market_data) > 0:
@@ -381,11 +390,7 @@ class TradingEnvironment:
         """
         Calculate reward for current step
 
-        Reward function balances:
-        - Profit/loss from trades
-        - Holding cost
-        - Transaction costs
-        - Risk-adjusted returns
+        Uses improved reward function if enabled, otherwise uses legacy version.
 
         Args:
             action: Action taken
@@ -394,9 +399,91 @@ class TradingEnvironment:
         Returns:
             Reward value
         """
-        reward = 0.0
+        if self.use_improved_rewards:
+            return self._calculate_improved_reward(action, trade_executed)
+        else:
+            return self._calculate_legacy_reward(action, trade_executed)
 
-        # Get current equity
+    def _calculate_improved_reward(self, action: int, trade_executed: bool) -> float:
+        """
+        Improved reward function with risk-adjusted returns
+
+        Key improvements:
+        1. Risk-adjusted equity growth (Sharpe-inspired)
+        2. Proper transaction cost penalty (realistic, not arbitrary)
+        3. Win rate bonus (encourages quality trades)
+        4. Consistency reward (penalizes excessive volatility)
+        5. No conflicting signals
+
+        Args:
+            action: Action taken
+            trade_executed: Whether trade was actually executed
+
+        Returns:
+            Normalized reward value
+        """
+        reward = 0.0
+        current_equity = self._get_current_equity()
+
+        # 1. PRIMARY REWARD: Equity percentage change (risk-adjusted)
+        if len(self.equity_curve) > 1:
+            equity_return = (current_equity - self.equity_curve[-1]) / self.equity_curve[-1]
+
+            # Track returns for volatility calculation
+            self.recent_returns.append(equity_return)
+            if len(self.recent_returns) > self.recent_returns_window:
+                self.recent_returns.pop(0)
+
+            # Risk-adjusted reward (higher reward for consistent gains, lower for volatile swings)
+            if len(self.recent_returns) >= 5:
+                returns_std = np.std(self.recent_returns)
+                # Normalize by volatility (Sharpe-style): reward / risk
+                # Add small epsilon to avoid division by zero
+                risk_adjusted_return = equity_return / (returns_std + 1e-6)
+                reward += risk_adjusted_return * 10.0  # Scale to reasonable range
+            else:
+                # Not enough data for risk adjustment, use raw return
+                reward += equity_return * 100.0  # Scale to percentage
+
+        # 2. TRANSACTION COST: Realistic penalty based on actual fees
+        if trade_executed:
+            # Actual cost is ~0.15% (0.1% fee + 0.05% slippage)
+            # Penalty should reflect this realistically
+            transaction_cost_pct = (self.fee_rate + self.slippage) * 100
+            reward -= transaction_cost_pct  # Penalty proportional to actual cost
+
+        # 3. WIN RATE BONUS: Reward for profitable trades
+        if trade_executed and self.total_trades > 0:
+            win_rate = self.winning_trades / self.total_trades
+            # Bonus for maintaining good win rate (0.5 = break-even)
+            if win_rate > 0.5:
+                reward += (win_rate - 0.5) * 2.0  # Max +1.0 for 100% win rate
+
+        # 4. CONSISTENCY REWARD: Penalize excessive volatility
+        if len(self.recent_returns) >= 10:
+            returns_volatility = np.std(self.recent_returns)
+            # Penalize high volatility (want stable growth)
+            if returns_volatility > 0.02:  # More than 2% volatility
+                reward -= (returns_volatility - 0.02) * 50.0
+
+        # 5. POSITION QUALITY: Small incentive for being in market during strong trends
+        # (This encourages participation without conflicting with transaction costs)
+        if self.position > 0 and len(self.price_history) >= 5:
+            # Check if price is trending
+            recent_prices = self.price_history[-5:]
+            price_trend = (recent_prices[-1] - recent_prices[0]) / recent_prices[0]
+            if price_trend > 0:  # Uptrend
+                reward += min(price_trend * 5.0, 0.5)  # Small bonus, capped
+
+        return reward
+
+    def _calculate_legacy_reward(self, action: int, trade_executed: bool) -> float:
+        """
+        Legacy reward function (original version)
+
+        Kept for A/B testing comparison.
+        """
+        reward = 0.0
         current_equity = self._get_current_equity()
 
         # Equity change reward (normalized)
