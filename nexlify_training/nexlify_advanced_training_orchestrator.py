@@ -253,7 +253,7 @@ class AdvancedTrainingOrchestrator:
                     timeframe=timeframe,
                     start_date=start_date,
                     end_date=end_date,
-                    preferred_exchanges=['coinbase', 'bitstamp', 'bitfinex', 'kraken']
+                    preferred_exchanges=['coinbase', 'kraken', 'bitstamp', 'gemini']
                 )
             except ValueError as e:
                 logger.error(f"Failed to find suitable exchange: {e}")

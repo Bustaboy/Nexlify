@@ -5,7 +5,7 @@
 When using `--exchange auto` for automatic exchange selection, use these widely-available trading pairs:
 
 ### Top Tier (Available on ALL exchanges)
-These pairs have excellent availability and liquidity across Coinbase, Bitstamp, Bitfinex, and Kraken:
+These pairs have excellent availability and liquidity across Coinbase, Kraken, Bitstamp, and Gemini:
 
 ```bash
 --pairs BTC/USD BTC/USDT ETH/USD ETH/USDT
@@ -16,11 +16,20 @@ These pairs have excellent availability and liquidity across Coinbase, Bitstamp,
 ### Second Tier (Available on MOST exchanges)
 Good availability but may be missing on 1-2 exchanges:
 
+**⚠️ IMPORTANT: Use USDT pairs for altcoins!**
+
+Most altcoins are NOT available as USD pairs. Use USDT instead:
+
 ```bash
---pairs SOL/USD SOL/USDT ADA/USD ADA/USDT \
-        XRP/USD XRP/USDT MATIC/USD MATIC/USDT \
-        AVAX/USD AVAX/USDT DOT/USD DOT/USDT
+--pairs BTC/USD ETH/USD BTC/USDT ETH/USDT \
+        SOL/USDT ADA/USDT XRP/USDT MATIC/USDT \
+        AVAX/USDT DOT/USDT
 ```
+
+**Why USDT for altcoins?**
+- ✅ USD pairs: Only major coins (BTC, ETH) widely available
+- ✅ USDT pairs: Most altcoins available (SOL, ADA, MATIC, etc.)
+- ❌ USD pairs for altcoins: Limited exchange support
 
 **Best for**: Diversified portfolio training with altcoins
 
@@ -39,23 +48,33 @@ Good availability but may be missing on 1-2 exchanges:
 
 ## Exchange Coverage Matrix
 
-| Pair | Coinbase | Bitstamp | Bitfinex | Kraken | Quality Score |
-|------|----------|----------|----------|--------|---------------|
-| BTC/USD | ✅ | ✅ | ✅ | ✅ | ⭐⭐⭐⭐⭐ |
-| ETH/USD | ✅ | ✅ | ✅ | ✅ | ⭐⭐⭐⭐⭐ |
-| BTC/USDT | ✅ | ✅ | ✅ | ✅ | ⭐⭐⭐⭐⭐ |
-| ETH/USDT | ✅ | ✅ | ✅ | ✅ | ⭐⭐⭐⭐⭐ |
-| SOL/USD | ✅ | ❌ | ✅ | ✅ | ⭐⭐⭐⭐ |
-| ADA/USD | ✅ | ❌ | ✅ | ✅ | ⭐⭐⭐⭐ |
-| XRP/USD | ✅ | ✅ | ✅ | ✅ | ⭐⭐⭐⭐ |
-| MATIC/USD | ✅ | ❌ | ✅ | ✅ | ⭐⭐⭐⭐ |
-| AVAX/USD | ✅ | ❌ | ✅ | ✅ | ⭐⭐⭐ |
-| DOT/USD | ✅ | ❌ | ✅ | ✅ | ⭐⭐⭐ |
-| BNB/USD | ❌ | ❌ | ✅ | ❌ | ⭐ (Poor) |
+### USD Pairs (Traditional Fiat)
+| Pair | Coinbase | Kraken | Bitstamp | Gemini | Quality Score |
+|------|----------|--------|----------|--------|---------------|
+| BTC/USD | ✅ | ✅ | ✅ | ✅ | ⭐⭐⭐⭐⭐ Excellent |
+| ETH/USD | ✅ | ✅ | ✅ | ✅ | ⭐⭐⭐⭐⭐ Excellent |
+| XRP/USD | ✅ | ✅ | ✅ | ❌ | ⭐⭐⭐⭐ Very Good |
+| SOL/USD | ✅ | ✅ | ❌ | ❌ | ⭐⭐ Limited |
+| MATIC/USD | ⚠️ | ❌ | ❌ | ❌ | ⭐ Very Limited |
+| ADA/USD | ✅ | ✅ | ❌ | ❌ | ⭐⭐ Limited |
+
+### USDT Pairs (Stablecoin - RECOMMENDED for Altcoins)
+| Pair | Coinbase | Kraken | Bitstamp | Gemini | Quality Score |
+|------|----------|--------|----------|--------|---------------|
+| BTC/USDT | ✅ | ✅ | ✅ | ✅ | ⭐⭐⭐⭐⭐ Excellent |
+| ETH/USDT | ✅ | ✅ | ✅ | ✅ | ⭐⭐⭐⭐⭐ Excellent |
+| SOL/USDT | ✅ | ✅ | ✅ | ❌ | ⭐⭐⭐⭐ Very Good |
+| MATIC/USDT | ✅ | ✅ | ✅ | ❌ | ⭐⭐⭐⭐ Very Good |
+| ADA/USDT | ✅ | ✅ | ✅ | ❌ | ⭐⭐⭐⭐ Very Good |
+| XRP/USDT | ✅ | ✅ | ✅ | ❌ | ⭐⭐⭐⭐ Very Good |
+| AVAX/USDT | ✅ | ✅ | ✅ | ❌ | ⭐⭐⭐⭐ Very Good |
+| DOT/USDT | ✅ | ✅ | ✅ | ❌ | ⭐⭐⭐⭐ Very Good |
+| BNB/USDT | ❌ | ❌ | ❌ | ❌ | ⭐ Not Available
 
 ## Recommended Commands
 
 ### Maximum Reliability (Top 4 pairs only)
+Use only BTC and ETH with both USD and USDT:
 ```bash
 python train_ultimate_full_pipeline.py \
   --pairs BTC/USD ETH/USD BTC/USDT ETH/USDT \
@@ -63,19 +82,31 @@ python train_ultimate_full_pipeline.py \
   --automated
 ```
 
-### Balanced Portfolio (6 pairs)
+### Balanced Portfolio (6 pairs) - RECOMMENDED
+Mix of USD majors and USDT altcoins:
 ```bash
 python train_ultimate_full_pipeline.py \
-  --pairs BTC/USD ETH/USD SOL/USD ADA/USD XRP/USD MATIC/USD \
+  --pairs BTC/USD ETH/USD SOL/USDT ADA/USDT XRP/USDT MATIC/USDT \
   --exchange auto \
   --automated
 ```
 
 ### Large Diversified Portfolio (8+ pairs)
+Comprehensive coverage with USDT altcoins:
 ```bash
 python train_ultimate_full_pipeline.py \
-  --pairs BTC/USD ETH/USD SOL/USD ADA/USD \
-         XRP/USD MATIC/USD AVAX/USD DOT/USD \
+  --pairs BTC/USD ETH/USD BTC/USDT ETH/USDT \
+          SOL/USDT ADA/USDT XRP/USDT MATIC/USDT \
+  --exchange auto \
+  --automated
+```
+
+### All Altcoins (10 pairs)
+If you want more altcoin exposure:
+```bash
+python train_ultimate_full_pipeline.py \
+  --pairs BTC/USDT ETH/USDT SOL/USDT ADA/USDT XRP/USDT \
+          MATIC/USDT AVAX/USDT DOT/USDT LINK/USDT ATOM/USDT \
   --exchange auto \
   --automated
 ```
@@ -169,17 +200,28 @@ When you use `--exchange auto`, the system:
 
 ## Updated Exchange List
 
-The system now tests these exchanges (in order):
-1. **Coinbase** - Best for US users, excellent data quality
-2. **Bitstamp** - Long history, reliable data
-3. **Bitfinex** - Good altcoin coverage
-4. **Kraken** - Variable quality, good as fallback
+The system now tests these exchanges (in order of preference):
+1. **Coinbase** - Best for US users, excellent data quality, wide pair selection
+2. **Kraken** - Reliable, good historical data depth
+3. **Bitstamp** - Long history, conservative but stable
+4. **Gemini** - US-regulated, good for major pairs
+
+**Why These Exchanges:**
+- ✅ Reasonable rate limits (won't block you for testing)
+- ✅ Good CCXT support and reliability
+- ✅ Wide cryptocurrency pair availability
+- ✅ Quality historical data
+- ✅ Accessible from most regions
 
 **Removed:**
-- ~~Huobi~~ - API connectivity issues
 - ~~Binance~~ - Geoblocking problems in many regions
+- ~~Huobi~~ - API connectivity issues
+- ~~Bitfinex~~ - Strict rate limiting (causes timeout errors)
+
+**Early Termination Optimization:**
+If the system finds a dataset with ≥99% quality score and ≥95% completeness, it will stop searching immediately to save time. Perfect data means no need to test more exchanges!
 
 ---
 
-**Last Updated**: 2025-11-13
-**Recommended Action**: Replace `BNB/USD` with `MATIC/USD`, `AVAX/USD`, or `DOT/USD` in your training commands.
+**Last Updated**: 2025-11-13 (Evening)
+**Recommended Pairs**: Use USDT for altcoins (SOL/USDT, MATIC/USDT, ADA/USDT) instead of USD pairs.

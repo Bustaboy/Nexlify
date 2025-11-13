@@ -185,7 +185,7 @@ class UltimateTrainingPipeline:
                         timeframe='1h',
                         start_date=train_start,
                         end_date=val_start,
-                        preferred_exchanges=['coinbase', 'bitstamp', 'bitfinex', 'kraken']
+                        preferred_exchanges=['coinbase', 'kraken', 'bitstamp', 'gemini']
                     )
                     selected_exchanges[pair] = best_exchange
                     logger.info(f"✅ Selected {best_exchange} for {pair} (quality: {quality_train.quality_score:.1f}/100)")
@@ -711,7 +711,7 @@ Examples:
     # Data parameters
     parser.add_argument('--pairs', nargs='+', default=['BTC/USDT', 'ETH/USDT', 'SOL/USDT'])
     parser.add_argument('--exchange', type=str, default='auto',
-                        help='Exchange to use. Use "auto" for automatic best exchange selection, or specify: coinbase, bitstamp, bitfinex, kraken (default: auto)')
+                        help='Exchange to use. Use "auto" for automatic best exchange selection, or specify: coinbase, kraken, bitstamp, gemini (default: auto)')
     parser.add_argument('--years', type=int, default=2)
     parser.add_argument('--balance', type=float, default=10000)
 

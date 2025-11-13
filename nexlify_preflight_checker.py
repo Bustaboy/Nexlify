@@ -289,7 +289,7 @@ class PreFlightChecker:
 
     def _check_multiple_exchanges(self):
         """Check multiple exchanges for auto-selection mode"""
-        exchanges_to_test = ['coinbase', 'bitstamp', 'bitfinex', 'kraken']
+        exchanges_to_test = ['coinbase', 'kraken', 'bitstamp', 'gemini']
         available_exchanges = []
 
         for exchange_name in exchanges_to_test:
