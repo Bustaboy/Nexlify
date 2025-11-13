@@ -59,7 +59,8 @@ class TradingEnvironment:
                  max_steps: int = 1000,
                  use_paper_trading: bool = True,
                  market_data: Optional[pd.DataFrame] = None,
-                 engineer_features: bool = False):
+                 engineer_features: bool = False,
+                 timeframe: str = '1h'):
         """
         Initialize trading environment
 
@@ -73,6 +74,7 @@ class TradingEnvironment:
             use_paper_trading: Whether to use paper trading engine
             market_data: Historical market data for training
             engineer_features: Whether to engineer features from market data
+            timeframe: Timeframe of data ('1m', '5m', '15m', '1h', '4h', '1d', etc.)
         """
         # Environment config
         self.initial_balance = initial_balance
@@ -81,6 +83,19 @@ class TradingEnvironment:
         self.state_size = state_size
         self.action_size = action_size
         self.max_steps = max_steps
+        self.timeframe = timeframe
+
+        # Calculate periods per year for Sharpe ratio annualization
+        # Crypto markets trade 24/7/365
+        timeframe_to_periods = {
+            '1m': 525600,   # 365 * 24 * 60
+            '5m': 105120,   # 365 * 24 * 12
+            '15m': 35040,   # 365 * 24 * 4
+            '1h': 8760,     # 365 * 24
+            '4h': 2190,     # 365 * 6
+            '1d': 365,      # 365
+        }
+        self.periods_per_year = timeframe_to_periods.get(timeframe, 8760)  # Default to hourly
 
         # Paper trading integration
         self.use_paper_trading = use_paper_trading
@@ -515,10 +530,10 @@ class TradingEnvironment:
         total_return_percent = (total_return / self.initial_balance) * 100
         win_rate = (self.winning_trades / self.total_trades * 100) if self.total_trades > 0 else 0
 
-        # Calculate Sharpe ratio
+        # Calculate Sharpe ratio (annualized based on timeframe)
         if len(self.equity_curve) > 1:
             returns = np.diff(self.equity_curve) / self.equity_curve[:-1]
-            sharpe = np.mean(returns) / np.std(returns) * np.sqrt(252) if np.std(returns) > 0 else 0
+            sharpe = np.mean(returns) / np.std(returns) * np.sqrt(self.periods_per_year) if np.std(returns) > 0 else 0
         else:
             sharpe = 0
 
@@ -530,7 +545,7 @@ class TradingEnvironment:
 
         stats = EpisodeStats(
             episode_num=self.episode,
-            total_reward=sum(self.equity_curve) - len(self.equity_curve) * self.initial_balance,
+            total_reward=total_return,  # Fixed: was incorrectly summing all equity values
             final_equity=final_equity,
             total_return=total_return,
             total_return_percent=total_return_percent,

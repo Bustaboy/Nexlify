@@ -443,14 +443,21 @@ class PerformanceTracker:
 
         return metrics
 
-    def _calculate_sharpe_ratio(self, returns: List[float]) -> float:
+    def _calculate_sharpe_ratio(self, returns: List[float], timeframe: str = '1h') -> float:
         """
         Calculate annualized Sharpe ratio
 
-        Sharpe Ratio = (Mean Return - Risk Free Rate) / Std Dev of Returns * sqrt(252)
+        Sharpe Ratio = (Mean Return - Risk Free Rate) / Std Dev of Returns * sqrt(periods_per_year)
         """
         if len(returns) < 2:
             return 0.0
+
+        # Calculate periods per year for annualization
+        timeframe_to_periods = {
+            '1m': 525600, '5m': 105120, '15m': 35040,
+            '1h': 8760, '4h': 2190, '1d': 365
+        }
+        periods_per_year = timeframe_to_periods.get(timeframe, 8760)
 
         # Convert percentage returns to decimal
         returns_decimal = [r / 100 for r in returns]
@@ -463,11 +470,11 @@ class PerformanceTracker:
         if std_dev == 0:
             return 0.0
 
-        # Daily risk-free rate (annual rate / 252 trading days)
-        daily_rf = self.risk_free_rate / 252
+        # Period risk-free rate
+        period_rf = self.risk_free_rate / periods_per_year
 
         # Calculate Sharpe ratio and annualize
-        sharpe = ((mean_return - daily_rf) / std_dev) * math.sqrt(252)
+        sharpe = ((mean_return - period_rf) / std_dev) * math.sqrt(periods_per_year)
 
         return sharpe
 
