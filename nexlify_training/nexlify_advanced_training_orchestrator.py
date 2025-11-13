@@ -219,40 +219,105 @@ class AdvancedTrainingOrchestrator:
         symbol: str,
         timeframe: str,
         start_date: datetime,
-        end_date: datetime
-    ) -> Tuple[pd.DataFrame, float]:
+        end_date: datetime,
+        use_best_exchange: bool = True,
+        min_quality_score: float = 80.0,
+        min_candles: int = 1000
+    ) -> Tuple[pd.DataFrame, float, str]:
         """
-        Fetch and prepare comprehensive training data
+        Fetch and prepare comprehensive training data with quality verification
 
         Args:
-            exchange: Exchange name
+            exchange: Preferred exchange name (used if use_best_exchange=False)
             symbol: Trading pair
             timeframe: Candle timeframe
             start_date: Start date
             end_date: End date
+            use_best_exchange: If True, automatically select best exchange (default: True)
+            min_quality_score: Minimum acceptable data quality score (default: 80.0)
+            min_candles: Minimum number of candles required (default: 1000)
 
         Returns:
-            Tuple of (prepared DataFrame, quality score)
+            Tuple of (prepared DataFrame, quality score, selected exchange)
         """
-        logger.info(f"Preparing training data: {symbol} from {exchange}")
+        logger.info(f"Preparing training data: {symbol}")
         logger.info(f"Period: {start_date.date()} to {end_date.date()}")
+        logger.info(f"Minimum quality: {min_quality_score}/100, Minimum candles: {min_candles}")
 
-        # Fetch historical data
-        config = FetchConfig(
-            exchange=exchange,
-            symbol=symbol,
-            timeframe=timeframe,
-            start_date=start_date,
-            end_date=end_date,
-            cache_enabled=self.cache_enabled
-        )
+        # Use best exchange selection if enabled
+        if use_best_exchange:
+            logger.info("🔍 Searching for best data source across exchanges...")
+            try:
+                selected_exchange, df, quality_metrics = self.data_fetcher.select_best_exchange(
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    start_date=start_date,
+                    end_date=end_date,
+                    preferred_exchanges=['coinbase', 'bitstamp', 'bitfinex', 'kraken', 'huobi']
+                )
+            except ValueError as e:
+                logger.error(f"Failed to find suitable exchange: {e}")
+                raise ValueError(
+                    f"No exchange could provide quality data for {symbol}. "
+                    f"Please check symbol availability or try a different time range."
+                )
+        else:
+            # Use specified exchange
+            logger.info(f"Using specified exchange: {exchange}")
+            selected_exchange = exchange
+            config = FetchConfig(
+                exchange=exchange,
+                symbol=symbol,
+                timeframe=timeframe,
+                start_date=start_date,
+                end_date=end_date,
+                cache_enabled=self.cache_enabled
+            )
+            df, quality_metrics = self.data_fetcher.fetch_historical_data(config)
 
-        df, quality_metrics = self.data_fetcher.fetch_historical_data(config)
-
+        # Verify dataset meets minimum requirements
         if df.empty:
-            raise ValueError(f"No data fetched for {symbol}")
+            raise ValueError(f"No data fetched for {symbol} from {selected_exchange}")
 
-        logger.info(f"✓ Fetched {len(df)} candles (quality: {quality_metrics.quality_score:.1f}/100)")
+        candles_count = len(df)
+        quality_score = quality_metrics.quality_score
+
+        logger.info(f"✓ Fetched {candles_count} candles from {selected_exchange} (quality: {quality_score:.1f}/100)")
+
+        # Quality validation
+        issues = []
+        if quality_score < min_quality_score:
+            issues.append(f"Quality score {quality_score:.1f} below minimum {min_quality_score}")
+
+        if candles_count < min_candles:
+            issues.append(f"Only {candles_count} candles available, need at least {min_candles}")
+
+        # Calculate expected candles based on timeframe
+        timeframe_seconds = self.data_fetcher.TIMEFRAMES[timeframe]
+        expected_candles = int((end_date - start_date).total_seconds() / timeframe_seconds)
+        completeness_pct = (candles_count / expected_candles * 100) if expected_candles > 0 else 0
+
+        if completeness_pct < 50:  # Less than 50% of expected data
+            issues.append(
+                f"Dataset only {completeness_pct:.1f}% complete "
+                f"({candles_count}/{expected_candles} candles)"
+            )
+
+        # Log warnings or raise error
+        if issues:
+            error_msg = f"Dataset quality issues for {symbol}:\n  - " + "\n  - ".join(issues)
+            logger.error(error_msg)
+            logger.error(f"Quality metrics: {quality_metrics}")
+            raise ValueError(
+                f"Dataset does not meet minimum requirements for training.\n{error_msg}\n\n"
+                f"Suggestions:\n"
+                f"  1. Try a shorter time range (fewer years)\n"
+                f"  2. Use --use-best-exchange to automatically find better data\n"
+                f"  3. Check if the symbol is available on the exchange\n"
+                f"  4. Lower minimum requirements (not recommended)"
+            )
+
+        logger.info(f"✓ Dataset validated: {completeness_pct:.1f}% complete, quality: {quality_score:.1f}/100")
 
         # Enrich with external features
         df = self.feature_enricher.enrich_dataframe(
@@ -271,13 +336,13 @@ class AdvancedTrainingOrchestrator:
         logger.info(f"✓ Added technical features ({len(df.columns)} total columns)")
 
         # Save prepared data
-        data_filename = f"{exchange}_{symbol.replace('/', '_')}_{start_date.date()}_{end_date.date()}.parquet"
+        data_filename = f"{selected_exchange}_{symbol.replace('/', '_')}_{start_date.date()}_{end_date.date()}.parquet"
         data_path = self.data_dir / data_filename
         df.to_parquet(data_path, index=False)
 
         logger.info(f"✓ Saved training data: {data_path}")
 
-        return df, quality_metrics.quality_score
+        return df, quality_metrics.quality_score, selected_exchange
 
     def train_phase(
         self,
@@ -421,17 +486,23 @@ class AdvancedTrainingOrchestrator:
         symbol: str = 'BTC/USDT',
         timeframe: str = '1h',
         total_years: int = 5,
-        use_curriculum: bool = True
+        use_curriculum: bool = True,
+        use_best_exchange: bool = True,
+        min_quality_score: float = 80.0,
+        min_candles: int = 1000
     ) -> Dict[str, Any]:
         """
         Run complete training pipeline with curriculum learning
 
         Args:
-            exchange: Exchange name
+            exchange: Preferred exchange name (used if use_best_exchange=False)
             symbol: Trading pair
             timeframe: Candle timeframe
             total_years: Years of historical data
             use_curriculum: Whether to use curriculum learning
+            use_best_exchange: If True, automatically select best exchange (default: True)
+            min_quality_score: Minimum acceptable data quality score (default: 80.0)
+            min_candles: Minimum number of candles required (default: 1000)
 
         Returns:
             Training summary dictionary
@@ -469,13 +540,17 @@ class AdvancedTrainingOrchestrator:
 
             try:
                 # Prepare data for this phase
-                training_data, quality_score = self.prepare_training_data(
+                training_data, quality_score, selected_exchange = self.prepare_training_data(
                     exchange=exchange,
                     symbol=symbol,
                     timeframe=timeframe,
                     start_date=phase.data_period[0],
-                    end_date=phase.data_period[1]
+                    end_date=phase.data_period[1],
+                    use_best_exchange=use_best_exchange,
+                    min_quality_score=min_quality_score,
+                    min_candles=min_candles
                 )
+                logger.info(f"✅ Using {selected_exchange} for {phase.name}")
 
                 # Train on this phase
                 phase_metrics = self.train_phase(
