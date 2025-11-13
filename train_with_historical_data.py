@@ -139,7 +139,7 @@ class AutoRetrainingOrchestrator:
                 timeframe='1h',
                 start_date=validation_start,
                 end_date=end_date,
-                preferred_exchanges=['coinbase', 'bitstamp', 'bitfinex', 'kraken']
+                preferred_exchanges=['coinbase', 'kraken', 'bitstamp', 'gemini']
             )
             logger.info(f"✓ Using {selected_exchange} for validation (quality: {quality_metrics.quality_score:.1f}/100)")
         except ValueError as e:

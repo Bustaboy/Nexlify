@@ -66,7 +66,7 @@ class HistoricalDataFetcher:
     Comprehensive historical data fetcher with multi-source support
     """
 
-    SUPPORTED_EXCHANGES = ['binance', 'coinbase', 'kraken', 'bitfinex', 'bitstamp', 'huobi']
+    SUPPORTED_EXCHANGES = ['binance', 'coinbase', 'kraken', 'bitstamp', 'gemini']
 
     # Timeframe mappings (exchange-specific formats)
     TIMEFRAMES = {
@@ -714,8 +714,9 @@ class HistoricalDataFetcher:
             Tuple of (best_exchange_name, DataFrame, quality_metrics)
         """
         if preferred_exchanges is None:
-            # Prefer exchanges with good historical data (not Binance due to geoblocking, not Huobi due to API issues)
-            preferred_exchanges = ['coinbase', 'bitstamp', 'bitfinex', 'kraken']
+            # Prefer exchanges with good historical data and reasonable rate limits
+            # Excluded: Binance (geoblocking), Huobi (API issues), Bitfinex (strict rate limiting)
+            preferred_exchanges = ['coinbase', 'kraken', 'bitstamp', 'gemini']
 
         logger.info(f"\n🔍 Auto-selecting best exchange for {symbol}...")
         logger.info(f"Testing exchanges: {', '.join(preferred_exchanges)}")
@@ -764,6 +765,12 @@ class HistoricalDataFetcher:
                     'quality': quality,
                     'score': score
                 })
+
+                # Early termination: If we found perfect or near-perfect data, stop searching
+                if quality.quality_score >= 99.0 and completeness >= 0.95:
+                    logger.info(f"    🎯 Found excellent data (quality: {quality.quality_score:.1f}/100), "
+                               f"stopping search early")
+                    break
 
             except Exception as e:
                 logger.warning(f"    ✗ Error: {str(e)[:100]}")
