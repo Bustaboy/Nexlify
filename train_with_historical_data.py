@@ -87,17 +87,23 @@ class AutoRetrainingOrchestrator:
         exchange: str = 'binance',
         years: int = 5,
         use_curriculum: bool = True,
-        quick_test: bool = False
+        quick_test: bool = False,
+        use_best_exchange: bool = True,
+        min_quality_score: float = 80.0,
+        min_candles: int = 1000
     ) -> Dict[str, Any]:
         """
         Run training with automatic retraining until marginal improvements plateau
 
         Args:
             symbol: Trading pair
-            exchange: Exchange name
+            exchange: Preferred exchange name (used if use_best_exchange=False)
             years: Years of historical data
             use_curriculum: Use curriculum learning
             quick_test: Quick test mode (less data, fewer episodes)
+            use_best_exchange: If True, automatically select best exchange (default: True)
+            min_quality_score: Minimum acceptable data quality score (default: 80.0)
+            min_candles: Minimum number of candles required (default: 1000)
 
         Returns:
             Final training summary
@@ -124,17 +130,33 @@ class AutoRetrainingOrchestrator:
         validation_start = end_date - timedelta(days=90)  # Last 90 days for validation
 
         data_fetcher = HistoricalDataFetcher()
-        validation_config = FetchConfig(
-            exchange=exchange,
-            symbol=symbol,
-            timeframe='1h',
-            start_date=validation_start,
-            end_date=end_date,
-            cache_enabled=True
-        )
 
-        validation_data, _ = data_fetcher.fetch_historical_data(validation_config)
-        logger.info(f"✓ Prepared {len(validation_data)} candles for validation")
+        # Use best exchange selection for validation data
+        logger.info("🔍 Selecting best exchange for validation data...")
+        try:
+            selected_exchange, validation_data, quality_metrics = data_fetcher.select_best_exchange(
+                symbol=symbol,
+                timeframe='1h',
+                start_date=validation_start,
+                end_date=end_date,
+                preferred_exchanges=['coinbase', 'bitstamp', 'bitfinex', 'kraken', 'huobi']
+            )
+            logger.info(f"✓ Using {selected_exchange} for validation (quality: {quality_metrics.quality_score:.1f}/100)")
+        except ValueError as e:
+            logger.error(f"Failed to find suitable exchange for validation data: {e}")
+            logger.info("Falling back to specified exchange...")
+            validation_config = FetchConfig(
+                exchange=exchange,
+                symbol=symbol,
+                timeframe='1h',
+                start_date=validation_start,
+                end_date=end_date,
+                cache_enabled=True
+            )
+            validation_data, quality_metrics = data_fetcher.fetch_historical_data(validation_config)
+            selected_exchange = exchange
+
+        logger.info(f"✓ Prepared {len(validation_data)} candles for validation from {selected_exchange}")
 
         # Initialize evaluator
         evaluator = ModelEvaluator(output_dir=str(self.output_dir / "evaluation"))
@@ -160,7 +182,10 @@ class AutoRetrainingOrchestrator:
                     symbol=symbol,
                     timeframe='1h',
                     total_years=years,
-                    use_curriculum=use_curriculum
+                    use_curriculum=use_curriculum,
+                    use_best_exchange=use_best_exchange,
+                    min_quality_score=min_quality_score,
+                    min_candles=min_candles
                 )
 
                 # Get best model from this iteration
@@ -439,6 +464,34 @@ Examples:
         help='Skip pre-flight checks (not recommended)'
     )
 
+    parser.add_argument(
+        '--use-best-exchange',
+        action='store_true',
+        default=True,
+        help='Automatically select best exchange based on data quality (default: True)'
+    )
+
+    parser.add_argument(
+        '--no-best-exchange',
+        action='store_false',
+        dest='use_best_exchange',
+        help='Disable automatic exchange selection, use specified exchange only'
+    )
+
+    parser.add_argument(
+        '--min-quality',
+        type=float,
+        default=80.0,
+        help='Minimum data quality score required (0-100, default: 80.0)'
+    )
+
+    parser.add_argument(
+        '--min-candles',
+        type=int,
+        default=1000,
+        help='Minimum number of candles required for training (default: 1000)'
+    )
+
     args = parser.parse_args()
 
     # Automated mode adjustments - optimize for unattended training
@@ -461,12 +514,17 @@ Examples:
     print("Comprehensive ML/RL Training with Automatic Retraining")
     print("="*80)
     print(f"Symbol: {args.symbol}")
-    print(f"Exchange: {args.exchange}")
+    print(f"Exchange: {args.exchange} (preferred)" if not args.use_best_exchange else f"Exchange: Auto-select best")
     print(f"Historical data: {args.years} years")
     print(f"Curriculum learning: {not args.no_curriculum}")
-    print(f"Improvement threshold: {args.threshold}%")
-    print(f"Patience: {args.patience} iterations")
-    print(f"Max iterations: {args.max_iterations}")
+    print(f"Dataset quality requirements:")
+    print(f"  - Minimum quality score: {args.min_quality}/100")
+    print(f"  - Minimum candles: {args.min_candles}")
+    print(f"  - Best exchange selection: {args.use_best_exchange}")
+    print(f"Training parameters:")
+    print(f"  - Improvement threshold: {args.threshold}%")
+    print(f"  - Patience: {args.patience} iterations")
+    print(f"  - Max iterations: {args.max_iterations}")
     print(f"Output directory: {args.output}")
     print(f"Quick test: {args.quick_test}")
     print(f"Device: {'CUDA' if torch.cuda.is_available() else 'CPU'}")
@@ -509,7 +567,10 @@ Examples:
             exchange=args.exchange,
             years=args.years,
             use_curriculum=not args.no_curriculum,
-            quick_test=args.quick_test
+            quick_test=args.quick_test,
+            use_best_exchange=args.use_best_exchange,
+            min_quality_score=args.min_quality,
+            min_candles=args.min_candles
         )
 
         print("\n✓ Training completed successfully!")
