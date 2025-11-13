@@ -212,6 +212,11 @@ class PreFlightChecker:
 
     def _check_exchange_api(self):
         """Check exchange API availability"""
+        # Handle 'auto' exchange selection
+        if self.exchange.lower() == 'auto':
+            self._check_multiple_exchanges()
+            return
+
         try:
             exchange_class = getattr(ccxt, self.exchange, None)
             if not exchange_class:
@@ -280,6 +285,55 @@ class PreFlightChecker:
                 message=f"Unexpected error: {e}",
                 impact="critical",
                 troubleshooting="1. Update CCXT: pip install --upgrade ccxt\n    2. Check Python version (3.8+ required)\n    3. Report issue if persists"
+            ))
+
+    def _check_multiple_exchanges(self):
+        """Check multiple exchanges for auto-selection mode"""
+        exchanges_to_test = ['coinbase', 'bitstamp', 'bitfinex', 'kraken']
+        available_exchanges = []
+
+        for exchange_name in exchanges_to_test:
+            try:
+                exchange_class = getattr(ccxt, exchange_name, None)
+                if not exchange_class:
+                    continue
+
+                exchange = exchange_class({'enableRateLimit': True, 'timeout': 10000})
+
+                # Quick test - just try to load markets
+                exchange.load_markets()
+
+                # Check if symbol is available
+                if self.symbol in exchange.markets:
+                    available_exchanges.append(exchange_name)
+
+            except Exception:
+                # Silently skip exchanges that fail
+                continue
+
+        if len(available_exchanges) >= 2:
+            self.checks.append(CheckResult(
+                component="Exchange API (Auto-select)",
+                status="pass",
+                message=f"✓ {len(available_exchanges)} exchanges available for auto-selection: {', '.join(available_exchanges)}",
+                impact="none",
+                troubleshooting="N/A"
+            ))
+        elif len(available_exchanges) == 1:
+            self.checks.append(CheckResult(
+                component="Exchange API (Auto-select)",
+                status="warning",
+                message=f"Only 1 exchange available: {available_exchanges[0]}. Auto-selection will use this exchange.",
+                impact="low",
+                troubleshooting="1. Check network connectivity\n    2. Some exchanges may be blocked in your region\n    3. Consider using VPN"
+            ))
+        else:
+            self.checks.append(CheckResult(
+                component="Exchange API (Auto-select)",
+                status="fail",
+                message=f"No exchanges available for {self.symbol}. Cannot proceed with auto-selection.",
+                impact="critical",
+                troubleshooting=f"1. Check internet connection\n    2. Verify symbol format: {self.symbol}\n    3. Try manual exchange selection with --exchange coinbase\n    4. Use VPN if exchanges are blocked"
             ))
 
     def _check_fear_greed_api(self):
