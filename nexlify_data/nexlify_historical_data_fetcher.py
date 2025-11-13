@@ -668,6 +668,27 @@ class HistoricalDataFetcher:
 
         return stats
 
+    def log_cache_statistics(self):
+        """Log cache usage statistics prominently"""
+        stats = self.get_statistics()
+
+        logger.info("\n" + "="*80)
+        logger.info("📊 DATA FETCH STATISTICS")
+        logger.info("="*80)
+        logger.info(f"Total requests: {stats['total_requests']}")
+        logger.info(f"Cache hits: {stats['cached_requests']} ({stats['cache_hit_rate']:.1f}%)")
+        logger.info(f"Network fetches: {stats['successful_requests'] - stats['cached_requests']}")
+        logger.info(f"Failed requests: {stats['failed_requests']}")
+        logger.info(f"Total candles fetched: {stats['total_candles_fetched']:,}")
+        logger.info(f"Cache location: {self.cache_dir}")
+
+        # Show cache size
+        if self.cache_dir.exists():
+            cache_files = list(self.cache_dir.glob("*.parquet"))
+            total_size = sum(f.stat().st_size for f in cache_files) / (1024 * 1024)
+            logger.info(f"Cache size: {total_size:.2f} MB ({len(cache_files)} datasets)")
+        logger.info("="*80)
+
     def clear_cache(self, older_than_days: Optional[int] = None):
         """
         Clear cache files
