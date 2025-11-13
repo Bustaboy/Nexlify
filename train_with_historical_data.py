@@ -52,17 +52,17 @@ class AutoRetrainingOrchestrator:
         self,
         output_dir: str = "./training_output",
         improvement_threshold: float = 1.0,  # Minimum % improvement to continue
-        patience: int = 3,  # Number of non-improving iterations before stopping
-        max_iterations: int = 10  # Maximum retraining iterations
+        patience: int = 30,  # Number of non-improving iterations before stopping (RL needs very high patience)
+        max_iterations: int = 100  # Maximum retraining iterations (patience will stop naturally)
     ):
         """
         Initialize auto-retraining orchestrator
 
         Args:
             output_dir: Output directory
-            improvement_threshold: Minimum improvement % to continue training
-            patience: Number of iterations without improvement before stopping
-            max_iterations: Maximum number of retraining iterations
+            improvement_threshold: Minimum improvement % to continue training (default: 1.0%)
+            patience: Number of iterations without improvement before stopping (default: 30, high for RL stability)
+            max_iterations: Maximum number of retraining iterations (default: 100, patience usually stops first)
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -428,15 +428,15 @@ Examples:
     parser.add_argument(
         '--patience',
         type=int,
-        default=3,
-        help='Number of iterations without improvement before stopping (default: 3)'
+        default=30,
+        help='Number of iterations without improvement before stopping (default: 30 for RL stability)'
     )
 
     parser.add_argument(
         '--max-iterations',
         type=int,
-        default=10,
-        help='Maximum retraining iterations (default: 10)'
+        default=100,
+        help='Maximum retraining iterations (default: 100, patience will stop naturally)'
     )
 
     parser.add_argument(
@@ -499,13 +499,13 @@ Examples:
         # Only adjust if user didn't explicitly set values
         if args.threshold == 1.0:  # Default value
             args.threshold = 0.1  # Accept smaller improvements
-        if args.patience == 3:  # Default value
-            args.patience = 10  # More patient with plateaus
-        if args.max_iterations == 10:  # Default value
-            args.max_iterations = 100  # Remove practical limit (patience will stop it naturally)
+        if args.patience == 30:  # Default value (updated to 30)
+            args.patience = 50  # Even more patient for fully automated runs (tolerates long plateaus)
+        if args.max_iterations == 100:  # Default value (updated to 100)
+            args.max_iterations = 200  # Very high limit (patience will stop it naturally)
         logger.info("🤖 Automated mode: Adjusted stopping criteria for thorough training")
         logger.info(f"  - Improvement threshold: {args.threshold}% (accepts tiny gains)")
-        logger.info(f"  - Patience: {args.patience} iterations (tolerates longer plateaus)")
+        logger.info(f"  - Patience: {args.patience} iterations (very patient for RL convergence)")
         logger.info(f"  - Max iterations: {args.max_iterations} (patience will stop naturally)")
 
     # Print banner
