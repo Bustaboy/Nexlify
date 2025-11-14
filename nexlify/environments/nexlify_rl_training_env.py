@@ -27,6 +27,13 @@ from nexlify.ml.nexlify_feature_engineering import FeatureEngineer
 from nexlify.config.fee_providers import FeeProvider, FeeEstimate
 from nexlify.config.crypto_trading_config import CRYPTO_24_7_CONFIG
 
+# Enhanced state engineering
+try:
+    from nexlify.features.state_engineering import EnhancedStateEngineer
+    ENHANCED_STATE_AVAILABLE = True
+except ImportError:
+    ENHANCED_STATE_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -59,7 +66,7 @@ class TradingEnvironment:
         initial_balance: float = 10000.0,
         fee_rate: float = 0.001,  # DEPRECATED: use fee_provider instead
         slippage: float = 0.0005,
-        state_size: int = 12,  # Updated for crypto-specific features
+        state_size: int = 12,  # Updated for crypto-specific features (ignored if use_enhanced_state=True)
         action_size: int = 3,
         max_steps: int = 1000,
         use_paper_trading: bool = True,
@@ -68,6 +75,12 @@ class TradingEnvironment:
         timeframe: str = "1h",
         use_improved_rewards: bool = True,
         fee_provider: Optional[FeeProvider] = None,  # NEW: dynamic fee support
+        # Enhanced state engineering parameters
+        use_enhanced_state: bool = False,
+        state_feature_groups: Optional[List[str]] = None,
+        use_state_normalization: bool = True,
+        use_multi_timestep: bool = False,
+        multi_timestep_lookback: int = 10,
     ):
         """
         Initialize trading environment
@@ -76,14 +89,20 @@ class TradingEnvironment:
             initial_balance: Starting balance
             fee_rate: DEPRECATED - Static trading fee rate (use fee_provider instead)
             slippage: Slippage rate (0.0005 = 0.05%)
-            state_size: Size of state vector
+            state_size: Size of state vector (ignored if use_enhanced_state=True)
             action_size: Number of possible actions
             max_steps: Maximum steps per episode
             use_paper_trading: Whether to use paper trading engine
             market_data: Historical market data for training
-            engineer_features: Whether to engineer features from market data
+            engineer_features: Whether to engineer features from market data (legacy)
             timeframe: Timeframe of data ('1m', '5m', '15m', '1h', '4h', '1d', etc.)
             use_improved_rewards: Use improved reward function (default: True)
+            fee_provider: Optional FeeProvider for dynamic fees
+            use_enhanced_state: Use enhanced state engineering system (default: False)
+            state_feature_groups: Feature groups to include ['volume', 'trend', 'volatility', 'time']
+            use_state_normalization: Normalize state vectors (default: True)
+            use_multi_timestep: Stack multiple timesteps (default: False)
+            multi_timestep_lookback: Number of timesteps to stack (default: 10)
         """
         # Environment config
         self.initial_balance = initial_balance
@@ -140,12 +159,42 @@ class TradingEnvironment:
         self.current_price = 0.0
         self.price_history = []
 
-        # Feature engineering
+        # Feature engineering (legacy)
         self.engineer_features = engineer_features
         if engineer_features:
             self.feature_engineer = FeatureEngineer(enable_sentiment=False)
         else:
             self.feature_engineer = None
+
+        # Enhanced state engineering
+        self.use_enhanced_state = use_enhanced_state
+        if use_enhanced_state:
+            if not ENHANCED_STATE_AVAILABLE:
+                raise ImportError(
+                    "Enhanced state engineering not available. "
+                    "Install required dependencies or set use_enhanced_state=False"
+                )
+
+            # Initialize enhanced state engineer
+            self.enhanced_state_engineer = EnhancedStateEngineer(
+                use_volume='volume' in (state_feature_groups or ['volume', 'trend', 'volatility', 'time']),
+                use_trend='trend' in (state_feature_groups or ['volume', 'trend', 'volatility', 'time']),
+                use_volatility='volatility' in (state_feature_groups or ['volume', 'trend', 'volatility', 'time']),
+                use_time='time' in (state_feature_groups or []),
+                use_position=True,  # Always include position features
+                use_normalization=use_state_normalization,
+                use_multi_timestep=use_multi_timestep,
+                multi_timestep_lookback=multi_timestep_lookback,
+                state_feature_groups=state_feature_groups
+            )
+
+            # Update state_size to match enhanced state
+            self.state_size = self.enhanced_state_engineer.get_state_size()
+
+            logger.info(f"Enhanced state engineering enabled: state_size={self.state_size}")
+            logger.info(f"Feature groups: {self.enhanced_state_engineer.get_config()}")
+        else:
+            self.enhanced_state_engineer = None
 
         # State tracking
         self.balance = initial_balance
@@ -277,6 +326,13 @@ class TradingEnvironment:
         self.total_trades = 0
         self.winning_trades = 0
         self.recent_returns = []  # Reset returns tracking for volatility calculation
+
+        # Reset enhanced state engineer
+        if self.use_enhanced_state and self.enhanced_state_engineer:
+            self.enhanced_state_engineer.reset(
+                initial_balance=self.initial_balance,
+                reset_normalizer=False  # Keep normalization stats across episodes
+            )
 
         # Generate or load initial price
         if self.market_data is not None and len(self.market_data) > 0:
@@ -700,8 +756,13 @@ class TradingEnvironment:
         Get current state vector with crypto-specific features
 
         Returns:
-            State vector with normalized features (12 features)
+            State vector with normalized features (12+ features)
         """
+        # Use enhanced state engineering if enabled
+        if self.use_enhanced_state and self.enhanced_state_engineer:
+            return self._get_enhanced_state()
+
+        # Legacy state implementation
         current_equity = self._get_current_equity()
 
         # Calculate technical indicators from price history
@@ -747,6 +808,59 @@ class TradingEnvironment:
         )
 
         return state.astype(np.float32)
+
+    def _get_enhanced_state(self) -> np.ndarray:
+        """
+        Get enhanced state using EnhancedStateEngineer
+
+        Returns:
+            Enhanced state vector with 25-35+ features
+        """
+        # Prepare price DataFrame from history
+        if len(self.price_history) < 2:
+            # Not enough data yet, return zeros
+            return np.zeros(self.state_size, dtype=np.float32)
+
+        # Build OHLC data from price history (simplified for now)
+        # In production, this should come from market_data
+        if self.market_data is not None and self.current_step < len(self.market_data):
+            # Use actual market data
+            lookback_start = max(0, self.current_step - 100)
+            price_df = self.market_data.iloc[lookback_start:self.current_step + 1].copy()
+        else:
+            # Build synthetic OHLC from price history
+            prices = self.price_history[-min(100, len(self.price_history)):]
+            price_df = pd.DataFrame({
+                'open': prices,
+                'high': [p * 1.001 for p in prices],  # Approximate
+                'low': [p * 0.999 for p in prices],   # Approximate
+                'close': prices,
+                'volume': [1000000] * len(prices),    # Dummy volume
+                'timestamp': pd.date_range(end=pd.Timestamp.now(), periods=len(prices), freq='1h')
+            })
+
+        # Extract volume and timestamp if available
+        volume_series = price_df['volume'] if 'volume' in price_df.columns else None
+        timestamp_series = price_df['timestamp'] if 'timestamp' in price_df.columns else None
+
+        # Build state
+        try:
+            state = self.enhanced_state_engineer.build_state(
+                price_df=price_df,
+                volume_series=volume_series,
+                timestamp_series=timestamp_series,
+                current_balance=self.balance,
+                current_position=self.position,
+                entry_price=self.entry_price,
+                current_price=self.current_price,
+                equity_history=self.equity_curve,
+                update_normalizer=True
+            )
+            return state
+        except Exception as e:
+            logger.error(f"Error in enhanced state engineering: {e}", exc_info=True)
+            # Fallback to zeros
+            return np.zeros(self.state_size, dtype=np.float32)
 
     def _calculate_rsi(self, period: int = 14) -> float:
         """Calculate RSI from price history"""
