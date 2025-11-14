@@ -153,44 +153,233 @@ class HardwareBenchmark:
         except ImportError:
             return False
 
-    def run_quick_benchmark(self) -> Dict[str, Any]:
+    def run_quick_benchmark(
+        self,
+        num_agents: int = 3,
+        state_size: int = 12,
+        action_size: int = 3,
+        batch_size: int = 64,
+        iterations: int = 50
+    ) -> Dict[str, Any]:
         """
-        Run quick training benchmark to estimate performance impact
+        Run realistic training benchmark with actual DQN operations
+
+        Simulates the HEAVIEST load: training multiple full DQN agents in parallel
+        with realistic batch sizes and network architectures.
 
         Returns:
             Dict with benchmark results
         """
-        logger.info("🔍 Running hardware benchmark...")
+        logger.info(f"🔍 Running hardware benchmark (HEAVY LOAD TEST)...")
+        logger.info(f"   Testing {num_agents} agents × {batch_size} batch × {iterations} iterations")
 
-        # Simulate training loop
-        start_time = time.time()
+        try:
+            import torch
+            import torch.nn as nn
+            import torch.optim as optim
+            has_torch = True
+        except ImportError:
+            has_torch = False
+            logger.warning("⚠️  PyTorch not available, using NumPy fallback benchmark")
 
-        # Simulate agent forward pass (matrix multiplications)
-        state = np.random.randn(12).astype(np.float32)
-        weights = [np.random.randn(12, 128), np.random.randn(128, 128), np.random.randn(128, 3)]
+        if has_torch:
+            result = self._benchmark_with_torch(
+                num_agents, state_size, action_size, batch_size, iterations
+            )
+        else:
+            result = self._benchmark_with_numpy(
+                num_agents, state_size, action_size, batch_size, iterations
+            )
 
-        iterations = 1000
-        for _ in range(iterations):
-            x = state
-            for w in weights:
-                x = np.maximum(0, np.dot(x, w))  # ReLU activation
+        # Determine if hardware can handle multi-gamma
+        # Need at least 10 iterations/sec for acceptable training speed
+        can_handle = result["iterations_per_second"] >= 10
 
-        elapsed = time.time() - start_time
-        iters_per_sec = iterations / elapsed
-
-        result = {
-            "iterations_per_second": iters_per_sec,
-            "estimated_slowdown": 3.0,  # 3 agents = ~3x slower
-            "can_handle_multi_gamma": iters_per_sec > 100,  # Need >100 iter/s
-            "benchmark_time": elapsed
-        }
+        result["can_handle_multi_gamma"] = can_handle
+        result["estimated_slowdown"] = num_agents
 
         logger.info(
-            f"✅ Benchmark complete: {iters_per_sec:.0f} iterations/sec "
-            f"(3x load = {iters_per_sec/3:.0f} iter/sec per agent)"
+            f"✅ Benchmark complete:\n"
+            f"   {result['iterations_per_second']:.1f} iterations/sec (target: ≥10 iter/s)\n"
+            f"   {result['single_iteration_time']*1000:.1f}ms per iteration\n"
+            f"   Memory used: {result.get('peak_memory_mb', 'N/A')} MB\n"
+            f"   Result: {'✅ CAN HANDLE' if can_handle else '❌ TOO SLOW'} multi-gamma training"
         )
 
         return result
+
+    def _benchmark_with_torch(
+        self,
+        num_agents: int,
+        state_size: int,
+        action_size: int,
+        batch_size: int,
+        iterations: int
+    ) -> Dict[str, Any]:
+        """Benchmark using actual PyTorch DQN models"""
+        import torch
+        import torch.nn as nn
+        import torch.optim as optim
+
+        # Create realistic DQN architecture (same as actual agent)
+        class BenchmarkDQN(nn.Module):
+            def __init__(self, state_size, action_size):
+                super().__init__()
+                self.fc1 = nn.Linear(state_size, 128)
+                self.fc2 = nn.Linear(128, 128)
+                self.fc3 = nn.Linear(128, 64)
+                self.fc4 = nn.Linear(64, action_size)
+                self.relu = nn.ReLU()
+
+            def forward(self, x):
+                x = self.relu(self.fc1(x))
+                x = self.relu(self.fc2(x))
+                x = self.relu(self.fc3(x))
+                return self.fc4(x)
+
+        # Create multiple models + optimizers (simulating multi-gamma)
+        models = []
+        target_models = []
+        optimizers = []
+        criterion = nn.MSELoss()
+
+        for _ in range(num_agents):
+            model = BenchmarkDQN(state_size, action_size)
+            target = BenchmarkDQN(state_size, action_size)
+            target.load_state_dict(model.state_dict())
+            optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+            models.append(model)
+            target_models.append(target)
+            optimizers.append(optimizer)
+
+        # Generate realistic batch data
+        states = torch.randn(batch_size, state_size)
+        actions = torch.randint(0, action_size, (batch_size,))
+        rewards = torch.randn(batch_size)
+        next_states = torch.randn(batch_size, state_size)
+        dones = torch.randint(0, 2, (batch_size,)).float()
+
+        # Warm-up (JIT compilation, cache warming)
+        for model, optimizer in zip(models, optimizers):
+            q_values = model(states)
+            loss = criterion(q_values.gather(1, actions.unsqueeze(1)).squeeze(), rewards)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        # Track memory
+        if torch.cuda.is_available():
+            torch.cuda.reset_peak_memory_stats()
+            start_memory = torch.cuda.memory_allocated() / (1024**2)  # MB
+        else:
+            start_memory = 0
+
+        # Actual benchmark: Train all agents simultaneously
+        start_time = time.time()
+
+        for _ in range(iterations):
+            # Train each agent (simulating parallel training)
+            for model, target_model, optimizer in zip(models, target_models, optimizers):
+                # Forward pass (current Q-values)
+                current_q = model(states).gather(1, actions.unsqueeze(1))
+
+                # Target Q-values
+                with torch.no_grad():
+                    next_q = target_model(next_states).max(1)[0]
+                    target_q = rewards + (1 - dones) * 0.95 * next_q
+
+                # Compute loss
+                loss = criterion(current_q.squeeze(), target_q)
+
+                # Backward pass + optimization
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+        elapsed = time.time() - start_time
+        iters_per_sec = iterations / elapsed
+        single_iter_time = elapsed / iterations
+
+        # Track peak memory
+        if torch.cuda.is_available():
+            peak_memory = torch.cuda.max_memory_allocated() / (1024**2)  # MB
+        else:
+            import psutil
+            peak_memory = psutil.Process().memory_info().rss / (1024**2)  # MB
+
+        return {
+            "iterations_per_second": iters_per_sec,
+            "single_iteration_time": single_iter_time,
+            "total_time": elapsed,
+            "peak_memory_mb": peak_memory,
+            "num_agents": num_agents,
+            "batch_size": batch_size,
+            "backend": "pytorch",
+            "device": "cuda" if torch.cuda.is_available() else "cpu"
+        }
+
+    def _benchmark_with_numpy(
+        self,
+        num_agents: int,
+        state_size: int,
+        action_size: int,
+        batch_size: int,
+        iterations: int
+    ) -> Dict[str, Any]:
+        """Fallback benchmark using NumPy (no PyTorch)"""
+        # Simulate DQN network with NumPy
+        class NumpyDQN:
+            def __init__(self, state_size, action_size):
+                # Initialize weights (He initialization)
+                self.w1 = np.random.randn(state_size, 128) * np.sqrt(2.0 / state_size)
+                self.w2 = np.random.randn(128, 128) * np.sqrt(2.0 / 128)
+                self.w3 = np.random.randn(128, 64) * np.sqrt(2.0 / 128)
+                self.w4 = np.random.randn(64, action_size) * np.sqrt(2.0 / 64)
+
+            def forward(self, x):
+                x = np.maximum(0, np.dot(x, self.w1))  # ReLU
+                x = np.maximum(0, np.dot(x, self.w2))
+                x = np.maximum(0, np.dot(x, self.w3))
+                return np.dot(x, self.w4)
+
+        # Create multiple models
+        models = [NumpyDQN(state_size, action_size) for _ in range(num_agents)]
+
+        # Generate batch data
+        states = np.random.randn(batch_size, state_size).astype(np.float32)
+        next_states = np.random.randn(batch_size, state_size).astype(np.float32)
+
+        # Benchmark
+        start_time = time.time()
+
+        for _ in range(iterations):
+            for model in models:
+                # Forward passes (simulate training)
+                _ = model.forward(states)
+                _ = model.forward(next_states)
+
+                # Simulate gradient computation (matrix operations)
+                grad = np.random.randn(batch_size, action_size).astype(np.float32)
+                _ = np.dot(grad.T, states)  # Simulate backprop
+
+        elapsed = time.time() - start_time
+        iters_per_sec = iterations / elapsed
+        single_iter_time = elapsed / iterations
+
+        import psutil
+        peak_memory = psutil.Process().memory_info().rss / (1024**2)
+
+        return {
+            "iterations_per_second": iters_per_sec,
+            "single_iteration_time": single_iter_time,
+            "total_time": elapsed,
+            "peak_memory_mb": peak_memory,
+            "num_agents": num_agents,
+            "batch_size": batch_size,
+            "backend": "numpy",
+            "device": "cpu"
+        }
 
 
 # ============================================================================
@@ -284,7 +473,8 @@ class MultiGammaTrainer:
 
     def _check_hardware(self):
         """Check if hardware is sufficient for multi-gamma training"""
-        meets_req, reason = self.hardware_benchmark.check_requirements(
+        # Phase 1: Static requirements check (CPU, memory)
+        meets_static_req, reason = self.hardware_benchmark.check_requirements(
             num_agents=len(self.gammas),
             state_size=self.state_size,
             action_size=self.action_size,
@@ -293,16 +483,54 @@ class MultiGammaTrainer:
 
         logger.info(
             f"\n{'='*70}\n"
-            f"HARDWARE REQUIREMENTS CHECK\n"
+            f"HARDWARE REQUIREMENTS CHECK (Phase 1: Static)\n"
             f"{'='*70}\n"
             f"{reason}\n"
-            f"{'='*70}\n"
-            f"Result: {'✅ ENABLED' if meets_req else '❌ DISABLED (falling back to single agent)'}\n"
             f"{'='*70}"
         )
 
-        self.hardware_sufficient = meets_req
-        self.enabled = meets_req
+        if not meets_static_req:
+            logger.warning(
+                f"❌ MULTI-GAMMA DISABLED: Static requirements not met\n"
+                f"{'='*70}"
+            )
+            self.hardware_sufficient = False
+            self.enabled = False
+            return
+
+        # Phase 2: Performance benchmark (actual training simulation)
+        logger.info(
+            f"\n{'='*70}\n"
+            f"HARDWARE REQUIREMENTS CHECK (Phase 2: Performance)\n"
+            f"{'='*70}"
+        )
+
+        benchmark_result = self.hardware_benchmark.run_quick_benchmark(
+            num_agents=len(self.gammas),
+            state_size=self.state_size,
+            action_size=self.action_size,
+            batch_size=self.config.get("batch_size", 64),
+            iterations=50  # 50 training iterations
+        )
+
+        can_handle = benchmark_result["can_handle_multi_gamma"]
+
+        logger.info(
+            f"{'='*70}\n"
+            f"FINAL RESULT: {'✅ MULTI-GAMMA ENABLED' if can_handle else '❌ MULTI-GAMMA DISABLED'}\n"
+            f"{'='*70}"
+        )
+
+        if not can_handle:
+            logger.warning(
+                f"⚠️  Training would be too slow ({benchmark_result['iterations_per_second']:.1f} iter/s)\n"
+                f"   Minimum required: 10 iter/s for acceptable performance\n"
+                f"   Falling back to single agent (standard mode)\n"
+                f"{'='*70}"
+            )
+
+        self.hardware_sufficient = can_handle
+        self.enabled = can_handle
 
     def _initialize_agents(self):
         """Initialize multiple agents with different gammas"""
