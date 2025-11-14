@@ -28,13 +28,19 @@ class NightCityErrorHandler:
 
     def __init__(self, config_path: str = "config/neural_config.json"):
         self.config_path = Path(config_path)
-        self.error_log_path = Path("logs/errors.log")
-        self.crash_report_path = Path("logs/crash_reports")
         self.config = self._load_config()
 
+        # Get paths from config with fallback to defaults
+        paths_config = self.config.get("paths", {})
+        logs_dir = paths_config.get("logs_dir", "logs")
+        crash_reports_dir = paths_config.get("crash_reports_dir", "logs/crash_reports")
+
+        self.error_log_path = Path(logs_dir) / "errors.log"
+        self.crash_report_path = Path(crash_reports_dir)
+
         # Create directories
-        self.error_log_path.parent.mkdir(exist_ok=True)
-        self.crash_report_path.mkdir(exist_ok=True)
+        self.error_log_path.parent.mkdir(parents=True, exist_ok=True)
+        self.crash_report_path.mkdir(parents=True, exist_ok=True)
 
         # Setup error logger
         self.error_logger = self._setup_error_logger()

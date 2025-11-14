@@ -161,8 +161,11 @@ class ProfitManager:
             str(self.config.get("compound_percentage", 50))
         )  # 50%
 
-        # Database
-        db_path = self.config.get("database_path", "data/trading.db")
+        # Database - support new paths.trading_database config with backward compatibility
+        # First check if paths config is in the root config, not in profit_management
+        root_config = config if "paths" in config else {}
+        paths_config = root_config.get("paths", {})
+        db_path = paths_config.get("trading_database", self.config.get("database_path", "data/trading.db"))
         self.db_path = Path(db_path)
 
         # Tracking
