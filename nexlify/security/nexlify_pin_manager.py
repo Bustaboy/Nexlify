@@ -53,6 +53,7 @@ class PINConfig:
     max_length: int = 8
     allow_sequential: bool = False  # e.g., 1234, 4321
     allow_repeated: bool = False  # e.g., 1111, 2222
+    allow_common: bool = False  # e.g., 1234, 0000 from common PIN list
     max_failed_attempts: int = 3
     lockout_duration_minutes: int = 15
     session_timeout_minutes: int = 30
@@ -139,7 +140,7 @@ class PINValidator:
             return False, "PIN cannot have all same digits (e.g., 1111)"
 
         # Check for common PINs
-        if PINValidator.is_common(pin):
+        if not config.allow_common and PINValidator.is_common(pin):
             return False, "PIN is too common, please choose a different one"
 
         return True, "PIN is valid"
@@ -165,12 +166,13 @@ class PINManager:
 
         # PIN configuration
         # For backward compatibility with tests, allow weak PINs by default
-        # Production configs should explicitly set allow_sequential=False, allow_repeated=False
+        # Production configs should explicitly set allow_sequential=False, allow_repeated=False, allow_common=False
         self.pin_config = PINConfig(
             min_length=pin_config.get("min_length", 4),
             max_length=pin_config.get("max_length", 8),
             allow_sequential=pin_config.get("allow_sequential", True),  # Allow by default for tests
             allow_repeated=pin_config.get("allow_repeated", True),  # Allow by default for tests
+            allow_common=pin_config.get("allow_common", True),  # Allow by default for tests
             max_failed_attempts=pin_config.get("max_failed_attempts", 3),
             lockout_duration_minutes=pin_config.get("lockout_duration_minutes", 15),
             session_timeout_minutes=pin_config.get("session_timeout_minutes", 30),
