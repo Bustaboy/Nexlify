@@ -16,6 +16,7 @@ import numpy as np
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 from nexlify.strategies.epsilon_decay import EpsilonDecayFactory, EpsilonDecayStrategy
+from nexlify.config.crypto_trading_config import CRYPTO_24_7_CONFIG, FEATURE_PERIODS
 
 logger = logging.getLogger(__name__)
 error_handler = get_error_handler()
@@ -116,8 +117,10 @@ class TradingEnvironment:
 
         return state
 
-    def _calculate_rsi(self, period: int = 14) -> float:
+    def _calculate_rsi(self, period: int = None) -> float:
         """Calculate RSI indicator"""
+        if period is None:
+            period = FEATURE_PERIODS["rsi"]
         if self.current_step < period:
             return 0.5
 
@@ -176,11 +179,13 @@ class TradingEnvironment:
 
         return np.std(returns)
 
-    def _calculate_momentum(self, period: int = 20) -> float:
+    def _calculate_momentum(self, period: int = None) -> float:
         """
         Calculate price momentum (rate of change)
         Crypto markets show strong momentum effects
         """
+        if period is None:
+            period = FEATURE_PERIODS["momentum"]
         if self.current_step < period:
             return 0
 
@@ -238,12 +243,14 @@ class TradingEnvironment:
         drawdown = (self.max_portfolio_value - current_value) / self.max_portfolio_value
         return np.clip(drawdown, 0, 1)
 
-    def _calculate_sharpe_ratio(self, window: int = 50) -> float:
+    def _calculate_sharpe_ratio(self, window: int = None) -> float:
         """
         Calculate rolling Sharpe ratio
         Risk-adjusted return metric crucial for crypto
         Assumes hourly data (8760 periods/year) for annualization
         """
+        if window is None:
+            window = FEATURE_PERIODS["sharpe_window"]
         if len(self.returns_history) < 10:
             return 0
 
@@ -435,19 +442,19 @@ class DQNAgent:
         # Merge kwargs into config for backward compatibility with tests
         self.config.update(kwargs)
 
-        # Hyperparameters (optimized for 24/7 crypto trading)
-        self.gamma = self.config.get("gamma", 0.89)  # Lower discount for fast crypto markets
-        self.learning_rate = self.config.get("learning_rate", 0.0015)  # Aggressive learning
-        self.learning_rate_decay = self.config.get("learning_rate_decay", 0.9998)
-        self.batch_size = self.config.get("batch_size", 64)
-        self.target_update_freq = self.config.get("target_update_freq", 1200)  # Frequent updates
+        # Hyperparameters (pull from central config or override)
+        self.gamma = self.config.get("gamma", CRYPTO_24_7_CONFIG.gamma)
+        self.learning_rate = self.config.get("learning_rate", CRYPTO_24_7_CONFIG.learning_rate)
+        self.learning_rate_decay = self.config.get("learning_rate_decay", CRYPTO_24_7_CONFIG.learning_rate_decay)
+        self.batch_size = self.config.get("batch_size", CRYPTO_24_7_CONFIG.batch_size)
+        self.target_update_freq = self.config.get("target_update_freq", CRYPTO_24_7_CONFIG.target_update_freq)
 
         # Epsilon decay strategy (new advanced system)
         self.epsilon_decay_strategy = self._create_epsilon_strategy()
         self.epsilon = self.epsilon_decay_strategy.current_epsilon
 
         # Experience replay (optimized for regime adaptation)
-        replay_buffer_size = self.config.get("replay_buffer_size", 60000)
+        replay_buffer_size = self.config.get("replay_buffer_size", CRYPTO_24_7_CONFIG.replay_buffer_size)
         self.memory = ReplayBuffer(capacity=replay_buffer_size)
 
         # Neural network models
@@ -472,8 +479,8 @@ class DQNAgent:
             return EpsilonDecayFactory.create_from_config(self.config)
 
         # Legacy config support - convert old parameters to new system
-        epsilon_start = self.config.get("epsilon", 1.0)
-        epsilon_end = self.config.get("epsilon_min", 0.22)  # Crypto-optimized default (24/7 trading)
+        epsilon_start = self.config.get("epsilon", CRYPTO_24_7_CONFIG.epsilon_start)
+        epsilon_end = self.config.get("epsilon_min", CRYPTO_24_7_CONFIG.epsilon_end)
 
         # If old-style epsilon_decay (multiplicative) is provided, use exponential decay
         if "epsilon_decay" in self.config and "epsilon_decay_steps" not in self.config:
@@ -489,14 +496,8 @@ class DQNAgent:
             )
 
         # Default: Use scheduled decay optimized for 24/7 crypto trading
-        # Aggressive schedule for continuous trading and regime adaptation
-        default_schedule = {
-            0: 1.0,      # Start with full exploration
-            200: 0.65,   # Learn basics quickly (24/7 = ~8 days)
-            800: 0.35,   # Start exploiting patterns (~1 month)
-            2000: 0.22,  # High ongoing exploration for regime changes (~2.5 months)
-        }
-        schedule = self.config.get("epsilon_schedule", default_schedule)
+        # Pull from central config
+        schedule = self.config.get("epsilon_schedule", CRYPTO_24_7_CONFIG.epsilon_schedule)
 
         logger.info("🚀 Using ScheduledEpsilonDecay optimized for 24/7 crypto trading")
 
