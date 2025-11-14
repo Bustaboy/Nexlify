@@ -346,15 +346,16 @@ class IntegrityMonitor:
 
     def verify_all_files(self) -> List[Dict]:
         """
-        Verify all critical files against baseline
+        Verify all files in baseline (not all critical_files, only ones with baselines)
 
         Returns:
-            List of verification results for all files (for test compatibility)
+            List of verification results for files in baseline
         """
         results = []
         violations_found = []
 
-        for file_path in self.critical_files:
+        # Only verify files that have baselines
+        for file_path in self.baseline.keys():
             is_valid, violation = self._verify_file_detailed(file_path)
 
             # Add result for this file

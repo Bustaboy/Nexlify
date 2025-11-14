@@ -329,11 +329,11 @@ class PINManager:
             )
             return False, f"PIN setup failed: {str(e)}"
 
-    def verify_pin(
+    def _verify_pin_detailed(
         self, pin: str, username: str = "default", ip_address: str = ""
     ) -> Tuple[bool, str]:
         """
-        Verify PIN for authentication
+        Verify PIN for authentication (internal method with full details)
 
         Args:
             pin: PIN to verify
@@ -482,7 +482,7 @@ class PINManager:
             (success, message)
         """
         # Verify old PIN first
-        success, message = self.verify_pin(old_pin, username)
+        success, message = self._verify_pin_detailed(old_pin, username)
         if not success:
             return False, "Current PIN is incorrect"
 
@@ -645,6 +645,11 @@ class PINManager:
     def is_locked_out(self, username: str = "default") -> bool:
         """Check if user is locked out (backward compatibility wrapper for is_locked)"""
         return self.is_locked(username)
+
+    def verify_pin(self, pin: str, username: str = "default", ip_address: str = "") -> bool:
+        """Verify PIN (backward compatibility - returns just bool instead of tuple)"""
+        success, _ = self._verify_pin_detailed(pin, username, ip_address)
+        return success
 
 
 # Usage example

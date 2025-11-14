@@ -196,7 +196,7 @@ class SecuritySuite:
         Returns:
             (success: bool, message: str)
         """
-        success, message = self.pin_manager.verify_pin(pin, username, ip_address)
+        success, message = self.pin_manager._verify_pin_detailed(pin, username, ip_address)
 
         if success:
             self.authenticated_user = username
@@ -463,6 +463,18 @@ class SecuritySuite:
             self._api_keys[username] = []
         self._api_keys[username].append(api_key)
         return api_key
+
+    def register_api_key(self, api_key: str, user: str = None):
+        """Register an API key for user (backward compatibility)"""
+        # Ensure storage exists
+        if not hasattr(self, '_api_keys'):
+            self._api_keys = {}
+        username = user or self.authenticated_user or "default"
+        if username not in self._api_keys:
+            self._api_keys[username] = []
+        # Add key if not already registered
+        if api_key not in self._api_keys[username]:
+            self._api_keys[username].append(api_key)
 
     def validate_api_key(self, api_key: str, user: str = None) -> bool:
         """Validate API key for user"""

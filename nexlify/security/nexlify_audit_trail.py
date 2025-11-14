@@ -92,11 +92,24 @@ class AuditManager:
         return self.audit_dir / f"audit_{date_str}.jsonl"
 
     @handle_errors("Audit Logging", reraise=False)
-    def log_event(self, event: AuditEvent):
-        """Log an audit event"""
+    def log_event(self, event):
+        """Log an audit event (accepts AuditEvent or dict for backward compatibility)"""
         try:
+            # Convert dict to AuditEvent if needed
+            if isinstance(event, dict):
+                audit_event = AuditEvent(
+                    timestamp=event.get("timestamp", datetime.now()),
+                    user=event.get("user", "unknown"),
+                    event_type=event.get("event_type", event.get("action", "unknown")),
+                    details=event.get("details", {}),
+                    severity=event.get("severity", "info"),
+                    ip_address=event.get("ip_address", "")
+                )
+            else:
+                audit_event = event
+
             # Add to recent events
-            self.recent_events.append(event)
+            self.recent_events.append(audit_event)
             if len(self.recent_events) > self.max_recent_events:
                 self.recent_events.pop(0)
 
@@ -107,15 +120,15 @@ class AuditManager:
 
             # Write to audit file (JSONL format - one JSON per line)
             with open(self.current_audit_file, "a") as f:
-                f.write(event.to_json() + "\n")
+                f.write(audit_event.to_json() + "\n")
 
             # Log to application logger based on severity
-            log_message = f"[AUDIT] {event.event_type} by {event.user}: {event.details}"
-            if event.severity == "critical":
+            log_message = f"[AUDIT] {audit_event.event_type} by {audit_event.user}: {audit_event.details}"
+            if audit_event.severity == "critical":
                 logger.critical(log_message)
-            elif event.severity == "error":
+            elif audit_event.severity == "error":
                 logger.error(log_message)
-            elif event.severity == "warning":
+            elif audit_event.severity == "warning":
                 logger.warning(log_message)
             else:
                 logger.info(log_message)
