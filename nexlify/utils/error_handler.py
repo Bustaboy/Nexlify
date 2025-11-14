@@ -57,8 +57,9 @@ class NightCityErrorHandler:
         error_logger = logging.getLogger("NightCityErrors")
         error_logger.setLevel(logging.WARNING)
 
-        # Don't propagate to root logger
-        error_logger.propagate = False
+        # Propagate to root logger for test compatibility
+        # Tests need to capture logs via pytest's caplog
+        error_logger.propagate = True
 
         # File handler for errors only
         error_handler = logging.FileHandler(self.error_log_path, encoding="utf-8")
