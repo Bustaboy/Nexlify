@@ -265,9 +265,9 @@ class IntegrityMonitor:
         except Exception as e:
             logger.error(f"Failed to load baseline: {e}")
 
-    def verify_file(self, file_path: str) -> Tuple[bool, Optional[IntegrityViolation]]:
+    def _verify_file_detailed(self, file_path: str) -> Tuple[bool, Optional[IntegrityViolation]]:
         """
-        Verify a single file against baseline
+        Verify a single file against baseline (internal method with full details)
 
         Args:
             file_path: Path to file to verify
@@ -331,29 +331,55 @@ class IntegrityMonitor:
 
         return True, None
 
-    def verify_all_files(self) -> List[IntegrityViolation]:
+    def verify_file(self, file_path: str) -> bool:
+        """
+        Verify a single file against baseline (simple version for tests)
+
+        Args:
+            file_path: Path to file to verify
+
+        Returns:
+            True if file is valid, False otherwise
+        """
+        is_valid, _ = self._verify_file_detailed(file_path)
+        return is_valid
+
+    def verify_all_files(self) -> List[Dict]:
         """
         Verify all critical files against baseline
 
         Returns:
-            List of violations found
+            List of verification results for all files (for test compatibility)
         """
-        violations = []
+        results = []
+        violations_found = []
 
         for file_path in self.critical_files:
-            is_valid, violation = self.verify_file(file_path)
-            if not is_valid and violation:
-                violations.append(violation)
+            is_valid, violation = self._verify_file_detailed(file_path)
+
+            # Add result for this file
+            result = {
+                "file": file_path,
+                "valid": is_valid
+            }
+            if violation:
+                result["violation"] = violation.to_dict()
+                violations_found.append(violation)
                 self._log_violation(violation)
+
+            results.append(result)
 
         self.last_check_time = datetime.now()
 
-        if violations:
-            logger.warning(f"⚠️ Found {len(violations)} integrity violations")
+        if violations_found:
+            logger.warning(f"⚠️ Found {len(violations_found)} integrity violations")
         else:
             logger.debug("✅ All files passed integrity check")
 
-        return violations
+        # Store violations for internal use
+        self.violations = violations_found
+
+        return results
 
     def _log_violation(self, violation: IntegrityViolation):
         """Log integrity violation to persistent storage"""
@@ -598,14 +624,16 @@ class IntegrityMonitor:
 
     def verify_file_integrity(self, file_path: str) -> Tuple[bool, Optional[Dict]]:
         """Verify file integrity (backward compatibility)"""
-        is_valid, violation = self.verify_file(file_path)
+        is_valid, violation = self._verify_file_detailed(file_path)
         violation_dict = violation.to_dict() if violation else None
         return is_valid, violation_dict
 
     def detect_tampering(self) -> List[Dict]:
         """Detect tampering in all registered files (backward compatibility)"""
-        violations = self.verify_all_files()
-        return [v.to_dict() for v in violations]
+        results = self.verify_all_files()
+        # Extract violations from results
+        violations = [r.get("violation") for r in results if not r.get("valid") and r.get("violation")]
+        return violations
 
 
 # Usage example
