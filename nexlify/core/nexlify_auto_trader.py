@@ -723,6 +723,16 @@ class AutoExecutionEngine:
 
         self.total_trades += 1
 
+    def get_status(self) -> Dict:
+        """Get current status of auto trader"""
+        return {
+            "enabled": self.enabled,
+            "running": self.is_running,
+            "active_trades": len(self.active_trades),
+            "daily_profit": self.risk_manager.daily_profit,
+            "daily_trades": self.risk_manager.daily_trades,
+        }
+
 
 # Alias for backward compatibility with tests
 AutoTrader = AutoExecutionEngine
