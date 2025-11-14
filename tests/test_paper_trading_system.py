@@ -10,25 +10,23 @@ Tests cover:
 - Performance tracking
 """
 
-import pytest
 import asyncio
+import sys
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
-import sys
+import pytest
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from nexlify.backtesting.nexlify_paper_trading import PaperTradingEngine, PaperPosition
-from nexlify.environments.nexlify_rl_training_env import (
-    TradingEnvironment,
-    EpisodeStats,
-)
+from nexlify.backtesting.nexlify_paper_trading import (PaperPosition,
+                                                       PaperTradingEngine)
 from nexlify.backtesting.nexlify_paper_trading_orchestrator import (
-    PaperTradingOrchestrator,
-    AgentConfig,
-)
+    AgentConfig, PaperTradingOrchestrator)
+from nexlify.environments.nexlify_rl_training_env import (EpisodeStats,
+                                                          TradingEnvironment)
 
 
 class TestPaperTradingEngine:
@@ -461,10 +459,9 @@ class TestIntegration:
 def test_imports():
     """Test that all modules can be imported"""
     from nexlify.backtesting.nexlify_paper_trading import PaperTradingEngine
+    from nexlify.backtesting.nexlify_paper_trading_orchestrator import \
+        PaperTradingOrchestrator
     from nexlify.environments.nexlify_rl_training_env import TradingEnvironment
-    from nexlify.backtesting.nexlify_paper_trading_orchestrator import (
-        PaperTradingOrchestrator,
-    )
 
     assert PaperTradingEngine is not None
     assert TradingEnvironment is not None

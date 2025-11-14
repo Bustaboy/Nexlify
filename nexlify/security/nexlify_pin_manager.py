@@ -14,20 +14,21 @@ Features:
 - Audit logging for all auth events
 """
 
+import hashlib
+import json
 import logging
 import secrets
-import hashlib
-from datetime import datetime, timedelta
-from typing import Dict, Optional, Tuple
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from pathlib import Path
-import json
+from typing import Dict, Optional, Tuple
 
 # Argon2 for secure password hashing
 from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError, VerificationError, InvalidHash
+from argon2.exceptions import (InvalidHash, VerificationError,
+                               VerifyMismatchError)
 
-from nexlify.utils.error_handler import handle_errors, get_error_handler
+from nexlify.utils.error_handler import get_error_handler, handle_errors
 
 logger = logging.getLogger(__name__)
 error_handler = get_error_handler()

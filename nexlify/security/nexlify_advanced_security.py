@@ -4,21 +4,21 @@ Nexlify Advanced Security Module
 Enhanced security features including 2FA, encryption, and session management
 """
 
-import os
+import base64
 import hashlib
-import secrets
-import logging
-from typing import Dict, Optional, List
-from datetime import datetime, timedelta
 import json
+import logging
+import os
+import secrets
+from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Dict, List, Optional
 
+import pyotp
 # Security libraries
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-import pyotp
-import base64
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 
@@ -182,8 +182,9 @@ class TwoFactorAuth:
     def generate_qr_code(self, username: str) -> Optional[bytes]:
         """Generate QR code for 2FA setup"""
         try:
-            import qrcode
             from io import BytesIO
+
+            import qrcode
 
             if username not in self.users:
                 setup_data = self.setup_2fa(username)

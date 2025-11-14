@@ -6,8 +6,9 @@ Remote monitoring and control via Telegram
 
 import asyncio
 import logging
-from typing import Dict, Optional, Callable
 from datetime import datetime
+from typing import Callable, Dict, Optional
+
 import aiohttp
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors

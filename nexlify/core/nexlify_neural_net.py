@@ -6,8 +6,9 @@ Wrapper around arasaka_neural_net.py for GUI compatibility
 
 import asyncio
 import logging
-from typing import Dict, List, Optional
 from datetime import datetime
+from typing import Dict, List, Optional
+
 from nexlify.core.arasaka_neural_net import ArasakaNeuralNet, CyberPair
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 

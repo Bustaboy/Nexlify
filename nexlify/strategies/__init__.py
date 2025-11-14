@@ -13,9 +13,8 @@ RLAgent = DQNAgent
 
 # Ultra-Optimized RL Agent (optional - graceful if dependencies missing)
 try:
-    from nexlify.strategies.nexlify_ultra_optimized_rl_agent import (
-        UltraOptimizedDQNAgent,
-    )
+    from nexlify.strategies.nexlify_ultra_optimized_rl_agent import \
+        UltraOptimizedDQNAgent
 
     __all__ = [
         "MultiStrategyOptimizer",

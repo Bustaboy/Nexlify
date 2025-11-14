@@ -10,27 +10,23 @@ Adds GUI controls for Ultra-Optimized RL/ML features:
 - Real-time optimization statistics
 """
 
-import sys
 import logging
-from typing import Dict, Optional
+import sys
 from datetime import datetime
+from typing import Dict, Optional
 
-from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 
 logger = logging.getLogger(__name__)
 
 # Check if ultra-optimized components available
 ULTRA_OPTIMIZED_AVAILABLE = False
 try:
+    from nexlify.ml import (GPUOptimizer, OptimizationManager,
+                            OptimizationProfile, SentimentAnalyzer)
     from nexlify.strategies import UltraOptimizedDQNAgent
-    from nexlify.ml import (
-        OptimizationProfile,
-        OptimizationManager,
-        SentimentAnalyzer,
-        GPUOptimizer,
-    )
 
     ULTRA_OPTIMIZED_AVAILABLE = True
 except ImportError:
@@ -431,9 +427,10 @@ class UltraOptimizedConfigDialog(QDialog):
 
         try:
             # Import here to avoid issues if not available
-            import torch
-            import psutil
             import platform
+
+            import psutil
+            import torch
 
             info = []
             info.append("═" * 60)

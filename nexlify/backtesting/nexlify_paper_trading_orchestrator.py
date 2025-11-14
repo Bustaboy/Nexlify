@@ -14,17 +14,19 @@ Features:
 """
 
 import asyncio
-import logging
-from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime, timedelta
-from dataclasses import dataclass, field
 import json
-from pathlib import Path
-import pandas as pd
-import numpy as np
+import logging
 from collections import defaultdict
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
-from nexlify.backtesting.nexlify_paper_trading import PaperTradingEngine, PaperTrade
+import numpy as np
+import pandas as pd
+
+from nexlify.backtesting.nexlify_paper_trading import (PaperTrade,
+                                                       PaperTradingEngine)
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 
 logger = logging.getLogger(__name__)

@@ -5,11 +5,12 @@ High-performance real-time market data streaming
 """
 
 import asyncio
-import logging
 import json
-from typing import Dict, List, Callable, Optional
-from datetime import datetime
+import logging
 from collections import defaultdict
+from datetime import datetime
+from typing import Callable, Dict, List, Optional
+
 import ccxt.async_support as ccxt
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors

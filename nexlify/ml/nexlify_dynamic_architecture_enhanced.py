@@ -10,20 +10,22 @@ Fully supports:
 - Per-core performance accounting
 """
 
-import numpy as np
-import psutil
+import logging
 import platform
 import threading
 import time
-import logging
-from typing import Dict, List, Optional, Tuple, Any
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
+import psutil
 
 # Import GPU optimizer
 try:
-    from nexlify.ml.nexlify_gpu_optimizations import GPUOptimizer, GPUCapabilities
+    from nexlify.ml.nexlify_gpu_optimizations import (GPUCapabilities,
+                                                      GPUOptimizer)
 
     GPU_OPTIMIZER_AVAILABLE = True
 except ImportError:

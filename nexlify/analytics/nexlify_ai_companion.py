@@ -5,9 +5,9 @@ Intelligent assistant that provides trading insights and recommendations
 """
 
 import logging
-from typing import Dict, List, Optional, Any
-from datetime import datetime
 import random
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 

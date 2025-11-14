@@ -18,16 +18,17 @@ Example scenarios:
 - Mixed bottlenecks → Dynamic rebalancing
 """
 
-import numpy as np
-import pandas as pd
-import psutil
+import logging
 import threading
 import time
-import logging
-from typing import Dict, List, Optional, Tuple, Any
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
+import pandas as pd
+import psutil
 
 logger = logging.getLogger(__name__)
 

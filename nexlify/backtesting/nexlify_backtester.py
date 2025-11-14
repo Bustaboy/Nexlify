@@ -5,14 +5,15 @@ Test trading strategies on historical data before risking real money
 """
 
 import asyncio
+import json
 import logging
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, Tuple
-from datetime import datetime, timedelta
-from dataclasses import dataclass, field
-import json
-from pathlib import Path
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 
@@ -360,8 +361,8 @@ class StrategyBacktester:
     def generate_report(self, result: BacktestResult, output_path: str = "backtests"):
         """Generate comprehensive backtest report with charts"""
         try:
-            import matplotlib.pyplot as plt
             import matplotlib.dates as mdates
+            import matplotlib.pyplot as plt
 
             # Create output directory
             output_dir = Path(output_path)

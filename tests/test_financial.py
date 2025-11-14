@@ -4,19 +4,20 @@ Unit tests for Nexlify Financial Modules
 Testing profit management, portfolio rebalancing, and tax reporting
 """
 
-import pytest
-import sys
+import json
 import os
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import Mock, AsyncMock, patch
-import json
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from nexlify.financial.nexlify_profit_manager import ProfitManager
 from nexlify.financial.nexlify_portfolio_rebalancer import PortfolioRebalancer
+from nexlify.financial.nexlify_profit_manager import ProfitManager
 from nexlify.financial.nexlify_tax_reporter import TaxReporter
 
 

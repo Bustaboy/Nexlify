@@ -14,18 +14,18 @@ Features:
 - Withdrawal history tracking
 """
 
-import logging
 import asyncio
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+import json
+import logging
+import sqlite3
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from decimal import Decimal
 from enum import Enum
 from pathlib import Path
-import json
-from decimal import Decimal
-import sqlite3
+from typing import Dict, List, Optional, Tuple
 
-from nexlify.utils.error_handler import handle_errors, get_error_handler
+from nexlify.utils.error_handler import get_error_handler, handle_errors
 
 logger = logging.getLogger(__name__)
 error_handler = get_error_handler()

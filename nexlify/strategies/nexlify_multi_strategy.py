@@ -4,11 +4,11 @@ Nexlify Multi-Strategy Optimizer
 Manages and optimizes multiple trading strategies
 """
 
-import logging
-from typing import Dict, List, Optional, Any
-from datetime import datetime, timedelta
-from dataclasses import dataclass
 import asyncio
+import logging
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 

@@ -6,19 +6,17 @@ Integrates security and financial features into automated trading
 
 import asyncio
 import logging
-from typing import Dict, Optional, List
 from datetime import datetime
 from decimal import Decimal
+from typing import Dict, List, Optional
 
-from nexlify.security.nexlify_security_suite import SecuritySuite
-from nexlify.financial.nexlify_tax_reporter import TaxReporter
-from nexlify.financial.nexlify_profit_manager import (
-    ProfitManager,
-    WithdrawalDestination,
-)
 from nexlify.financial.nexlify_defi_integration import DeFiIntegration
+from nexlify.financial.nexlify_profit_manager import (ProfitManager,
+                                                      WithdrawalDestination)
+from nexlify.financial.nexlify_tax_reporter import TaxReporter
 from nexlify.risk.nexlify_emergency_kill_switch import KillSwitchTrigger
 from nexlify.risk.nexlify_flash_crash_protection import CrashSeverity
+from nexlify.security.nexlify_security_suite import SecuritySuite
 
 logger = logging.getLogger(__name__)
 

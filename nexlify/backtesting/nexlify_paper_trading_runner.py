@@ -13,27 +13,24 @@ Features:
 - Continuous learning support
 """
 
-import asyncio
-import logging
 import argparse
-from typing import Dict, List, Optional, Any
-from pathlib import Path
+import asyncio
 import json
+import logging
 import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from nexlify.backtesting.nexlify_paper_trading_orchestrator import (
-    PaperTradingOrchestrator,
-    AgentConfig,
-)
+    AgentConfig, PaperTradingOrchestrator)
 from nexlify.environments.nexlify_rl_training_env import TradingEnvironment
-from nexlify.strategies.nexlify_adaptive_rl_agent import create_optimized_agent
-from nexlify.strategies.nexlify_ultra_optimized_rl_agent import (
-    create_ultra_optimized_agent,
-)
 from nexlify.ml.nexlify_optimization_manager import OptimizationProfile
+from nexlify.strategies.nexlify_adaptive_rl_agent import create_optimized_agent
+from nexlify.strategies.nexlify_ultra_optimized_rl_agent import \
+    create_ultra_optimized_agent
 
 logger = logging.getLogger(__name__)
 

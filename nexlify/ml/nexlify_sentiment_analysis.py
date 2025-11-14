@@ -12,16 +12,17 @@ Multi-source sentiment analysis for cryptocurrency trading:
 All sources are cached and rate-limited for efficiency
 """
 
+import asyncio
+import json
 import logging
 import time
-import asyncio
-import aiohttp
-from typing import Dict, List, Optional, Tuple
+from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from collections import deque
-import json
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+import aiohttp
 
 logger = logging.getLogger(__name__)
 

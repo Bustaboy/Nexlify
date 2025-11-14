@@ -14,12 +14,13 @@ Features:
 - Episode management and performance tracking
 """
 
-import numpy as np
 import logging
-from typing import Dict, List, Optional, Tuple, Any
-from datetime import datetime
-import pandas as pd
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
+import pandas as pd
 
 from nexlify.backtesting.nexlify_paper_trading import PaperTradingEngine
 from nexlify.ml.nexlify_feature_engineering import FeatureEngineer

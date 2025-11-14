@@ -4,12 +4,13 @@ Unit tests for Nexlify Emergency Systems
 Testing emergency kill switch and flash crash protection
 """
 
-import pytest
 import asyncio
-import sys
 import os
+import sys
 from datetime import datetime, timedelta
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

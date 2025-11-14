@@ -4,12 +4,12 @@ Nexlify Audit Trail Module
 Comprehensive logging and auditing of all system activities
 """
 
-import logging
+import hashlib
 import json
-from typing import Dict, Any, Optional, List
+import logging
 from datetime import datetime
 from pathlib import Path
-import hashlib
+from typing import Any, Dict, List, Optional
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 

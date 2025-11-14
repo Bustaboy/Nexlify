@@ -4,20 +4,19 @@ Unit tests for Nexlify Circuit Breaker
 Comprehensive testing of circuit breaker functionality
 """
 
-import pytest
 import asyncio
-import time
-import sys
 import os
+import sys
+import time
+
+import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from nexlify.risk.nexlify_circuit_breaker import (
-    ExchangeCircuitBreaker,
-    CircuitBreakerManager,
-    CircuitState,
-)
+from nexlify.risk.nexlify_circuit_breaker import (CircuitBreakerManager,
+                                                  CircuitState,
+                                                  ExchangeCircuitBreaker)
 
 
 @pytest.fixture

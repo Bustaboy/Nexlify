@@ -4,21 +4,22 @@ Unit tests for Nexlify Security Modules
 Testing security suite, PIN manager, audit trail, and integrity monitoring
 """
 
-import pytest
-import sys
-import os
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime
 import hashlib
+import os
+import sys
+from datetime import datetime
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from nexlify.security.nexlify_security_suite import SecuritySuite
-from nexlify.security.nexlify_pin_manager import PINManager
 from nexlify.security.nexlify_audit_trail import AuditTrail
 from nexlify.security.nexlify_integrity_monitor import IntegrityMonitor
+from nexlify.security.nexlify_pin_manager import PINManager
+from nexlify.security.nexlify_security_suite import SecuritySuite
 
 
 class TestSecuritySuite:

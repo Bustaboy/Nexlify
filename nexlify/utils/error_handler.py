@@ -4,20 +4,21 @@ Nexlify - Error Handler
 Centralized error logging and crash reporting system
 """
 
-import logging
-import traceback
-import sys
-import os
 import json
-from datetime import datetime
-from pathlib import Path
+import logging
+import os
 import platform
-import psutil
-from typing import Optional, Dict, Any
 import smtplib
-from email.mime.text import MIMEText
+import sys
+import traceback
+from datetime import datetime
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from pathlib import Path
+from typing import Any, Dict, Optional
+
 import aiohttp
+import psutil
 
 
 class NightCityErrorHandler:

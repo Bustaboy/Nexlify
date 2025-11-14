@@ -4,13 +4,14 @@ Nexlify Hardware Detection Module
 Automatically detects system hardware and optimizes settings for performance
 """
 
-import logging
-import platform
-import psutil
-import os
-from typing import Dict, Optional, List
-from pathlib import Path
 import json
+import logging
+import os
+import platform
+from pathlib import Path
+from typing import Dict, List, Optional
+
+import psutil
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 

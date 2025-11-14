@@ -4,22 +4,21 @@ Unit tests for Nexlify Performance Tracker
 Comprehensive testing of performance tracking functionality
 """
 
-import pytest
-import sys
+import csv
+import json
 import os
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-import json
-import csv
+
+import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from nexlify.analytics.nexlify_performance_tracker import (
-    PerformanceTracker,
-    PerformanceMetrics,
-    Trade,
-)
+from nexlify.analytics.nexlify_performance_tracker import (PerformanceMetrics,
+                                                           PerformanceTracker,
+                                                           Trade)
 
 
 @pytest.fixture

@@ -4,14 +4,15 @@ Nexlify Reinforcement Learning Module
 Deep Q-Network (DQN) agent for autonomous trading optimization
 """
 
-import numpy as np
-import logging
-from typing import Dict, List, Tuple, Optional
-from collections import deque
-import random
-from datetime import datetime
 import json
+import logging
+import random
+from collections import deque
+from datetime import datetime
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 

@@ -13,17 +13,17 @@ Features:
 - Volume spike detection
 """
 
-import logging
 import asyncio
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
-from dataclasses import dataclass, field
-from collections import deque
-from enum import Enum
 import json
+import logging
+from collections import deque
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
-from nexlify.utils.error_handler import handle_errors, get_error_handler
+from nexlify.utils.error_handler import get_error_handler, handle_errors
 
 logger = logging.getLogger(__name__)
 error_handler = get_error_handler()
@@ -410,7 +410,8 @@ class FlashCrashProtection:
             logger.critical(f"🚨 CRITICAL crash detected - triggering kill switch")
 
             if self.kill_switch:
-                from nexlify.risk.nexlify_emergency_kill_switch import KillSwitchTrigger
+                from nexlify.risk.nexlify_emergency_kill_switch import \
+                    KillSwitchTrigger
 
                 await self.kill_switch.trigger(
                     trigger_type=KillSwitchTrigger.FLASH_CRASH,

@@ -12,11 +12,11 @@ Reduce model size by 4x with minimal accuracy loss:
 MASSIVE SAVINGS: 4x less memory, 2-4x faster inference
 """
 
-import logging
 import copy
-from typing import Optional, Dict, Any, Callable, List
-from enum import Enum
+import logging
 from dataclasses import dataclass
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -223,7 +223,7 @@ class AutoQuantizer:
         Speedup: 3-4x on CPU
         """
         import torch
-        from torch.quantization import get_default_qconfig, prepare, convert
+        from torch.quantization import convert, get_default_qconfig, prepare
 
         logger.info("   Using static quantization (with calibration)")
 
@@ -350,8 +350,9 @@ class AutoQuantizer:
         Returns:
             Comparison results
         """
-        import torch
         import time
+
+        import torch
 
         logger.info("🔍 Comparing quantization methods...")
 
@@ -470,8 +471,9 @@ class AutoQuantizer:
 
     def _benchmark_inference(self, model, example_input, num_runs: int = 100) -> float:
         """Benchmark model inference time"""
-        import torch
         import time
+
+        import torch
 
         model.eval()
 

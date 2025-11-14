@@ -4,11 +4,11 @@ Nexlify Modern UI Effects Module
 Visual and audio effects for the modern interface
 """
 
+import json
 import logging
 import os
-from typing import Dict, Optional
 from pathlib import Path
-import json
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +41,8 @@ class CyberpunkEffects:
 
         try:
             # Create subtle drop shadow using Qt graphics effects
-            from PyQt5.QtWidgets import QGraphicsDropShadowEffect
             from PyQt5.QtGui import QColor
+            from PyQt5.QtWidgets import QGraphicsDropShadowEffect
 
             shadow = QGraphicsDropShadowEffect()
             shadow.setBlurRadius(10)  # Subtle blur
@@ -75,11 +75,8 @@ class CyberpunkEffects:
             return
 
         try:
-            from PyQt5.QtCore import (
-                QPropertyAnimation,
-                QEasingCurve,
-                QAbstractAnimation,
-            )
+            from PyQt5.QtCore import (QAbstractAnimation, QEasingCurve,
+                                      QPropertyAnimation)
             from PyQt5.QtWidgets import QGraphicsOpacityEffect
 
             # Create opacity effect

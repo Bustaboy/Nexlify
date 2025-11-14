@@ -5,15 +5,15 @@ Intelligent failure handling for exchange API calls
 🔌 Protect against cascading failures and API rate limits
 """
 
-import logging
 import asyncio
-from datetime import datetime, timedelta
-from typing import Callable, Any, Dict, Optional
-from enum import Enum
-from dataclasses import dataclass, field
+import logging
 import time
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Callable, Dict, Optional
 
-from nexlify.utils.error_handler import handle_errors, get_error_handler
+from nexlify.utils.error_handler import get_error_handler, handle_errors
 
 logger = logging.getLogger(__name__)
 error_handler = get_error_handler()

@@ -3,49 +3,41 @@ Nexlify Cyberpunk Trading GUI - Enhanced with V3 Improvements
 High-performance PyQt5 interface with real-time updates and comprehensive security
 """
 
-import sys
-import os
-import json
 import asyncio
+import json
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Callable
-from dataclasses import dataclass
-from collections import deque
+import os
 import re
+import sys
+from collections import deque
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Any, Callable, Dict, List, Optional
 
-from PyQt5.QtWidgets import *
+import qasync
+from PyQt5.QtChart import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
-from PyQt5.QtChart import *
-import qasync
+from PyQt5.QtWidgets import *
 
+from nexlify.analytics.nexlify_ai_companion import AITradingCompanion
 # Import our enhanced modules
 from nexlify.core.nexlify_neural_net import NexlifyNeuralNet
-from nexlify.security.nexlify_advanced_security import SecurityManager, TwoFactorAuth
-from nexlify.security.nexlify_audit_trail import AuditManager
-from nexlify.strategies.nexlify_predictive_features import PredictiveEngine
-from nexlify.strategies.nexlify_multi_strategy import MultiStrategyOptimizer
-from nexlify.gui.nexlify_cyberpunk_effects import CyberpunkEffects, SoundManager
-from nexlify.analytics.nexlify_ai_companion import AITradingCompanion
-from nexlify.utils.error_handler import get_error_handler, ErrorContext
-from nexlify.utils.utils_module import (
-    ValidationUtils,
-    CryptoUtils,
-    FileUtils,
-    NetworkUtils,
-    TimeUtils,
-    MathUtils,
-)
-
+from nexlify.gui.nexlify_cyberpunk_effects import (CyberpunkEffects,
+                                                   SoundManager)
 # Import Phase 1 & 2 GUI integration
 from nexlify.gui.nexlify_gui_integration import (
-    integrate_phase1_phase2_into_gui,
-    EmergencyKillSwitchWidget,
-    TaxReportingWidget,
-    DeFiPositionsWidget,
-    ProfitManagementWidget,
-)
+    DeFiPositionsWidget, EmergencyKillSwitchWidget, ProfitManagementWidget,
+    TaxReportingWidget, integrate_phase1_phase2_into_gui)
+from nexlify.security.nexlify_advanced_security import (SecurityManager,
+                                                        TwoFactorAuth)
+from nexlify.security.nexlify_audit_trail import AuditManager
+from nexlify.strategies.nexlify_multi_strategy import MultiStrategyOptimizer
+from nexlify.strategies.nexlify_predictive_features import PredictiveEngine
+from nexlify.utils.error_handler import ErrorContext, get_error_handler
+from nexlify.utils.utils_module import (CryptoUtils, FileUtils, MathUtils,
+                                        NetworkUtils, TimeUtils,
+                                        ValidationUtils)
 
 logger = logging.getLogger(__name__)
 error_handler = get_error_handler()

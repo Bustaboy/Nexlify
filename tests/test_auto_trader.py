@@ -4,17 +4,19 @@ Unit tests for Nexlify Auto Trader
 Comprehensive testing of autonomous trading functionality
 """
 
-import pytest
 import asyncio
-import sys
 import os
+import sys
 from datetime import datetime, timedelta
-from unittest.mock import Mock, AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from nexlify.core.nexlify_auto_trader import AutoTrader, RiskManager, TradeExecution
+from nexlify.core.nexlify_auto_trader import (AutoTrader, RiskManager,
+                                              TradeExecution)
 
 
 @pytest.fixture

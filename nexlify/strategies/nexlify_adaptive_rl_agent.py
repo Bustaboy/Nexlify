@@ -13,17 +13,18 @@ The agent dynamically selects model architecture, batch sizes, buffer sizes,
 and training strategies based on detected hardware capabilities.
 """
 
-import numpy as np
-import logging
-from typing import Dict, List, Tuple, Optional, Any
-from collections import deque
-import random
-from datetime import datetime
 import json
-from pathlib import Path
-import psutil
+import logging
+import random
 import threading
 import time
+from collections import deque
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
+import psutil
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 
@@ -208,8 +209,8 @@ class HardwareProfiler:
         # Fallback: Try nvidia-smi with compute capability query
         if not gpu_info["available"]:
             try:
-                import subprocess
                 import re
+                import subprocess
 
                 # Try to get compute capability directly
                 result = subprocess.run(

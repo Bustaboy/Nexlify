@@ -4,21 +4,19 @@ Unit tests for Nexlify RL Agent
 Comprehensive testing of reinforcement learning trading agent
 """
 
-import pytest
-import numpy as np
-import sys
 import os
+import sys
 from pathlib import Path
 from unittest.mock import Mock, patch
+
+import numpy as np
+import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from nexlify.strategies.nexlify_rl_agent import (
-    TradingEnvironment,
-    DQNAgent,
-    ReplayBuffer,
-)
+from nexlify.strategies.nexlify_rl_agent import (DQNAgent, ReplayBuffer,
+                                                 TradingEnvironment)
 
 
 @pytest.fixture

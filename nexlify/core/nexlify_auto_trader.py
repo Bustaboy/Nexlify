@@ -6,10 +6,11 @@ Fully autonomous trading system with risk management
 
 import asyncio
 import logging
-import numpy as np
-from typing import Dict, List, Optional
-from datetime import datetime, timedelta
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional
+
+import numpy as np
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 
@@ -220,8 +221,9 @@ class AutoExecutionEngine:
     def _load_rl_agent(self):
         """Load trained RL agent"""
         try:
-            from nexlify.strategies.nexlify_rl_agent import DQNAgent
             from pathlib import Path
+
+            from nexlify.strategies.nexlify_rl_agent import DQNAgent
 
             model_path = Path("models/rl_agent_trained.pth")
 

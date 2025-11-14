@@ -4,29 +4,27 @@ Nexlify GUI Integration for Phase 1 & 2 Features
 Adds user-accessible controls for all new security and financial features
 """
 
-import sys
 import asyncio
-import logging
-from datetime import datetime
-from typing import Dict, Optional
-from pathlib import Path
 import json
+import logging
+import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, Optional
 
-from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 
+from nexlify.financial.nexlify_defi_integration import DeFiIntegration
+from nexlify.financial.nexlify_profit_manager import (ProfitManager,
+                                                      WithdrawalDestination,
+                                                      WithdrawalFrequency,
+                                                      WithdrawalStrategy)
+from nexlify.financial.nexlify_tax_reporter import TaxReporter
+from nexlify.risk.nexlify_emergency_kill_switch import KillSwitchTrigger
 # Import Phase 1 & 2 modules
 from nexlify.security.nexlify_security_suite import SecuritySuite
-from nexlify.risk.nexlify_emergency_kill_switch import KillSwitchTrigger
-from nexlify.financial.nexlify_tax_reporter import TaxReporter
-from nexlify.financial.nexlify_defi_integration import DeFiIntegration
-from nexlify.financial.nexlify_profit_manager import (
-    ProfitManager,
-    WithdrawalStrategy,
-    WithdrawalFrequency,
-    WithdrawalDestination,
-)
 
 logger = logging.getLogger(__name__)
 

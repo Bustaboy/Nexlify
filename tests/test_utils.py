@@ -4,24 +4,22 @@ Unit tests for Nexlify Utilities
 Testing error handling and utility functions
 """
 
-import pytest
-import sys
-import os
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
 import logging
+import os
+import sys
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from nexlify.utils.error_handler import ErrorHandler, get_error_handler, handle_errors
-from nexlify.utils.utils_module import (
-    format_currency,
-    format_percentage,
-    calculate_returns,
-    validate_config,
-    safe_divide,
-)
+from nexlify.utils.error_handler import (ErrorHandler, get_error_handler,
+                                         handle_errors)
+from nexlify.utils.utils_module import (calculate_returns, format_currency,
+                                        format_percentage, safe_divide,
+                                        validate_config)
 
 
 class TestErrorHandler:

@@ -5,11 +5,12 @@ AI-powered price prediction and market analysis
 """
 
 import logging
+from collections import deque
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, Tuple
-from datetime import datetime, timedelta
-from collections import deque
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 

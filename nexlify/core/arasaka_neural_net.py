@@ -6,22 +6,23 @@ Cyberpunk-themed cryptocurrency arbitrage system
 """
 
 import asyncio
+import json
 import logging
 import os
-from datetime import datetime, timedelta
-from typing import Dict, List, Tuple, Optional
-import pandas as pd
-import numpy as np
-from decimal import Decimal
-import ccxt.async_support as ccxt
-import aiohttp
 from dataclasses import dataclass
-import json
+from datetime import datetime, timedelta
+from decimal import Decimal
+from typing import Dict, List, Optional, Tuple
 
+import aiohttp
+import ccxt.async_support as ccxt
+import numpy as np
+import pandas as pd
+
+from nexlify.analytics.nexlify_performance_tracker import PerformanceTracker
+from nexlify.risk.nexlify_circuit_breaker import CircuitBreakerManager
 # Import advanced trading features
 from nexlify.risk.nexlify_risk_manager import RiskManager
-from nexlify.risk.nexlify_circuit_breaker import CircuitBreakerManager
-from nexlify.analytics.nexlify_performance_tracker import PerformanceTracker
 
 # Load environment settings from config
 config_path = "config/neural_config.json"
@@ -185,7 +186,8 @@ class ArasakaNeuralNet:
         self.auto_trader = None
         if self.config.get("auto_trade", False):
             try:
-                from nexlify.core.nexlify_auto_trader import AutoExecutionEngine
+                from nexlify.core.nexlify_auto_trader import \
+                    AutoExecutionEngine
 
                 self.auto_trader = AutoExecutionEngine(
                     neural_net=self,
@@ -208,9 +210,8 @@ class ArasakaNeuralNet:
         # Initialize Phase 1 & 2 Integration
         if self._integration_enabled:
             try:
-                from nexlify.core.nexlify_trading_integration import (
-                    create_integrated_trading_manager,
-                )
+                from nexlify.core.nexlify_trading_integration import \
+                    create_integrated_trading_manager
 
                 self.integration_manager = await create_integrated_trading_manager(
                     self.config

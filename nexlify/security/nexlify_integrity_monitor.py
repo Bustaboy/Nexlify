@@ -14,18 +14,19 @@ Features:
 - Alert on tampering with integration to Kill Switch
 """
 
-import logging
+import asyncio
 import hashlib
 import json
+import logging
 import os
-import psutil
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
-from dataclasses import dataclass, field
-import asyncio
 
-from nexlify.utils.error_handler import handle_errors, get_error_handler
+import psutil
+
+from nexlify.utils.error_handler import get_error_handler, handle_errors
 
 logger = logging.getLogger(__name__)
 error_handler = get_error_handler()
@@ -392,7 +393,8 @@ class IntegrityMonitor:
             )
 
             if self.kill_switch:
-                from nexlify.risk.nexlify_emergency_kill_switch import KillSwitchTrigger
+                from nexlify.risk.nexlify_emergency_kill_switch import \
+                    KillSwitchTrigger
 
                 await self.kill_switch.trigger(
                     trigger_type=KillSwitchTrigger.SYSTEM_TAMPER,

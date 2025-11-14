@@ -16,9 +16,9 @@ Profiles:
 """
 
 import logging
-from typing import Optional, Dict, Any
-from enum import Enum
 from dataclasses import dataclass
+from enum import Enum
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -324,9 +324,8 @@ class OptimizationManager:
     def _get_resource_monitor(self):
         """Get resource monitor (lazy)"""
         if self.resource_monitor is None:
-            from nexlify.ml.nexlify_dynamic_architecture_enhanced import (
-                EnhancedDynamicResourceMonitor,
-            )
+            from nexlify.ml.nexlify_dynamic_architecture_enhanced import \
+                EnhancedDynamicResourceMonitor
 
             self.resource_monitor = EnhancedDynamicResourceMonitor(
                 sample_interval=self.config.resource_check_interval
@@ -441,9 +440,10 @@ class OptimizationManager:
 
         Tests each optimization and only enables if it improves performance
         """
-        import torch
-        import time
         import copy
+        import time
+
+        import torch
 
         logger.info("🔍 Benchmarking optimizations (this may take 1-2 minutes)...")
 
@@ -563,8 +563,9 @@ class OptimizationManager:
         self, model, example_input, num_runs: int = 50
     ) -> float:
         """Benchmark model inference time"""
-        import torch
         import time
+
+        import torch
 
         model.eval()
 
@@ -627,7 +628,6 @@ def create_optimizer(
 
 # Import for convenience
 from nexlify.ml.nexlify_model_compilation import CompilationMode
-
 
 # Export
 __all__ = [

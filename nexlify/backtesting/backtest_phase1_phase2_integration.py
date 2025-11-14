@@ -7,11 +7,11 @@ Tests all features with realistic trading scenarios
 import asyncio
 import json
 import logging
-from pathlib import Path
-from datetime import datetime, timedelta
-from decimal import Decimal
 import random
 import sys
+from datetime import datetime, timedelta
+from decimal import Decimal
+from pathlib import Path
 
 # Setup logging
 logging.basicConfig(
@@ -145,11 +145,9 @@ async def test_scenario_1_normal_trading():
     print("=" * 80)
 
     try:
-        from nexlify.financial.nexlify_tax_reporter import TaxReporter
         from nexlify.financial.nexlify_profit_manager import (
-            ProfitManager,
-            WithdrawalDestination,
-        )
+            ProfitManager, WithdrawalDestination)
+        from nexlify.financial.nexlify_tax_reporter import TaxReporter
 
         config = load_config()
         if not config:
@@ -280,14 +278,10 @@ async def test_scenario_2_flash_crash():
     print("=" * 80)
 
     try:
-        from nexlify.risk.nexlify_flash_crash_protection import (
-            FlashCrashProtection,
-            CrashSeverity,
-        )
         from nexlify.risk.nexlify_emergency_kill_switch import (
-            EmergencyKillSwitch,
-            KillSwitchTrigger,
-        )
+            EmergencyKillSwitch, KillSwitchTrigger)
+        from nexlify.risk.nexlify_flash_crash_protection import (
+            CrashSeverity, FlashCrashProtection)
 
         config = load_config()
         if not config:
@@ -632,9 +626,9 @@ async def test_scenario_6_full_integration():
     print("=" * 80)
 
     try:
-        from nexlify.security.nexlify_security_suite import SecuritySuite
-        from nexlify.financial.nexlify_tax_reporter import TaxReporter
         from nexlify.financial.nexlify_profit_manager import ProfitManager
+        from nexlify.financial.nexlify_tax_reporter import TaxReporter
+        from nexlify.security.nexlify_security_suite import SecuritySuite
 
         config = load_config()
         if not config:

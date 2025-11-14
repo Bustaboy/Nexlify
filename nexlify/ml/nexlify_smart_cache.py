@@ -20,11 +20,12 @@ import pickle
 import struct
 import threading
 import time
-import numpy as np
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
 from collections import OrderedDict, deque
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 

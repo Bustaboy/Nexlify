@@ -15,11 +15,12 @@ import logging
 import subprocess
 import threading
 import time
-import psutil
-from typing import Dict, List, Optional, Tuple
+from collections import deque
 from dataclasses import dataclass
 from enum import Enum
-from collections import deque
+from typing import Dict, List, Optional, Tuple
+
+import psutil
 
 logger = logging.getLogger(__name__)
 

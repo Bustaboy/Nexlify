@@ -14,14 +14,15 @@ This system includes:
 - Hardware-adaptive training
 """
 
-import numpy as np
-import pandas as pd
-from typing import Dict, List, Optional, Tuple, Any, Union
+import json
 import logging
+import pickle
 from datetime import datetime
 from pathlib import Path
-import json
-import pickle
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import numpy as np
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,8 @@ class EnsembleMLSystem:
     def _get_hardware_config(self) -> Dict:
         """Get hardware-adaptive configuration"""
         try:
-            from nexlify.strategies.nexlify_adaptive_rl_agent import HardwareProfiler
+            from nexlify.strategies.nexlify_adaptive_rl_agent import \
+                HardwareProfiler
 
             profiler = HardwareProfiler()
             hw_config = profiler.optimal_config
@@ -177,7 +179,8 @@ class EnsembleMLSystem:
     def _build_random_forest(self, X_train: np.ndarray, y_train: np.ndarray):
         """Build Random Forest model"""
         try:
-            from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+            from sklearn.ensemble import (RandomForestClassifier,
+                                          RandomForestRegressor)
 
             if self.task == "classification":
                 model = RandomForestClassifier(
@@ -464,7 +467,7 @@ class EnsembleMLSystem:
     ):
         """Build linear model (Ridge or Lasso)"""
         try:
-            from sklearn.linear_model import Ridge, Lasso, LogisticRegression
+            from sklearn.linear_model import Lasso, LogisticRegression, Ridge
             from sklearn.preprocessing import StandardScaler
 
             # Standardize features for linear models
@@ -550,12 +553,8 @@ class EnsembleMLSystem:
         Returns:
             Dictionary of model performances
         """
-        from sklearn.metrics import (
-            accuracy_score,
-            f1_score,
-            mean_squared_error,
-            r2_score,
-        )
+        from sklearn.metrics import (accuracy_score, f1_score,
+                                     mean_squared_error, r2_score)
 
         logger.info("📊 Evaluating models...")
 

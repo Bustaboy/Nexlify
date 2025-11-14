@@ -6,8 +6,9 @@ Automated portfolio rebalancing to maintain target allocations
 
 import asyncio
 import logging
-from typing import Dict, List
 from datetime import datetime, timedelta
+from typing import Dict, List
+
 import numpy as np
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors

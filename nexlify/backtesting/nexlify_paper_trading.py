@@ -5,13 +5,13 @@ Simulated trading with real market data for risk-free testing
 """
 
 import asyncio
-import logging
-from typing import Dict, List, Optional
-from datetime import datetime
-from dataclasses import dataclass, field
 import json
-from pathlib import Path
+import logging
 import uuid
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 

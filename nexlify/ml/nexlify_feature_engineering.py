@@ -11,12 +11,13 @@ This module provides 100+ features across multiple categories:
 - Sentiment indicators (10+)
 """
 
-import numpy as np
-import pandas as pd
-from typing import Dict, List, Optional, Tuple
+import asyncio
 import logging
 from datetime import datetime, timedelta
-import asyncio
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
+import pandas as pd
 
 # Import sentiment analyzer
 try:

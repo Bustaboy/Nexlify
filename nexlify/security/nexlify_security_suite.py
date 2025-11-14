@@ -12,25 +12,21 @@ Integrates:
 This module provides a unified interface for all Phase 1 security features.
 """
 
-import logging
 import asyncio
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional, Any
+from typing import Any, Dict, Optional
 
 # Import Phase 1 modules
-from nexlify.risk.nexlify_emergency_kill_switch import (
-    EmergencyKillSwitch,
-    KillSwitchTrigger,
-)
-from nexlify.risk.nexlify_flash_crash_protection import (
-    FlashCrashProtection,
-    CrashSeverity,
-)
-from nexlify.security.nexlify_pin_manager import PINManager
+from nexlify.risk.nexlify_emergency_kill_switch import (EmergencyKillSwitch,
+                                                        KillSwitchTrigger)
+from nexlify.risk.nexlify_flash_crash_protection import (CrashSeverity,
+                                                         FlashCrashProtection)
 from nexlify.security.nexlify_integrity_monitor import IntegrityMonitor
-from nexlify.utils.error_handler import handle_errors, get_error_handler
+from nexlify.security.nexlify_pin_manager import PINManager
+from nexlify.utils.error_handler import get_error_handler, handle_errors
 
 logger = logging.getLogger(__name__)
 error_handler = get_error_handler()
@@ -74,7 +70,8 @@ class SecuritySuite:
         logger.info("=" * 80)
 
         # 1. PIN Authentication
-        from nexlify.security.nexlify_advanced_security import EncryptionManager
+        from nexlify.security.nexlify_advanced_security import \
+            EncryptionManager
 
         self.encryption_manager = EncryptionManager(
             master_password=config.get("security", {}).get(

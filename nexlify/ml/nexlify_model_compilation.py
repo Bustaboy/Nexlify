@@ -14,9 +14,9 @@ ZERO OVERHEAD: Compilation happens once, then lightning fast
 
 import logging
 import time
-from typing import Optional, Dict, Any, Callable
-from enum import Enum
 from dataclasses import dataclass
+from enum import Enum
+from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -268,9 +268,9 @@ class ModelCompiler:
         if not self.has_onnx:
             raise RuntimeError("ONNX Runtime not available (pip install onnxruntime)")
 
-        import torch
         import onnx
         import onnxruntime as ort
+        import torch
 
         logger.info("   Exporting to ONNX")
 
