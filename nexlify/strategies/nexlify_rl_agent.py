@@ -278,24 +278,40 @@ class TradingEnvironment:
         reward = 0
         info = {}
 
-        # Execute action
+        # Execute action with proper fee accounting
         if action == 1:  # Buy
             if self.balance > 0 and self.position == 0:
-                # Buy with 100% of balance (simplified)
-                self.position = self.balance / current_price
+                # Buy with 95% of balance, accounting for fees
+                # Assume 0.1% fee rate (typical for crypto)
+                fee_rate = 0.001
+                amount_to_invest = self.balance * 0.95  # Leave room for fees
+                cost = amount_to_invest / (1 + fee_rate)  # Actual amount we can buy
+                fees = cost * fee_rate
+
+                self.position = cost / current_price
                 self.position_price = current_price
-                self.balance = 0
+                self.balance -= (cost + fees)  # Deduct cost and fees
+
                 info["action"] = "buy"
                 info["price"] = current_price
+                info["fees"] = fees
 
         elif action == 2:  # Sell
             if self.position > 0:
-                # Sell entire position
+                # Sell entire position with fee accounting
+                fee_rate = 0.001
                 sell_value = self.position * current_price
-                profit = sell_value - (self.position * self.position_price)
+                fees = sell_value * fee_rate
+                net_proceeds = sell_value - fees
 
-                self.balance = sell_value
-                reward = profit / self.initial_balance  # Normalized reward
+                # Calculate profit after fees
+                cost = self.position * self.position_price
+                profit = net_proceeds - cost
+
+                self.balance = net_proceeds
+
+                # Reward based on RETURN not absolute profit
+                reward = profit / cost if cost > 0 else 0  # Return on investment
 
                 # Track trade
                 self.trade_history.append(
@@ -304,6 +320,7 @@ class TradingEnvironment:
                         "exit_price": current_price,
                         "profit": profit,
                         "return": (current_price / self.position_price - 1) * 100,
+                        "fees": fees,
                     }
                 )
 
@@ -311,18 +328,11 @@ class TradingEnvironment:
                 self.position_price = 0
                 info["action"] = "sell"
                 info["profit"] = profit
+                info["fees"] = fees
         else:
-            # Hold
+            # Hold - no fixed penalty, let portfolio value change drive reward
             info["action"] = "hold"
-            # Small penalty for holding to encourage action
-            reward = -0.001
-
-        # Calculate unrealized PnL if holding position
-        if self.position > 0:
-            unrealized_pnl = (current_price - self.position_price) * self.position
-            reward += (
-                unrealized_pnl / self.initial_balance * 0.1
-            )  # Small reward for good positions
+            reward = 0  # Neutral, will be adjusted by equity change below
 
         # Move to next step
         self.current_step += 1
@@ -335,23 +345,31 @@ class TradingEnvironment:
 
         # Track portfolio value and returns for risk-adjusted rewards
         self.portfolio_values.append(total_value)
-        if len(self.portfolio_values) > 1:
-            portfolio_return = (total_value - self.portfolio_values[-2]) / self.portfolio_values[-2]
-            self.returns_history.append(portfolio_return)
 
-        # Apply risk adjustment to reward (Sharpe-based)
-        # Encourage high returns with low volatility
+        # PRIMARY REWARD: Equity change (consistent with improved reward function)
+        if len(self.portfolio_values) > 1:
+            equity_change = total_value - self.portfolio_values[-2]
+            equity_return = equity_change / self.portfolio_values[-2]
+            self.returns_history.append(equity_return)
+
+            # Only override reward if not from sell (sell already has ROI reward)
+            if action != 2:  # Not sell
+                reward = equity_return * 100.0  # Scale to percentage
+
+        # Apply risk adjustment to reward (Sharpe-based) - FIXED VERSION
+        # Apply as ADDITIVE bonus/penalty, not multiplicative
         if len(self.returns_history) >= 10:
             sharpe = self._calculate_sharpe_ratio()
-            # Boost reward if Sharpe is positive (good risk-adjusted returns)
-            # Penalize if Sharpe is negative (poor risk-adjusted returns)
-            risk_adjustment = np.tanh(sharpe * 0.5)  # Smooth scaling
-            reward = reward * (1 + risk_adjustment)
+            # Sharpe bonus/penalty (additive to avoid breaking negative rewards)
+            # Clip Sharpe-based adjustment to reasonable range
+            risk_adjustment = np.clip(sharpe * 0.01, -0.1, 0.1)  # ±0.1 max
+            reward += risk_adjustment  # ADDITIVE, not multiplicative
 
             info["sharpe_ratio"] = sharpe
             info["risk_adjustment"] = risk_adjustment
 
         info["total_value"] = total_value
+        info["equity_return"] = equity_return if len(self.portfolio_values) > 1 else 0
         info["step"] = self.current_step
 
         self.episode_reward += reward
