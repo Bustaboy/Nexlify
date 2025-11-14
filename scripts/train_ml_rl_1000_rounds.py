@@ -22,6 +22,7 @@ import logging
 import argparse
 import numpy as np
 from datetime import datetime
+from typing import Tuple
 import json
 import time
 
@@ -72,6 +73,23 @@ try:
 except ImportError:
     logger.warning("Ultra-optimized agent not available")
     ULTRA_AVAILABLE = False
+
+# Import validation and early stopping
+try:
+    from nexlify.training.validation_monitor import (
+        ValidationMonitor,
+        ValidationDataSplitter
+    )
+    from nexlify.training.early_stopping import (
+        EarlyStopping,
+        EarlyStoppingConfig,
+        TrainingPhaseDetector,
+        OverfittingDetector
+    )
+    VALIDATION_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Validation and early stopping not available: {e}")
+    VALIDATION_AVAILABLE = False
 
 
 def print_banner():
@@ -165,10 +183,20 @@ def train_1000_rounds(
     initial_balance: float = 10000,
     checkpoint_dir: str = "models/ml_rl_1000",
     resume_from: str = None,
-    symbol: str = "BTC/USDT"
+    symbol: str = "BTC/USDT",
+    # Validation parameters
+    use_validation: bool = True,
+    validation_frequency: int = 50,
+    validation_metric: str = 'val_sharpe',
+    train_val_test_split: Tuple = (0.70, 0.15, 0.15),
+    # Early stopping parameters
+    use_early_stopping: bool = True,
+    early_stopping_patience: int = 30,
+    early_stopping_min_delta: float = 0.01,
+    early_stopping_mode: str = 'max'
 ):
     """
-    Train ML/RL agent for exactly 1000 rounds
+    Train ML/RL agent for exactly 1000 rounds with validation and early stopping
 
     Args:
         agent_type: Type of agent ('adaptive', 'ultra', 'basic')
@@ -177,6 +205,14 @@ def train_1000_rounds(
         checkpoint_dir: Directory for model checkpoints
         resume_from: Path to checkpoint to resume from
         symbol: Trading symbol
+        use_validation: Enable validation monitoring (default: True)
+        validation_frequency: Run validation every N episodes (default: 50)
+        validation_metric: Metric to track ('val_sharpe', 'val_return', 'val_win_rate')
+        train_val_test_split: Train/val/test split ratios (default: 0.70, 0.15, 0.15)
+        use_early_stopping: Enable early stopping (default: True)
+        early_stopping_patience: Episodes without improvement before stopping (default: 30)
+        early_stopping_min_delta: Minimum improvement threshold (default: 0.01)
+        early_stopping_mode: 'max' for metrics to maximize, 'min' for minimize
     """
     TOTAL_EPISODES = 1000
     SAVE_INTERVAL = 50
@@ -244,9 +280,85 @@ def train_1000_rounds(
     np.save(data_file, price_data)
     logger.info(f"💾 Price data saved to {data_file}")
 
-    # Create environment
-    env = TradingEnvironment(price_data, initial_balance=initial_balance)
-    logger.info(f"✅ Environment created: {env.max_steps} steps per episode")
+    # Split data into train/val/test if validation enabled
+    val_env = None
+    test_data = None
+    validation_monitor = None
+    early_stopping = None
+
+    if use_validation and VALIDATION_AVAILABLE:
+        logger.info("\n🔍 VALIDATION SETUP")
+        logger.info("-" * 80)
+
+        # Split data temporally
+        splitter = ValidationDataSplitter(
+            train_ratio=train_val_test_split[0],
+            val_ratio=train_val_test_split[1],
+            test_ratio=train_val_test_split[2]
+        )
+
+        data_split = splitter.split(price_data)
+
+        # Use training data for main environment
+        train_data = data_split.train_data
+        val_data = data_split.val_data
+        test_data = data_split.test_data
+
+        logger.info(f"✅ Data split completed:")
+        logger.info(f"   Train: {len(train_data)} samples")
+        logger.info(f"   Val: {len(val_data)} samples")
+        logger.info(f"   Test: {len(test_data)} samples (held out for final evaluation)")
+
+        # Create validation environment
+        val_env = TradingEnvironment(val_data, initial_balance=initial_balance)
+        logger.info(f"✅ Validation environment created: {val_env.max_steps} steps per episode")
+
+        # Initialize validation monitor
+        validation_monitor = ValidationMonitor(
+            validation_frequency=validation_frequency,
+            save_dir=checkpoint_path / "validation",
+            cache_results=True
+        )
+
+        # Initialize early stopping
+        if use_early_stopping:
+            early_stopping_config = EarlyStoppingConfig(
+                patience=early_stopping_patience,
+                min_delta=early_stopping_min_delta,
+                mode=early_stopping_mode,
+                metric=validation_metric,
+                restore_best_weights=True,
+                save_best_model=True,
+                model_save_path=str(checkpoint_path / "best_model.pth")
+            )
+
+            phase_detector = TrainingPhaseDetector()
+            overfitting_detector = OverfittingDetector(
+                overfitting_threshold=0.20,  # 20% difference threshold
+                window_size=10
+            )
+
+            early_stopping = EarlyStopping(
+                config=early_stopping_config,
+                phase_detector=phase_detector,
+                overfitting_detector=overfitting_detector
+            )
+
+            logger.info(f"✅ Early stopping configured:")
+            logger.info(f"   Metric: {validation_metric}")
+            logger.info(f"   Patience: {early_stopping_patience} (adaptive by phase)")
+            logger.info(f"   Min delta: {early_stopping_min_delta}")
+
+        # Use training split for training
+        price_data_to_use = train_data
+    else:
+        # Use full dataset if validation disabled
+        price_data_to_use = price_data
+        logger.info("⚠️  Validation disabled - using full dataset for training")
+
+    # Create training environment
+    env = TradingEnvironment(price_data_to_use, initial_balance=initial_balance)
+    logger.info(f"✅ Training environment created: {env.max_steps} steps per episode")
 
     # Create agent based on type
     logger.info("\n🤖 CREATING ML/RL AGENT")
@@ -366,7 +478,17 @@ def train_1000_rounds(
         winning_trades = sum(1 for t in episode_trades if t.get('profit', 0) > 0)
         win_rate = (winning_trades / len(episode_trades) * 100) if episode_trades else 0
 
-        # Track best model
+        # Calculate training Sharpe ratio for comparison with validation
+        if len(env.equity_curve) > 1:
+            train_returns = np.diff(env.equity_curve) / env.equity_curve[:-1]
+            train_sharpe = (
+                np.mean(train_returns) / np.std(train_returns) * np.sqrt(252)
+                if np.std(train_returns) > 0 else 0
+            )
+        else:
+            train_sharpe = 0
+
+        # Track best model (training profit)
         if profit_percent > best_profit_pct:
             best_profit_pct = profit_percent
             best_profit = profit
@@ -384,6 +506,69 @@ def train_1000_rounds(
         training_results['trades'].append(len(episode_trades))
         training_results['win_rates'].append(win_rate)
         training_results['timestamps'].append(datetime.now().isoformat())
+
+        # Run validation if enabled
+        should_stop = False
+        if validation_monitor and val_env:
+            if validation_monitor.should_validate(episode + 1):
+                # Run validation
+                val_result = validation_monitor.run_validation(
+                    agent=agent,
+                    val_env=val_env,
+                    current_episode=episode + 1,
+                    num_episodes=5  # Average over 5 validation episodes
+                )
+
+                # Update best validation
+                is_new_best = validation_monitor.update_best(val_result, metric=validation_metric)
+
+                # Early stopping check
+                if early_stopping and use_early_stopping:
+                    # Get model weights for potential restoration
+                    model_weights = None
+                    if hasattr(agent, 'model') and hasattr(agent.model, 'state_dict'):
+                        model_weights = agent.model.state_dict()
+                    elif hasattr(agent, 'get_weights'):
+                        model_weights = agent.get_weights()
+
+                    # Get validation metric value
+                    val_metric_value = getattr(val_result, validation_metric)
+
+                    # Get training metric for overfitting detection
+                    if validation_metric == 'val_sharpe':
+                        train_metric_value = train_sharpe
+                    elif validation_metric == 'val_return_pct':
+                        train_metric_value = profit_percent
+                    elif validation_metric == 'val_win_rate':
+                        train_metric_value = win_rate
+                    else:
+                        train_metric_value = None
+
+                    # Update early stopping
+                    should_stop = early_stopping.update(
+                        metric_value=val_metric_value,
+                        episode=episode + 1,
+                        epsilon=agent.epsilon,
+                        model_weights=model_weights,
+                        train_metric=train_metric_value
+                    )
+
+                    # Save checkpoint if this is the best episode
+                    if is_new_best and early_stopping.should_save_checkpoint(episode + 1):
+                        best_val_checkpoint = checkpoint_path / "best_validation_model.pth"
+                        agent.save(str(best_val_checkpoint))
+                        logger.info(f"💾 Best validation model saved to {best_val_checkpoint.name}")
+
+        # Break if early stopping triggered
+        if should_stop:
+            logger.info(f"\n🛑 Training stopped early at episode {episode + 1}")
+            logger.info(f"   Best validation episode was {early_stopping.best_episode}")
+
+            # Restore best weights if configured
+            if early_stopping.config.restore_best_weights:
+                early_stopping.restore_best_weights(agent)
+
+            break
 
         # Calculate ETA
         episode_time = time.time() - episode_start
@@ -443,19 +628,52 @@ def train_1000_rounds(
 
     # Training complete
     duration = datetime.now() - start_time
+    actual_episodes = len(training_results['episodes'])
+
     logger.info("\n" + "=" * 80)
-    logger.info("✅ 1000-ROUND TRAINING COMPLETE!")
+    logger.info(f"✅ TRAINING COMPLETE!")
     logger.info("=" * 80)
+    logger.info(f"Total Episodes: {actual_episodes}/{TOTAL_EPISODES}")
     logger.info(f"Total Duration: {str(duration).split('.')[0]}")
-    logger.info(f"Average Episode Time: {duration.total_seconds() / TOTAL_EPISODES:.2f}s")
-    logger.info(f"\nFinal Results:")
+    logger.info(f"Average Episode Time: {duration.total_seconds() / actual_episodes:.2f}s")
+
+    # Early stopping summary
+    if early_stopping and early_stopping.stopped:
+        logger.info(f"\n🛑 Early Stopping Summary:")
+        early_stop_summary = early_stopping.get_summary()
+        logger.info(f"   Stopped at Episode: {early_stop_summary['stop_episode']}")
+        logger.info(f"   Best Episode: {early_stop_summary['best_episode']}")
+        logger.info(f"   Best {validation_metric}: {early_stop_summary['best_metric']:.4f}")
+        logger.info(f"   Episodes Saved: {early_stop_summary['episodes_saved']}")
+
+        if 'overfitting' in early_stop_summary:
+            ovf_summary = early_stop_summary['overfitting']
+            if ovf_summary:
+                logger.info(f"   Overfitting Score: {ovf_summary.get('avg_overfitting_score', 0)*100:.1f}%")
+                logger.info(f"   Chronic Overfitting: {'YES' if ovf_summary.get('chronic_overfitting_detected') else 'NO'}")
+
+    logger.info(f"\n📈 Training Results:")
     logger.info(f"  Best Profit: ${best_profit:+,.2f} ({best_profit_pct:+.2f}%)")
     logger.info(f"  Final Profit: ${training_results['profits'][-1]:+,.2f} "
                 f"({training_results['profit_percentages'][-1]:+.2f}%)")
     logger.info(f"  Final Epsilon: {agent.epsilon:.4f}")
     logger.info(f"  Total Experiences: {len(agent.memory):,}")
-    logger.info(f"  Avg Last 100 Episodes Profit: "
-                f"${np.mean(training_results['profits'][-100:]):+,.2f}")
+
+    if actual_episodes >= 100:
+        logger.info(f"  Avg Last 100 Episodes Profit: "
+                    f"${np.mean(training_results['profits'][-100:]):+,.2f}")
+
+    # Validation summary
+    if validation_monitor and validation_monitor.validation_results:
+        logger.info(f"\n🔍 Validation Summary:")
+        val_summary = validation_monitor.get_metrics_summary()
+        logger.info(f"  Total Validations: {val_summary['num_validations']}")
+        logger.info(f"  Best Validation Sharpe: {val_summary['best_val_sharpe']:.3f} (Episode {val_summary['best_episode']})")
+        logger.info(f"  Best Validation Return: {val_summary['best_val_return_pct']:+.2f}%")
+        logger.info(f"  Avg Validation Sharpe: {val_summary['avg_val_sharpe']:.3f}")
+        logger.info(f"  Avg Validation Return: {val_summary['avg_val_return_pct']:+.2f}%")
+        logger.info(f"  Avg Win Rate: {val_summary['avg_win_rate']:.1f}%")
+
     logger.info("=" * 80 + "\n")
 
     # Save final model
@@ -466,6 +684,21 @@ def train_1000_rounds(
     # Save complete training results
     results_path = checkpoint_path / "training_results_1000.json"
     save_results(training_results, results_path, duration, best_profit, best_profit_pct)
+
+    # Generate validation report if available
+    if validation_monitor and validation_monitor.validation_results:
+        logger.info("\n📊 Generating validation report...")
+        validation_monitor.generate_report(checkpoint_path / "validation_report.txt")
+
+        # Save validation history as CSV for analysis
+        val_history = validation_monitor.get_validation_history()
+        val_history.to_csv(checkpoint_path / "validation_history.csv", index=False)
+        logger.info(f"💾 Validation history saved to {checkpoint_path / 'validation_history.csv'}")
+
+    # Generate early stopping plot if available
+    if early_stopping and early_stopping.metric_history:
+        logger.info("\n📈 Generating early stopping plot...")
+        early_stopping.plot_metric_history(checkpoint_path / "early_stopping_plot.png")
 
     # Generate comprehensive report
     generate_training_report(training_results, checkpoint_path, hw if ADAPTIVE_AVAILABLE else None)
@@ -737,6 +970,86 @@ def main():
         help='Trading symbol (default: BTC/USDT)'
     )
 
+    # Validation arguments
+    parser.add_argument(
+        '--use-validation',
+        action='store_true',
+        default=True,
+        help='Enable validation monitoring (default: True)'
+    )
+
+    parser.add_argument(
+        '--no-validation',
+        dest='use_validation',
+        action='store_false',
+        help='Disable validation monitoring'
+    )
+
+    parser.add_argument(
+        '--validation-frequency',
+        type=int,
+        default=50,
+        help='Run validation every N episodes (default: 50)'
+    )
+
+    parser.add_argument(
+        '--validation-metric',
+        type=str,
+        choices=['val_sharpe', 'val_return_pct', 'val_win_rate'],
+        default='val_sharpe',
+        help='Metric for validation and early stopping (default: val_sharpe)'
+    )
+
+    parser.add_argument(
+        '--train-split',
+        type=float,
+        default=0.70,
+        help='Training data split ratio (default: 0.70)'
+    )
+
+    parser.add_argument(
+        '--val-split',
+        type=float,
+        default=0.15,
+        help='Validation data split ratio (default: 0.15)'
+    )
+
+    parser.add_argument(
+        '--test-split',
+        type=float,
+        default=0.15,
+        help='Test data split ratio (default: 0.15)'
+    )
+
+    # Early stopping arguments
+    parser.add_argument(
+        '--use-early-stopping',
+        action='store_true',
+        default=True,
+        help='Enable early stopping (default: True)'
+    )
+
+    parser.add_argument(
+        '--no-early-stopping',
+        dest='use_early_stopping',
+        action='store_false',
+        help='Disable early stopping'
+    )
+
+    parser.add_argument(
+        '--patience',
+        type=int,
+        default=30,
+        help='Early stopping patience (default: 30)'
+    )
+
+    parser.add_argument(
+        '--min-delta',
+        type=float,
+        default=0.01,
+        help='Minimum improvement threshold for early stopping (default: 0.01)'
+    )
+
     args = parser.parse_args()
 
     # Train agent
@@ -747,7 +1060,17 @@ def main():
             initial_balance=args.balance,
             checkpoint_dir=args.checkpoint_dir,
             resume_from=args.resume,
-            symbol=args.symbol
+            symbol=args.symbol,
+            # Validation parameters
+            use_validation=args.use_validation,
+            validation_frequency=args.validation_frequency,
+            validation_metric=args.validation_metric,
+            train_val_test_split=(args.train_split, args.val_split, args.test_split),
+            # Early stopping parameters
+            use_early_stopping=args.use_early_stopping,
+            early_stopping_patience=args.patience,
+            early_stopping_min_delta=args.min_delta,
+            early_stopping_mode='max'  # Sharpe/return/win_rate should all be maximized
         )
 
         print("\n" + "=" * 80)
