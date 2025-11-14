@@ -253,6 +253,7 @@ class ReplayBuffer:
         # Support both capacity and max_size for backward compatibility
         size = capacity or max_size or 100000
         self.buffer = deque(maxlen=size)
+        self.max_size = size  # Expose max_size for tests
 
     def push(self, state, action, reward, next_state, done):
         """Add experience to buffer"""
@@ -403,16 +404,17 @@ class DQNAgent:
         """Store experience in replay buffer"""
         self.memory.push(state, action, reward, next_state, done)
 
-    def replay(self):
+    def replay(self, batch_size: int = None):
         """Train on batch from replay buffer"""
-        if len(self.memory) < self.batch_size:
-            return
+        batch_size = batch_size or self.batch_size
+        if len(self.memory) < batch_size:
+            return None
 
         try:
             import torch
 
             # Sample batch
-            batch = self.memory.sample(self.batch_size)
+            batch = self.memory.sample(batch_size)
             states, actions, rewards, next_states, dones = zip(*batch)
 
             # Convert to tensors
@@ -456,6 +458,10 @@ class DQNAgent:
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
+    def update_epsilon(self):
+        """Alias for decay_epsilon() for backward compatibility"""
+        self.decay_epsilon()
+
     def save(self, filepath: str):
         """Save model to file"""
         try:
@@ -491,6 +497,46 @@ class DQNAgent:
 
         except Exception as e:
             logger.error(f"Load error: {e}")
+
+    def get_model_summary(self) -> Dict:
+        """Get summary of model architecture and parameters"""
+        try:
+            import torch
+
+            if self.model is None:
+                return {
+                    "type": "numpy_fallback",
+                    "state_size": self.state_size,
+                    "action_size": self.action_size,
+                    "parameters": self.weights.size if hasattr(self, "weights") else 0,
+                }
+
+            # Count parameters
+            total_params = sum(p.numel() for p in self.model.parameters())
+            trainable_params = sum(
+                p.numel() for p in self.model.parameters() if p.requires_grad
+            )
+
+            return {
+                "type": "pytorch_dqn",
+                "state_size": self.state_size,
+                "action_size": self.action_size,
+                "total_parameters": total_params,
+                "trainable_parameters": trainable_params,
+                "device": self.device,
+                "epsilon": self.epsilon,
+                "learning_rate": self.learning_rate,
+                "gamma": self.gamma,
+            }
+
+        except Exception as e:
+            logger.error(f"Model summary error: {e}")
+            return {
+                "type": "error",
+                "state_size": self.state_size,
+                "action_size": self.action_size,
+                "error": str(e),
+            }
 
 
 # Export main classes
