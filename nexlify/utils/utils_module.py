@@ -423,9 +423,19 @@ def format_percentage(value: float, decimals: int = 2) -> str:
     return f"{value:.{decimals}f}%"
 
 
-def calculate_returns(prices: List[float]) -> List[float]:
-    """Calculate returns from price series"""
-    if len(prices) < 2:
+def calculate_returns(entry_price_or_prices, exit_price=None, quantity=None):
+    """
+    Calculate returns - supports two modes:
+    1. Single trade: calculate_returns(entry_price, exit_price, quantity) -> float
+    2. Price series: calculate_returns(prices) -> List[float]
+    """
+    # Mode 1: Calculate profit/loss for a single trade
+    if exit_price is not None and quantity is not None:
+        return (exit_price - entry_price_or_prices) * quantity
+
+    # Mode 2: Calculate returns from price series
+    prices = entry_price_or_prices
+    if not isinstance(prices, list) or len(prices) < 2:
         return []
     returns = []
     for i in range(1, len(prices)):

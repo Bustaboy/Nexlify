@@ -63,8 +63,18 @@ class AuditManager:
     Manages audit trail for all system activities
     """
 
-    def __init__(self, audit_dir: Path = None):
-        self.audit_dir = audit_dir or Path("logs/audit")
+    def __init__(self, audit_dir = None):
+        # Handle both Path objects and config dicts for backward compatibility
+        if isinstance(audit_dir, dict):
+            # Extract audit directory from config
+            audit_config = audit_dir.get("audit", {})
+            self.enabled = audit_config.get("enabled", True)
+            log_path = audit_config.get("log_path", "logs/audit")
+            self.audit_dir = Path(log_path).parent if log_path else Path("logs/audit")
+        else:
+            self.enabled = True
+            self.audit_dir = Path(audit_dir) if audit_dir else Path("logs/audit")
+
         self.audit_dir.mkdir(parents=True, exist_ok=True)
 
         # Current audit file (rotated daily)

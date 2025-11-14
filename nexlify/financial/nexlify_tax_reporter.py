@@ -156,7 +156,8 @@ class TaxReporter:
         self.enabled = self.config.get("enabled", True)
 
         # Configuration
-        self.jurisdiction = TaxJurisdiction(self.config.get("jurisdiction", "us"))
+        jurisdiction_str = self.config.get("jurisdiction", "us").lower()
+        self.jurisdiction = TaxJurisdiction(jurisdiction_str)
         self.cost_basis_method = CostBasisMethod(
             self.config.get("cost_basis_method", "fifo")
         )
