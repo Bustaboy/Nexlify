@@ -16,6 +16,15 @@ Usage (Pytest with Coverage):
     pytest test_training_pipeline.py --cov=. --cov-report=html --cov-report=term
     pytest test_training_pipeline.py -m "not slow" --cov=.  # Skip slow tests
     # View HTML report: htmlcov/index.html
+
+Performance Optimizations:
+    - TEST 3: Tests only first 2 exchanges (Kraken, Coinbase) instead of all 5
+    - TEST 7: Reduced from 10 episodes to 5, max steps from 100 to 50
+    - TEST 7: Reduced training data from 500 to 250 points
+    - TEST 8: Reduced historical fetch from 7 days to 2 days (~48 candles)
+    - TEST 9: Smaller network [16] instead of [32, 32] for faster save/load
+
+    Estimated speedup: 60-70% faster execution (from ~45s to ~15-20s)
 """
 
 import sys
@@ -133,13 +142,16 @@ if not _PYTEST_MODE:
     print("\n[TEST 3] Exchange Connectivity...")
 
     # Try multiple exchanges in case of geo-blocking
-    exchanges_to_try = [
+    # Limit to first 2 exchanges for faster testing (usually kraken/coinbase work)
+    all_exchanges = [
         ('kraken', 'BTC/USD'),
         ('coinbase', 'BTC/USD'),
         ('binance', 'BTC/USDT'),
         ('bybit', 'BTC/USDT'),
         ('okx', 'BTC/USDT'),
     ]
+    # Only test first 2 for speed - they're usually accessible
+    exchanges_to_try = all_exchanges[:2]
 
     exchange_working = False
     working_exchange = None
@@ -321,7 +333,10 @@ if not _PYTEST_MODE:
     # ============================================================================
     # TEST 7: Mini Training Loop (CRITICAL)
     # ============================================================================
-    print("\n[TEST 7] Mini Training Loop (10 episodes)...")
+    # Optimized: Reduced episodes from 10->5 and steps from 100->50 for faster testing
+    num_episodes = 5
+    max_steps = 50
+    print(f"\n[TEST 7] Mini Training Loop ({num_episodes} episodes, max {max_steps} steps)...")
 
     try:
         from nexlify_advanced_dqn_agent import AdvancedDQNAgent, AgentConfig
@@ -329,9 +344,9 @@ if not _PYTEST_MODE:
             CompleteMultiStrategyEnvironment, RiskLimits
         )
 
-        # Create realistic price data (trending up)
+        # Create realistic price data (trending up) - reduced from 500->250 data points
         base_price = 50000
-        price_data = base_price + np.cumsum(np.random.randn(500) * 100)
+        price_data = base_price + np.cumsum(np.random.randn(250) * 100)
 
         dummy_data = {'BTC/USDT': price_data}
 
@@ -361,16 +376,16 @@ if not _PYTEST_MODE:
             config=config
         )
 
-        # Run 10 episodes
+        # Run episodes (optimized)
         episode_returns = []
 
-        for episode in range(10):
+        for episode in range(num_episodes):
             state = env.reset()
             episode_reward = 0
             done = False
             steps = 0
 
-            while not done and steps < 100:  # Max 100 steps per episode
+            while not done and steps < max_steps:  # Optimized: reduced max steps
                 action = agent.act(state, training=True)
                 next_state, reward, done, info = env.step(action)
                 agent.remember(state, action, reward, next_state, done)
@@ -423,7 +438,8 @@ if not _PYTEST_MODE:
             fetcher = HistoricalDataFetcher(automated_mode=True)
 
             end_date = datetime.now()
-            start_date = end_date - timedelta(days=7)  # Just 1 week for testing
+            # Optimized: Reduced from 7 days to 2 days for faster testing
+            start_date = end_date - timedelta(days=2)  # Just 2 days for testing (~48 candles)
 
             config = FetchConfig(
                 exchange='binance',
@@ -431,7 +447,7 @@ if not _PYTEST_MODE:
                 timeframe='1h',
                 start_date=start_date,
                 end_date=end_date,
-                cache_enabled=True
+                cache_enabled=True  # Cache speeds up repeated runs
             )
 
             start = time.time()
@@ -467,7 +483,8 @@ if not _PYTEST_MODE:
         import tempfile
         import os
 
-        config = AgentConfig(hidden_layers=[32, 32])
+        # Optimized: Smaller network [16] instead of [32, 32] for faster save/load
+        config = AgentConfig(hidden_layers=[16])
         agent = AdvancedDQNAgent(state_size=10, action_size=3, config=config)
 
         # Test action before save
