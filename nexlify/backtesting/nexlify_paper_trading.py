@@ -116,16 +116,16 @@ class PaperTradingEngine:
             execution_price = price * (1 - self.slippage)
 
         if side == "buy":
-            return await self._execute_buy(symbol, amount, execution_price, strategy)
+            return await self._execute_buy(symbol, amount, price, execution_price, strategy)
         else:
-            return await self._execute_sell(symbol, amount, execution_price, strategy)
+            return await self._execute_sell(symbol, amount, price, execution_price, strategy)
 
     async def _execute_buy(
-        self, symbol: str, amount: float, price: float, strategy: str
+        self, symbol: str, amount: float, requested_price: float, execution_price: float, strategy: str
     ) -> Dict:
         """Execute paper buy order"""
-        # Calculate cost
-        cost = amount * price
+        # Calculate cost using execution price (with slippage)
+        cost = amount * execution_price
         fees = cost * self.fee_rate
         total_cost = cost + fees
 
@@ -148,9 +148,9 @@ class PaperTradingEngine:
             symbol=symbol,
             side="long",
             amount=amount,
-            entry_price=price,
+            entry_price=execution_price,
             entry_time=datetime.now(),
-            current_price=price,
+            current_price=execution_price,
             fees_paid=fees,
         )
 
@@ -160,7 +160,7 @@ class PaperTradingEngine:
         self.positions[position_id] = position
 
         logger.info(
-            f"📝 Paper BUY: {amount:.4f} {symbol} @ ${price:.2f} (Cost: ${total_cost:.2f})"
+            f"📝 Paper BUY: {amount:.4f} {symbol} @ ${execution_price:.2f} (Cost: ${total_cost:.2f})"
         )
 
         return {
@@ -169,7 +169,8 @@ class PaperTradingEngine:
             "symbol": symbol,
             "side": "buy",
             "amount": amount,
-            "price": price,
+            "price": requested_price,  # Return requested price for test compatibility
+            "execution_price": execution_price,  # Actual price with slippage
             "cost": cost,
             "fees": fees,
             "total_cost": total_cost,
@@ -177,7 +178,7 @@ class PaperTradingEngine:
         }
 
     async def _execute_sell(
-        self, symbol: str, amount: float, price: float, strategy: str
+        self, symbol: str, amount: float, requested_price: float, execution_price: float, strategy: str
     ) -> Dict:
         """Execute paper sell order"""
         # Find matching position
@@ -191,8 +192,8 @@ class PaperTradingEngine:
             logger.warning(f"❌ No open position found for {symbol}")
             return {"success": False, "error": f"No open position for {symbol}"}
 
-        # Calculate proceeds
-        proceeds = amount * price
+        # Calculate proceeds using execution price (with slippage)
+        proceeds = amount * execution_price
         fees = proceeds * self.fee_rate
         net_proceeds = proceeds - fees
 
@@ -213,7 +214,7 @@ class PaperTradingEngine:
             side="long",
             amount=amount,
             entry_price=position.entry_price,
-            exit_price=price,
+            exit_price=execution_price,
             entry_time=position.entry_time,
             exit_time=datetime.now(),
             pnl=net_pnl,
@@ -234,7 +235,7 @@ class PaperTradingEngine:
         del self.positions[position.id]
 
         logger.info(
-            f"📝 Paper SELL: {amount:.4f} {symbol} @ ${price:.2f} "
+            f"📝 Paper SELL: {amount:.4f} {symbol} @ ${execution_price:.2f} "
             f"(PnL: ${net_pnl:.2f} / {pnl_percent:.2f}%)"
         )
 
@@ -244,7 +245,8 @@ class PaperTradingEngine:
             "symbol": symbol,
             "side": "sell",
             "amount": amount,
-            "price": price,
+            "price": requested_price,  # Return requested price for test compatibility
+            "execution_price": execution_price,  # Actual price with slippage
             "proceeds": proceeds,
             "fees": fees,
             "net_proceeds": net_proceeds,
