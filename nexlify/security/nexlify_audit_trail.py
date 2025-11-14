@@ -4,12 +4,12 @@ Nexlify Audit Trail Module
 Comprehensive logging and auditing of all system activities
 """
 
-import logging
+import hashlib
 import json
-from typing import Dict, Any, Optional, List
+import logging
 from datetime import datetime
 from pathlib import Path
-import hashlib
+from typing import Any, Dict, List, Optional
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 
@@ -20,8 +20,14 @@ error_handler = get_error_handler()
 class AuditEvent:
     """Represents a single audit event"""
 
-    def __init__(self, event_type: str, severity: str, user: str,
-                 details: Dict[str, Any], ip_address: str = None):
+    def __init__(
+        self,
+        event_type: str,
+        severity: str,
+        user: str,
+        details: Dict[str, Any],
+        ip_address: str = None,
+    ):
         self.timestamp = datetime.now()
         self.event_type = event_type
         self.severity = severity
@@ -38,13 +44,14 @@ class AuditEvent:
     def to_dict(self) -> Dict:
         """Convert to dictionary"""
         return {
-            'event_id': self.event_id,
-            'timestamp': self.timestamp.isoformat(),
-            'event_type': self.event_type,
-            'severity': self.severity,
-            'user': self.user,
-            'ip_address': self.ip_address,
-            'details': self.details
+            "event_id": self.event_id,
+            "timestamp": self.timestamp.isoformat(),
+            "event_type": self.event_type,
+            "action": self.event_type,  # Backward compatibility alias
+            "severity": self.severity,
+            "user": self.user,
+            "ip_address": self.ip_address,
+            "details": self.details,
         }
 
     def to_json(self) -> str:
@@ -57,8 +64,18 @@ class AuditManager:
     Manages audit trail for all system activities
     """
 
-    def __init__(self, audit_dir: Path = None):
-        self.audit_dir = audit_dir or Path("logs/audit")
+    def __init__(self, audit_dir = None):
+        # Handle both Path objects and config dicts for backward compatibility
+        if isinstance(audit_dir, dict):
+            # Extract audit directory from config
+            audit_config = audit_dir.get("audit", {})
+            self.enabled = audit_config.get("enabled", True)
+            log_path = audit_config.get("log_path", "logs/audit")
+            self.audit_dir = Path(log_path).parent if log_path else Path("logs/audit")
+        else:
+            self.enabled = True
+            self.audit_dir = Path(audit_dir) if audit_dir else Path("logs/audit")
+
         self.audit_dir.mkdir(parents=True, exist_ok=True)
 
         # Current audit file (rotated daily)
@@ -76,11 +93,23 @@ class AuditManager:
         return self.audit_dir / f"audit_{date_str}.jsonl"
 
     @handle_errors("Audit Logging", reraise=False)
-    def log_event(self, event: AuditEvent):
-        """Log an audit event"""
+    def log_event(self, event):
+        """Log an audit event (accepts AuditEvent or dict for backward compatibility)"""
         try:
+            # Convert dict to AuditEvent if needed
+            if isinstance(event, dict):
+                audit_event = AuditEvent(
+                    event_type=event.get("event_type", event.get("action", "unknown")),
+                    severity=event.get("severity", "info"),
+                    user=event.get("user", "unknown"),
+                    details=event.get("details", {}),
+                    ip_address=event.get("ip_address", "")
+                )
+            else:
+                audit_event = event
+
             # Add to recent events
-            self.recent_events.append(event)
+            self.recent_events.append(audit_event)
             if len(self.recent_events) > self.max_recent_events:
                 self.recent_events.pop(0)
 
@@ -90,140 +119,154 @@ class AuditManager:
                 self.current_audit_file = current_file
 
             # Write to audit file (JSONL format - one JSON per line)
-            with open(self.current_audit_file, 'a') as f:
-                f.write(event.to_json() + '\n')
+            with open(self.current_audit_file, "a") as f:
+                f.write(audit_event.to_json() + "\n")
 
             # Log to application logger based on severity
-            log_message = f"[AUDIT] {event.event_type} by {event.user}: {event.details}"
-            if event.severity == 'critical':
+            log_message = f"[AUDIT] {audit_event.event_type} by {audit_event.user}: {audit_event.details}"
+            if audit_event.severity == "critical":
                 logger.critical(log_message)
-            elif event.severity == 'error':
+            elif audit_event.severity == "error":
                 logger.error(log_message)
-            elif event.severity == 'warning':
+            elif audit_event.severity == "warning":
                 logger.warning(log_message)
             else:
                 logger.info(log_message)
 
+            return True  # Return success for test compatibility
+
         except Exception as e:
             error_handler.log_error(e, "Failed to log audit event", severity="error")
+            return False
 
     # Convenience methods for common audit events
 
     async def audit_login(self, username: str, ip_address: str, success: bool):
         """Audit a login attempt"""
         event = AuditEvent(
-            event_type='login_attempt',
-            severity='info' if success else 'warning',
+            event_type="login_attempt",
+            severity="info" if success else "warning",
             user=username,
-            details={
-                'success': success,
-                'method': 'password'
-            },
-            ip_address=ip_address
+            details={"success": success, "method": "password"},
+            ip_address=ip_address,
         )
         self.log_event(event)
 
     async def audit_logout(self, username: str, ip_address: str):
         """Audit a logout"""
         event = AuditEvent(
-            event_type='logout',
-            severity='info',
+            event_type="logout",
+            severity="info",
             user=username,
-            details={'voluntary': True},
-            ip_address=ip_address
+            details={"voluntary": True},
+            ip_address=ip_address,
         )
         self.log_event(event)
 
-    async def audit_trade(self, username: str, exchange: str, symbol: str,
-                         side: str, amount: float, price: float,
-                         order_type: str, success: bool):
+    async def audit_trade(
+        self,
+        username: str,
+        exchange: str,
+        symbol: str,
+        side: str,
+        amount: float,
+        price: float,
+        order_type: str,
+        success: bool,
+    ):
         """Audit a trade execution"""
         event = AuditEvent(
-            event_type='trade_execution',
-            severity='info' if success else 'error',
+            event_type="trade_execution",
+            severity="info" if success else "error",
             user=username,
             details={
-                'exchange': exchange,
-                'symbol': symbol,
-                'side': side,
-                'amount': amount,
-                'price': price,
-                'order_type': order_type,
-                'success': success
-            }
+                "exchange": exchange,
+                "symbol": symbol,
+                "side": side,
+                "amount": amount,
+                "price": price,
+                "order_type": order_type,
+                "success": success,
+            },
         )
         self.log_event(event)
 
-    async def audit_withdrawal(self, username: str, amount: float,
-                               address: str, success: bool):
+    async def audit_withdrawal(
+        self, username: str, amount: float, address: str, success: bool
+    ):
         """Audit a withdrawal"""
         event = AuditEvent(
-            event_type='withdrawal',
-            severity='warning' if success else 'error',
+            event_type="withdrawal",
+            severity="warning" if success else "error",
             user=username,
             details={
-                'amount_usd': amount,
-                'address': address[:8] + '...' + address[-8:],  # Partial for privacy
-                'success': success
-            }
+                "amount_usd": amount,
+                "address": address[:8] + "..." + address[-8:],  # Partial for privacy
+                "success": success,
+            },
         )
         self.log_event(event)
 
-    async def audit_config_change(self, username: str, config_section: str,
-                                  old_value: Any, new_value: Any):
+    async def audit_config_change(
+        self, username: str, config_section: str, old_value: Any, new_value: Any
+    ):
         """Audit a configuration change"""
         event = AuditEvent(
-            event_type='config_change',
-            severity='warning',
+            event_type="config_change",
+            severity="warning",
             user=username,
             details={
-                'section': config_section,
-                'old_value': str(old_value)[:100],  # Truncate for safety
-                'new_value': str(new_value)[:100]
-            }
+                "section": config_section,
+                "old_value": str(old_value)[:100],  # Truncate for safety
+                "new_value": str(new_value)[:100],
+            },
         )
         self.log_event(event)
 
-    async def audit_api_key_change(self, username: str, exchange: str,
-                                   action: str):
+    async def audit_api_key_change(self, username: str, exchange: str, action: str):
         """Audit API key changes"""
         event = AuditEvent(
-            event_type='api_key_change',
-            severity='warning',
+            event_type="api_key_change",
+            severity="warning",
             user=username,
             details={
-                'exchange': exchange,
-                'action': action  # 'added', 'updated', 'removed'
-            }
+                "exchange": exchange,
+                "action": action,  # 'added', 'updated', 'removed'
+            },
         )
         self.log_event(event)
 
-    async def audit_security_event(self, username: str, event_type: str,
-                                   details: Dict[str, Any]):
+    async def audit_security_event(
+        self, username: str, event_type: str, details: Dict[str, Any]
+    ):
         """Audit security-related events"""
         event = AuditEvent(
-            event_type=f'security_{event_type}',
-            severity='warning',
+            event_type=f"security_{event_type}",
+            severity="warning",
             user=username,
-            details=details
+            details=details,
         )
         self.log_event(event)
 
-    async def audit_system_event(self, event_type: str, severity: str,
-                                 details: Dict[str, Any]):
+    async def audit_system_event(
+        self, event_type: str, severity: str, details: Dict[str, Any]
+    ):
         """Audit system-level events"""
         event = AuditEvent(
-            event_type=f'system_{event_type}',
+            event_type=f"system_{event_type}",
             severity=severity,
-            user='system',
-            details=details
+            user="system",
+            details=details,
         )
         self.log_event(event)
 
-    def get_recent_events(self, limit: int = 100,
-                         event_type: Optional[str] = None,
-                         severity: Optional[str] = None,
-                         user: Optional[str] = None) -> List[Dict]:
+    def get_recent_events(
+        self,
+        limit: int = 100,
+        event_type: Optional[str] = None,
+        severity: Optional[str] = None,
+        user: Optional[str] = None,
+    ) -> List[Dict]:
         """
         Get recent audit events with optional filtering
 
@@ -252,8 +295,9 @@ class AuditManager:
 
         return [e.to_dict() for e in filtered_events]
 
-    def get_events_from_file(self, date: Optional[datetime] = None,
-                            limit: int = 1000) -> List[Dict]:
+    def get_events_from_file(
+        self, date: Optional[datetime] = None, limit: int = 1000
+    ) -> List[Dict]:
         """
         Load audit events from file
 
@@ -273,7 +317,7 @@ class AuditManager:
         events = []
         if audit_file.exists():
             try:
-                with open(audit_file, 'r') as f:
+                with open(audit_file, "r") as f:
                     for line in f:
                         if line.strip():
                             event = json.loads(line)
@@ -285,8 +329,12 @@ class AuditManager:
 
         return events
 
-    def search_events(self, query: str, start_date: Optional[datetime] = None,
-                     end_date: Optional[datetime] = None) -> List[Dict]:
+    def search_events(
+        self,
+        query: str,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+    ) -> List[Dict]:
         """
         Search audit events by query string
 
@@ -313,8 +361,9 @@ class AuditManager:
 
         return matching_events
 
-    def generate_audit_report(self, start_date: datetime,
-                             end_date: datetime) -> Dict[str, Any]:
+    def generate_audit_report(
+        self, start_date: datetime, end_date: datetime
+    ) -> Dict[str, Any]:
         """
         Generate an audit report for a date range
 
@@ -322,13 +371,13 @@ class AuditManager:
             Report dictionary with statistics and events
         """
         report = {
-            'start_date': start_date.isoformat(),
-            'end_date': end_date.isoformat(),
-            'total_events': 0,
-            'events_by_type': {},
-            'events_by_severity': {},
-            'events_by_user': {},
-            'critical_events': []
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "total_events": 0,
+            "events_by_type": {},
+            "events_by_severity": {},
+            "events_by_user": {},
+            "critical_events": [],
         }
 
         # Iterate through date range
@@ -337,26 +386,29 @@ class AuditManager:
             events = self.get_events_from_file(current_date)
 
             for event_dict in events:
-                report['total_events'] += 1
+                report["total_events"] += 1
 
                 # Count by type
-                event_type = event_dict['event_type']
-                report['events_by_type'][event_type] = \
-                    report['events_by_type'].get(event_type, 0) + 1
+                event_type = event_dict["event_type"]
+                report["events_by_type"][event_type] = (
+                    report["events_by_type"].get(event_type, 0) + 1
+                )
 
                 # Count by severity
-                severity = event_dict['severity']
-                report['events_by_severity'][severity] = \
-                    report['events_by_severity'].get(severity, 0) + 1
+                severity = event_dict["severity"]
+                report["events_by_severity"][severity] = (
+                    report["events_by_severity"].get(severity, 0) + 1
+                )
 
                 # Count by user
-                user = event_dict['user']
-                report['events_by_user'][user] = \
-                    report['events_by_user'].get(user, 0) + 1
+                user = event_dict["user"]
+                report["events_by_user"][user] = (
+                    report["events_by_user"].get(user, 0) + 1
+                )
 
                 # Collect critical events
-                if severity == 'critical':
-                    report['critical_events'].append(event_dict)
+                if severity == "critical":
+                    report["critical_events"].append(event_dict)
 
             current_date += datetime.timedelta(days=1)
 
@@ -370,7 +422,7 @@ class AuditManager:
             for audit_file in self.audit_dir.glob("audit_*.jsonl"):
                 try:
                     # Extract date from filename
-                    date_str = audit_file.stem.split('_')[1]
+                    date_str = audit_file.stem.split("_")[1]
                     file_date = datetime.strptime(date_str, "%Y%m%d")
 
                     if file_date < cutoff_date:
@@ -381,3 +433,66 @@ class AuditManager:
 
         except Exception as e:
             logger.error(f"Error cleaning up old audits: {e}")
+
+    # Backward compatibility methods for tests
+    # enabled is set in __init__, no property needed
+
+    def log_security_event(self, event):
+        """Log security event (backward compatibility - accepts dict or event_type)"""
+        # Handle dict input for backward compatibility
+        if isinstance(event, dict):
+            event_type = event.get("action", "unknown")
+            user = event.get("user", "system")
+            details = {k: v for k, v in event.items() if k not in ["action", "user"]}
+
+            # Create AuditEvent
+            audit_event = AuditEvent(
+                event_type=event_type,
+                severity=event.get("severity", "info"),
+                user=user,
+                details=details,
+                ip_address=event.get("ip_address", "")
+            )
+            return self.log_event(audit_event)
+        else:
+            # Legacy string input
+            return self.log_event(AuditEvent(
+                event_type=str(event),
+                severity="info",
+                user="system",
+                details={},
+                ip_address=""
+            ))
+
+    def get_events(self, limit: int = 100) -> list:
+        """Get recent events (backward compatibility)"""
+        return self.get_recent_events(event_type=None, limit=limit)
+
+    def get_events_by_action(self, action: str, limit: int = 100) -> list:
+        """Get events by action type (backward compatibility)"""
+        return self.get_recent_events(event_type=action, limit=limit)
+
+    def get_events_by_user(self, username: str, limit: int = 100) -> list:
+        """Get events by username (backward compatibility)"""
+        events = self.get_recent_events(event_type=None, limit=limit)
+        return [e for e in events if e.get("user") == username]
+
+    def export_log(self, path: str, format: str = "json") -> bool:
+        """Export audit log to file (backward compatibility)"""
+        try:
+            import json
+            events = self.get_recent_events(limit=10000)
+            with open(path, "w") as f:
+                if format == "json":
+                    json.dump(events, f, indent=2)
+                else:
+                    for event in events:
+                        f.write(json.dumps(event) + "\n")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to export audit log: {e}")
+            return False
+
+
+# Alias for backward compatibility with tests
+AuditTrail = AuditManager

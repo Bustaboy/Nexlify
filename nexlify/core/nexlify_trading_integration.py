@@ -6,16 +6,17 @@ Integrates security and financial features into automated trading
 
 import asyncio
 import logging
-from typing import Dict, Optional, List
 from datetime import datetime
 from decimal import Decimal
+from typing import Dict, List, Optional
 
-from nexlify.security.nexlify_security_suite import SecuritySuite
-from nexlify.financial.nexlify_tax_reporter import TaxReporter
-from nexlify.financial.nexlify_profit_manager import ProfitManager, WithdrawalDestination
 from nexlify.financial.nexlify_defi_integration import DeFiIntegration
+from nexlify.financial.nexlify_profit_manager import (ProfitManager,
+                                                      WithdrawalDestination)
+from nexlify.financial.nexlify_tax_reporter import TaxReporter
 from nexlify.risk.nexlify_emergency_kill_switch import KillSwitchTrigger
 from nexlify.risk.nexlify_flash_crash_protection import CrashSeverity
+from nexlify.security.nexlify_security_suite import SecuritySuite
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class TradingIntegrationManager:
     def __init__(self, config: Dict):
         """Initialize all integrated features"""
         self.config = config
-        self.enabled = config.get('enable_phase1_phase2_integration', True)
+        self.enabled = config.get("enable_phase1_phase2_integration", True)
 
         if not self.enabled:
             logger.warning("⚠️ Phase 1 & 2 integration is DISABLED")
@@ -49,7 +50,7 @@ class TradingIntegrationManager:
 
         # Tracking
         self.trade_count = 0
-        self.total_fees_paid = Decimal('0')
+        self.total_fees_paid = Decimal("0")
         self.last_defi_check = None
         self.flash_crash_monitoring = {}
 
@@ -76,7 +77,13 @@ class TradingIntegrationManager:
 
         logger.info("✅ Trading integration fully initialized")
 
-    def inject_dependencies(self, neural_net=None, risk_manager=None, exchange_manager=None, telegram_bot=None):
+    def inject_dependencies(
+        self,
+        neural_net=None,
+        risk_manager=None,
+        exchange_manager=None,
+        telegram_bot=None,
+    ):
         """Inject external dependencies"""
         if not self.enabled:
             return
@@ -89,11 +96,11 @@ class TradingIntegrationManager:
         self.security_suite.inject_external_dependencies(
             risk_manager=risk_manager,
             exchange_manager=exchange_manager,
-            telegram_bot=telegram_bot
+            telegram_bot=telegram_bot,
         )
 
         # Inject into flash protection
-        if hasattr(self.security_suite, 'flash_protection') and exchange_manager:
+        if hasattr(self.security_suite, "flash_protection") and exchange_manager:
             self.security_suite.flash_protection.exchanges = exchange_manager
 
         logger.info("✅ Dependencies injected into trading integration")
@@ -114,36 +121,36 @@ class TradingIntegrationManager:
             return True
 
         try:
-            symbol = trade_data['symbol']
-            side = trade_data['side']  # 'buy' or 'sell'
-            quantity = float(trade_data['quantity'])
-            price = float(trade_data['price'])
-            exchange = trade_data.get('exchange', 'unknown')
-            timestamp = trade_data.get('timestamp', datetime.now())
-            fees = float(trade_data.get('fees', 0))
+            symbol = trade_data["symbol"]
+            side = trade_data["side"]  # 'buy' or 'sell'
+            quantity = float(trade_data["quantity"])
+            price = float(trade_data["price"])
+            exchange = trade_data.get("exchange", "unknown")
+            timestamp = trade_data.get("timestamp", datetime.now())
+            fees = float(trade_data.get("fees", 0))
 
             # Extract base asset (e.g., 'BTC' from 'BTC/USDT')
-            base_asset = symbol.split('/')[0] if '/' in symbol else symbol
+            base_asset = symbol.split("/")[0] if "/" in symbol else symbol
 
             # 1. Record for tax reporting
-            if side.lower() == 'buy':
+            if side.lower() == "buy":
                 lot_id = self.tax_reporter.record_purchase(
                     asset=base_asset,
                     quantity=quantity,
                     price=price,
                     exchange=exchange,
-                    timestamp=timestamp
+                    timestamp=timestamp,
                 )
                 logger.debug(f"📊 Tax: Recorded purchase lot {lot_id}")
 
-            elif side.lower() == 'sell':
+            elif side.lower() == "sell":
                 gains = self.tax_reporter.record_sale(
                     asset=base_asset,
                     quantity=quantity,
                     price=price,
                     exchange=exchange,
                     fees=fees,
-                    timestamp=timestamp
+                    timestamp=timestamp,
                 )
 
                 # Calculate realized profit from this sale
@@ -152,22 +159,24 @@ class TradingIntegrationManager:
                 # 2. Update profit manager
                 self.profit_manager.update_profit(
                     realized=realized_profit,
-                    unrealized=0  # Will be calculated separately
+                    unrealized=0,  # Will be calculated separately
                 )
 
-                logger.info(f"💰 Profit: ${realized_profit:.2f} from {quantity:.4f} {base_asset}")
+                logger.info(
+                    f"💰 Profit: ${realized_profit:.2f} from {quantity:.4f} {base_asset}"
+                )
 
             # 3. Track fees
             self.total_fees_paid += Decimal(str(fees))
             self.trade_count += 1
 
             # 4. Update flash crash monitoring with this price
-            if hasattr(self.security_suite, 'flash_protection'):
+            if hasattr(self.security_suite, "flash_protection"):
                 self.security_suite.flash_protection.add_price_update(
                     symbol=symbol,
                     price=price,
                     volume=0,  # Volume tracked separately
-                    timestamp=timestamp
+                    timestamp=timestamp,
                 )
 
             return True
@@ -175,6 +184,7 @@ class TradingIntegrationManager:
         except Exception as e:
             logger.error(f"❌ Error in on_trade_executed: {e}")
             import traceback
+
             traceback.print_exc()
             return False
 
@@ -189,11 +199,11 @@ class TradingIntegrationManager:
             return
 
         try:
-            symbol = position_data.get('symbol')
+            symbol = position_data.get("symbol")
             logger.debug(f"📈 Position opened: {symbol}")
 
             # Flash crash protection knows about this position
-            if hasattr(self.security_suite, 'flash_protection'):
+            if hasattr(self.security_suite, "flash_protection"):
                 if symbol not in self.flash_crash_monitoring:
                     self.flash_crash_monitoring[symbol] = True
                     logger.debug(f"⚡ Flash crash monitoring enabled for {symbol}")
@@ -212,14 +222,13 @@ class TradingIntegrationManager:
             return
 
         try:
-            pnl = float(position_data.get('pnl', 0))
-            symbol = position_data.get('symbol')
+            pnl = float(position_data.get("pnl", 0))
+            symbol = position_data.get("symbol")
 
             # Update unrealized -> realized profit
             if pnl != 0:
                 self.profit_manager.update_profit(
-                    realized=pnl,
-                    unrealized=-pnl  # Remove from unrealized
+                    realized=pnl, unrealized=-pnl  # Remove from unrealized
                 )
 
             logger.debug(f"📉 Position closed: {symbol}, PnL: ${pnl:.2f}")
@@ -241,16 +250,15 @@ class TradingIntegrationManager:
 
         try:
             # Feed price to flash crash protection
-            if hasattr(self.security_suite, 'flash_protection'):
+            if hasattr(self.security_suite, "flash_protection"):
                 self.security_suite.flash_protection.add_price_update(
-                    symbol=symbol,
-                    price=price,
-                    volume=volume,
-                    timestamp=datetime.now()
+                    symbol=symbol, price=price, volume=volume, timestamp=datetime.now()
                 )
 
                 # Check for crash
-                severity, crash_info = self.security_suite.flash_protection.detect_crash(symbol)
+                severity, crash_info = (
+                    self.security_suite.flash_protection.detect_crash(symbol)
+                )
 
                 # Auto-trigger kill switch on critical crashes
                 if severity == CrashSeverity.CRITICAL:
@@ -260,7 +268,7 @@ class TradingIntegrationManager:
                     # Trigger emergency kill switch
                     await self.security_suite.trigger_emergency_shutdown(
                         reason=f"Critical flash crash: {symbol}",
-                        trigger_type=KillSwitchTrigger.FLASH_CRASH
+                        trigger_type=KillSwitchTrigger.FLASH_CRASH,
                     )
 
         except Exception as e:
@@ -312,19 +320,25 @@ class TradingIntegrationManager:
     def get_integration_status(self) -> Dict:
         """Get current integration status"""
         if not self.enabled:
-            return {'enabled': False}
+            return {"enabled": False}
 
         return {
-            'enabled': True,
-            'trades_processed': self.trade_count,
-            'total_fees_paid': float(self.total_fees_paid),
-            'tax_reporter': {
-                'trades': self.tax_reporter.calculate_tax_summary(datetime.now().year).total_trades,
-                'jurisdiction': self.tax_reporter.jurisdiction
+            "enabled": True,
+            "trades_processed": self.trade_count,
+            "total_fees_paid": float(self.total_fees_paid),
+            "tax_reporter": {
+                "trades": self.tax_reporter.calculate_tax_summary(
+                    datetime.now().year
+                ).total_trades,
+                "jurisdiction": self.tax_reporter.jurisdiction,
             },
-            'profit_manager': self.profit_manager.get_withdrawal_summary(),
-            'security': self.security_suite.get_comprehensive_status(),
-            'defi': self.defi_integration.get_status() if self.defi_integration.enabled else None
+            "profit_manager": self.profit_manager.get_withdrawal_summary(),
+            "security": self.security_suite.get_comprehensive_status(),
+            "defi": (
+                self.defi_integration.get_status()
+                if self.defi_integration.enabled
+                else None
+            ),
         }
 
     async def shutdown(self):
@@ -341,6 +355,7 @@ class TradingIntegrationManager:
 
 
 # ==================== CONVENIENCE FUNCTIONS ====================
+
 
 async def create_integrated_trading_manager(config: Dict) -> TradingIntegrationManager:
     """

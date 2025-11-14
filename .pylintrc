@@ -1,0 +1,44 @@
+[MASTER]
+# Use multiple processes to speed up Pylint
+jobs=0
+
+# Ignore GUI files that require PyQt5 (optional dependency)
+ignore-patterns=nexlify/gui/*
+
+[MESSAGES CONTROL]
+# Disable some overly strict checks
+disable=
+    missing-docstring,
+    too-few-public-methods,
+    too-many-arguments,
+    too-many-instance-attributes,
+    too-many-locals,
+    too-many-branches,
+    too-many-statements,
+    line-too-long,
+    invalid-name,
+    fixme
+
+[FORMAT]
+# Maximum line length
+max-line-length=120
+
+[BASIC]
+# Good variable names
+good-names=i,j,k,ex,_,id,df,lr,x,y,q
+
+[DESIGN]
+# Relax complexity limits
+max-args=10
+max-locals=20
+max-returns=8
+max-branches=15
+max-statements=60
+
+[SIMILARITIES]
+# Minimum lines of similar code to report
+min-similarity-lines=10
+
+[TYPECHECK]
+# List of members which are set dynamically and missed by pylint inference
+generated-members=torch.*,cv2.*,numpy.*

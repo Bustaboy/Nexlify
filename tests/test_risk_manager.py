@@ -4,34 +4,36 @@ Unit tests for Nexlify Risk Manager
 Comprehensive testing of risk management functionality
 """
 
-import pytest
 import asyncio
 import json
+import os
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-import sys
-import os
+
+import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from nexlify.risk.nexlify_risk_manager import RiskManager, TradeValidation, RiskMetrics
+from nexlify.risk.nexlify_risk_manager import (RiskManager, RiskMetrics,
+                                               TradeValidation)
 
 
 @pytest.fixture
 def test_config():
     """Standard test configuration"""
     return {
-        'risk_management': {
-            'enabled': True,
-            'max_position_size': 0.05,
-            'max_daily_loss': 0.05,
-            'stop_loss_percent': 0.02,
-            'take_profit_percent': 0.05,
-            'use_kelly_criterion': True,
-            'kelly_fraction': 0.5,
-            'min_kelly_confidence': 0.6,
-            'max_concurrent_trades': 3
+        "risk_management": {
+            "enabled": True,
+            "max_position_size": 0.05,
+            "max_daily_loss": 0.05,
+            "stop_loss_percent": 0.02,
+            "take_profit_percent": 0.05,
+            "use_kelly_criterion": True,
+            "kelly_fraction": 0.5,
+            "min_kelly_confidence": 0.6,
+            "max_concurrent_trades": 3,
         }
     }
 
@@ -60,7 +62,7 @@ class TestRiskManagerInitialization:
 
     def test_disabled_risk_manager(self):
         """Test disabled risk manager"""
-        config = {'risk_management': {'enabled': False}}
+        config = {"risk_management": {"enabled": False}}
         rm = RiskManager(config)
         assert rm.enabled is False
 
@@ -81,7 +83,7 @@ class TestPositionSizeLimits:
             quantity=quantity,
             price=price,
             balance=balance,
-            confidence=0.7
+            confidence=0.7,
         )
 
         assert validation.approved is True
@@ -100,14 +102,16 @@ class TestPositionSizeLimits:
             quantity=quantity,
             price=price,
             balance=balance,
-            confidence=0.7
+            confidence=0.7,
         )
 
         assert validation.approved is False
         assert "position size" in validation.reason.lower()
         assert validation.adjusted_size is not None
         # Adjusted size should be within limits
-        assert validation.adjusted_size * price <= balance * 0.05 * 1.01  # Small tolerance
+        assert (
+            validation.adjusted_size * price <= balance * 0.05 * 1.01
+        )  # Small tolerance
 
     @pytest.mark.asyncio
     async def test_exact_limit_position(self, risk_manager):
@@ -122,7 +126,7 @@ class TestPositionSizeLimits:
             quantity=quantity,
             price=price,
             balance=balance,
-            confidence=0.7
+            confidence=0.7,
         )
 
         assert validation.approved is True
@@ -142,7 +146,7 @@ class TestDailyLossLimits:
             quantity=1.0,
             price=3000.0,
             balance=100000.0,
-            confidence=0.7
+            confidence=0.7,
         )
 
         assert validation.approved is True
@@ -158,7 +162,7 @@ class TestDailyLossLimits:
             quantity=1.0,
             price=3000.0,
             balance=100000.0,
-            confidence=0.7
+            confidence=0.7,
         )
 
         assert validation.approved is False
@@ -176,7 +180,7 @@ class TestDailyLossLimits:
             entry_price=50000.0,
             exit_price=49000.0,  # $1000 loss on 1 BTC
             quantity=1.0,
-            balance=balance
+            balance=balance,
         )
 
         # Loss should increase
@@ -194,7 +198,7 @@ class TestDailyLossLimits:
             entry_price=50000.0,
             exit_price=51000.0,  # $1000 profit on 1 BTC
             quantity=1.0,
-            balance=balance
+            balance=balance,
         )
 
         # Profit should increase
@@ -212,7 +216,7 @@ class TestDailyLossLimits:
             entry_price=50000.0,
             exit_price=45000.0,  # Big loss
             quantity=0.1,  # $500 loss = 5% of balance
-            balance=balance
+            balance=balance,
         )
 
         # Should trigger halt
@@ -233,7 +237,7 @@ class TestStopLossTakeProfit:
             quantity=0.1,
             price=price,
             balance=10000.0,
-            confidence=0.7
+            confidence=0.7,
         )
 
         assert validation.stop_loss is not None
@@ -258,7 +262,7 @@ class TestStopLossTakeProfit:
             quantity=0.1,
             price=price,
             balance=10000.0,
-            confidence=0.7
+            confidence=0.7,
         )
 
         # Stop loss should be 2% above entry (for short)
@@ -299,7 +303,7 @@ class TestKellyCriterion:
             quantity=quantity,
             price=price,
             balance=balance,
-            confidence=confidence
+            confidence=confidence,
         )
 
         # With moderate confidence, Kelly might suggest smaller size
@@ -320,7 +324,7 @@ class TestKellyCriterion:
             quantity=quantity,
             price=price,
             balance=balance,
-            confidence=confidence
+            confidence=confidence,
         )
 
         # Should still validate, but Kelly not applied
@@ -330,10 +334,10 @@ class TestKellyCriterion:
     async def test_kelly_disabled(self):
         """Test with Kelly Criterion disabled"""
         config = {
-            'risk_management': {
-                'enabled': True,
-                'max_position_size': 0.05,
-                'use_kelly_criterion': False
+            "risk_management": {
+                "enabled": True,
+                "max_position_size": 0.05,
+                "use_kelly_criterion": False,
             }
         }
         rm = RiskManager(config)
@@ -344,7 +348,7 @@ class TestKellyCriterion:
             quantity=0.1,
             price=5000.0,
             balance=10000.0,
-            confidence=0.9
+            confidence=0.9,
         )
 
         # Should not apply Kelly adjustment
@@ -365,7 +369,7 @@ class TestConcurrentTrades:
             quantity=0.01,  # Fixed: $500 = 5% of $10000 balance
             price=50000.0,
             balance=10000.0,
-            confidence=0.7
+            confidence=0.7,
         )
 
         assert validation.approved is True
@@ -381,7 +385,7 @@ class TestConcurrentTrades:
             quantity=0.01,  # Fixed: $500 = 5% of $10000 balance
             price=50000.0,
             balance=10000.0,
-            confidence=0.7
+            confidence=0.7,
         )
 
         assert validation.approved is False
@@ -414,16 +418,16 @@ class TestStatePersistence:
         # Set state from "yesterday"
         yesterday = datetime.now() - timedelta(days=1)
         state_data = {
-            'daily_loss': 0.04,
-            'daily_profit': 0.02,
-            'trades_today': 10,
-            'last_reset': yesterday.isoformat(),
-            'trading_halted': False,
-            'halt_reason': ""
+            "daily_loss": 0.04,
+            "daily_profit": 0.02,
+            "trades_today": 10,
+            "last_reset": yesterday.isoformat(),
+            "trading_halted": False,
+            "halt_reason": "",
         }
 
         # Save state
-        with open(risk_manager.state_file, 'w') as f:
+        with open(risk_manager.state_file, "w") as f:
             json.dump(state_data, f)
 
         # Load state (should trigger reset)
@@ -442,14 +446,14 @@ class TestRiskStatus:
         """Test risk status dictionary"""
         status = risk_manager.get_risk_status()
 
-        assert 'enabled' in status
-        assert 'trading_halted' in status
-        assert 'daily_profit' in status
-        assert 'daily_loss' in status
-        assert 'net_pnl' in status
-        assert 'trades_today' in status
-        assert 'max_position_size' in status
-        assert 'kelly_enabled' in status
+        assert "enabled" in status
+        assert "trading_halted" in status
+        assert "daily_profit" in status
+        assert "daily_loss" in status
+        assert "net_pnl" in status
+        assert "trades_today" in status
+        assert "max_position_size" in status
+        assert "kelly_enabled" in status
 
     def test_force_reset(self, risk_manager):
         """Test force reset functionality"""
@@ -491,7 +495,7 @@ class TestEdgeCases:
             quantity=0.1,
             price=50000.0,
             balance=0.0,
-            confidence=0.7
+            confidence=0.7,
         )
 
         assert validation.approved is False
@@ -499,7 +503,7 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_disabled_risk_management(self):
         """Test with risk management disabled"""
-        config = {'risk_management': {'enabled': False}}
+        config = {"risk_management": {"enabled": False}}
         rm = RiskManager(config)
 
         validation = await rm.validate_trade(
@@ -508,7 +512,7 @@ class TestEdgeCases:
             quantity=100.0,  # Unreasonable amount
             price=50000.0,
             balance=10000.0,
-            confidence=0.7
+            confidence=0.7,
         )
 
         # Should approve when disabled
@@ -524,7 +528,7 @@ class TestEdgeCases:
             entry_price=50000.0,
             exit_price=51000.0,
             quantity=0.1,
-            balance=0.0
+            balance=0.0,
         )
 
         # Should handle gracefully

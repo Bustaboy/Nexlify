@@ -16,21 +16,18 @@ Example: GTX 1050 (2GB VRAM) + Threadripper (32 cores) + 64GB RAM
 - Result: Maximizes throughput by using all available resources
 """
 
-import numpy as np
 import logging
-from typing import Dict, List, Optional, Tuple, Any
-from collections import deque
 import random
-from datetime import datetime
 import time
+from collections import deque
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
 
 from nexlify.ml.nexlify_dynamic_architecture import (
-    DynamicResourceMonitor,
-    DynamicArchitectureBuilder,
-    DynamicWorkloadDistributor,
-    DynamicBufferManager,
-    Bottleneck
-)
+    Bottleneck, DynamicArchitectureBuilder, DynamicBufferManager,
+    DynamicResourceMonitor, DynamicWorkloadDistributor)
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +40,14 @@ class FullyDynamicDQNAgent:
     are continuously adjusted based on real-time resource monitoring
     """
 
-    def __init__(self, state_size: int, action_size: int,
-                 auto_optimize: bool = True,
-                 min_params: int = 1000,
-                 max_params: int = 2000000):
+    def __init__(
+        self,
+        state_size: int,
+        action_size: int,
+        auto_optimize: bool = True,
+        min_params: int = 1000,
+        max_params: int = 2000000,
+    ):
         """
         Initialize fully dynamic agent
 
@@ -77,7 +78,7 @@ class FullyDynamicDQNAgent:
             self.monitor,
             initial_capacity=50000,
             min_capacity=10000,
-            max_capacity=1000000
+            max_capacity=1000000,
         )
 
         # RL hyperparameters
@@ -89,12 +90,12 @@ class FullyDynamicDQNAgent:
 
         # Current configuration (dynamic)
         self.current_config = {
-            'architecture': None,
-            'batch_size': 64,
-            'device': 'cpu',
-            'gpu_batch_size': 64,
-            'cpu_workers': 0,
-            'pin_memory': True
+            "architecture": None,
+            "batch_size": 64,
+            "device": "cpu",
+            "gpu_batch_size": 64,
+            "cpu_workers": 0,
+            "pin_memory": True,
         }
 
         # Device selection
@@ -110,10 +111,10 @@ class FullyDynamicDQNAgent:
 
         # Training statistics
         self.training_stats = {
-            'architecture_changes': 0,
-            'bottleneck_history': deque(maxlen=100),
-            'batch_times': deque(maxlen=100),
-            'optimization_history': []
+            "architecture_changes": 0,
+            "bottleneck_history": deque(maxlen=100),
+            "batch_times": deque(maxlen=100),
+            "optimization_history": [],
         }
 
         # Optimization thread (optional)
@@ -136,7 +137,9 @@ class FullyDynamicDQNAgent:
                 if snapshot.gpu_memory_percent < 80:
                     return "cuda"
                 else:
-                    logger.warning(f"⚠️  GPU VRAM usage high ({snapshot.gpu_memory_percent:.1f}%), using CPU")
+                    logger.warning(
+                        f"⚠️  GPU VRAM usage high ({snapshot.gpu_memory_percent:.1f}%), using CPU"
+                    )
                     return "cpu"
         except ImportError:
             pass
@@ -157,11 +160,11 @@ class FullyDynamicDQNAgent:
                 input_size=self.state_size,
                 output_size=self.action_size,
                 min_params=self.min_params,
-                max_params=self.max_params
+                max_params=self.max_params,
             )
 
             # Store configuration
-            self.current_config['architecture'] = architecture
+            self.current_config["architecture"] = architecture
 
             # Build network
             class DynamicDQNNetwork(nn.Module):
@@ -187,8 +190,12 @@ class FullyDynamicDQNAgent:
                     return self.network(x)
 
             # Create models
-            self.model = DynamicDQNNetwork(self.state_size, architecture, self.action_size)
-            self.target_model = DynamicDQNNetwork(self.state_size, architecture, self.action_size)
+            self.model = DynamicDQNNetwork(
+                self.state_size, architecture, self.action_size
+            )
+            self.target_model = DynamicDQNNetwork(
+                self.state_size, architecture, self.action_size
+            )
 
             # Move to device
             if self.device == "cuda":
@@ -199,7 +206,9 @@ class FullyDynamicDQNAgent:
             self.update_target_model()
 
             # Optimizer
-            self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
+            self.optimizer = torch.optim.Adam(
+                self.model.parameters(), lr=self.learning_rate
+            )
             self.criterion = nn.MSELoss()
 
             # Count parameters
@@ -209,9 +218,11 @@ class FullyDynamicDQNAgent:
             logger.info(f"   Architecture: {architecture}")
             logger.info(f"   Parameters: {total_params:,}")
             logger.info(f"   Bottleneck: {snapshot.bottleneck.value}")
-            logger.info(f"   Overhead: CPU={snapshot.overhead_capacity['cpu']:.1f}%, "
-                       f"RAM={snapshot.overhead_capacity['ram']:.1f}%, "
-                       f"GPU={snapshot.overhead_capacity['gpu']:.1f}%")
+            logger.info(
+                f"   Overhead: CPU={snapshot.overhead_capacity['cpu']:.1f}%, "
+                f"RAM={snapshot.overhead_capacity['ram']:.1f}%, "
+                f"GPU={snapshot.overhead_capacity['gpu']:.1f}%"
+            )
 
         except ImportError:
             logger.error("PyTorch not available")
@@ -238,18 +249,23 @@ class FullyDynamicDQNAgent:
         # Check if bottleneck has changed
         current_bottleneck = self.monitor.get_current_bottleneck()
 
-        if self.training_stats['bottleneck_history']:
-            recent_bottlenecks = list(self.training_stats['bottleneck_history'])[-10:]
+        if self.training_stats["bottleneck_history"]:
+            recent_bottlenecks = list(self.training_stats["bottleneck_history"])[-10:]
             prev_bottleneck = max(set(recent_bottlenecks), key=recent_bottlenecks.count)
 
             # Bottleneck changed - reoptimize
-            if current_bottleneck != prev_bottleneck and current_bottleneck != Bottleneck.NONE:
-                logger.info(f"🔄 Bottleneck changed: {prev_bottleneck.value} → {current_bottleneck.value}")
+            if (
+                current_bottleneck != prev_bottleneck
+                and current_bottleneck != Bottleneck.NONE
+            ):
+                logger.info(
+                    f"🔄 Bottleneck changed: {prev_bottleneck.value} → {current_bottleneck.value}"
+                )
                 self._reoptimize_configuration()
                 self.last_optimization = current_time
 
         # Record bottleneck
-        self.training_stats['bottleneck_history'].append(current_bottleneck)
+        self.training_stats["bottleneck_history"].append(current_bottleneck)
 
     def _reoptimize_configuration(self):
         """Reoptimize entire configuration based on current bottlenecks"""
@@ -259,38 +275,42 @@ class FullyDynamicDQNAgent:
         bottleneck = snapshot.bottleneck
 
         # Rebuild architecture if needed
-        current_arch = self.current_config['architecture']
+        current_arch = self.current_config["architecture"]
         new_arch = self.arch_builder.build_adaptive_architecture(
             input_size=self.state_size,
             output_size=self.action_size,
             min_params=self.min_params,
-            max_params=self.max_params
+            max_params=self.max_params,
         )
 
         if new_arch != current_arch:
             logger.info(f"🏗️  Architecture change: {current_arch} → {new_arch}")
             self._rebuild_model(new_arch)
-            self.training_stats['architecture_changes'] += 1
+            self.training_stats["architecture_changes"] += 1
 
         # Reoptimize workload distribution
         workload_config = self.workload_dist.optimize_distribution(
-            self.current_config['batch_size']
+            self.current_config["batch_size"]
         )
 
         self.current_config.update(workload_config)
 
         # Optimization complete
-        self.training_stats['optimization_history'].append({
-            'timestamp': time.time(),
-            'bottleneck': bottleneck.value,
-            'architecture': new_arch,
-            'config': workload_config.copy()
-        })
+        self.training_stats["optimization_history"].append(
+            {
+                "timestamp": time.time(),
+                "bottleneck": bottleneck.value,
+                "architecture": new_arch,
+                "config": workload_config.copy(),
+            }
+        )
 
         logger.info(f"✅ Reoptimization complete")
         logger.info(f"   CPU workers: {self.current_config['cpu_workers']}")
         logger.info(f"   GPU batch: {self.current_config['gpu_batch_size']}")
-        logger.info(f"   Buffer capacity: {len(self.buffer.buffer):,}/{self.buffer.capacity:,}")
+        logger.info(
+            f"   Buffer capacity: {len(self.buffer.buffer):,}/{self.buffer.capacity:,}"
+        )
 
     def _rebuild_model(self, new_architecture: List[int]):
         """Rebuild model with new architecture (preserves training state)"""
@@ -327,8 +347,12 @@ class FullyDynamicDQNAgent:
                     return self.network(x)
 
             # Create new models
-            new_model = DynamicDQNNetwork(self.state_size, new_architecture, self.action_size)
-            new_target = DynamicDQNNetwork(self.state_size, new_architecture, self.action_size)
+            new_model = DynamicDQNNetwork(
+                self.state_size, new_architecture, self.action_size
+            )
+            new_target = DynamicDQNNetwork(
+                self.state_size, new_architecture, self.action_size
+            )
 
             # Move to device
             if self.device == "cuda":
@@ -341,7 +365,10 @@ class FullyDynamicDQNAgent:
                     # Partial weight transfer (best effort)
                     new_state = new_model.state_dict()
                     for key in old_state.keys():
-                        if key in new_state and old_state[key].shape == new_state[key].shape:
+                        if (
+                            key in new_state
+                            and old_state[key].shape == new_state[key].shape
+                        ):
                             new_state[key] = old_state[key]
                     new_model.load_state_dict(new_state)
                     logger.info("   Transferred compatible weights")
@@ -354,10 +381,12 @@ class FullyDynamicDQNAgent:
             self.update_target_model()
 
             # Update optimizer
-            self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
+            self.optimizer = torch.optim.Adam(
+                self.model.parameters(), lr=self.learning_rate
+            )
 
             # Update config
-            self.current_config['architecture'] = new_architecture
+            self.current_config["architecture"] = new_architecture
 
         except Exception as e:
             logger.error(f"Model rebuild failed: {e}")
@@ -401,7 +430,7 @@ class FullyDynamicDQNAgent:
     def replay(self, iteration: int = 0):
         """Train with dynamically optimized batch processing"""
         # Get dynamic batch size
-        batch_size = self.current_config['batch_size']
+        batch_size = self.current_config["batch_size"]
 
         if len(self.buffer) < batch_size:
             return None
@@ -451,7 +480,7 @@ class FullyDynamicDQNAgent:
 
             # Track batch time
             batch_time = time.time() - batch_start
-            self.training_stats['batch_times'].append(batch_time)
+            self.training_stats["batch_times"].append(batch_time)
 
             return loss.item()
 
@@ -470,24 +499,30 @@ class FullyDynamicDQNAgent:
         avg_usage = self.monitor.get_average_usage(window=20)
 
         stats = {
-            'current_bottleneck': snapshot.bottleneck.value,
-            'architecture': self.current_config['architecture'],
-            'model_params': sum(p.numel() for p in self.model.parameters()) if self.model else 0,
-            'batch_size': self.current_config['batch_size'],
-            'buffer_size': len(self.buffer),
-            'buffer_capacity': self.buffer.capacity,
-            'cpu_workers': self.current_config['cpu_workers'],
-            'device': self.device,
-            'epsilon': self.epsilon,
-            'architecture_changes': self.training_stats['architecture_changes'],
-            'avg_batch_time_ms': np.mean(self.training_stats['batch_times']) * 1000 if self.training_stats['batch_times'] else 0,
-            'resource_usage': {
-                'cpu': avg_usage['cpu'],
-                'ram': avg_usage['ram'],
-                'gpu': avg_usage['gpu'],
-                'vram': avg_usage['vram']
+            "current_bottleneck": snapshot.bottleneck.value,
+            "architecture": self.current_config["architecture"],
+            "model_params": (
+                sum(p.numel() for p in self.model.parameters()) if self.model else 0
+            ),
+            "batch_size": self.current_config["batch_size"],
+            "buffer_size": len(self.buffer),
+            "buffer_capacity": self.buffer.capacity,
+            "cpu_workers": self.current_config["cpu_workers"],
+            "device": self.device,
+            "epsilon": self.epsilon,
+            "architecture_changes": self.training_stats["architecture_changes"],
+            "avg_batch_time_ms": (
+                np.mean(self.training_stats["batch_times"]) * 1000
+                if self.training_stats["batch_times"]
+                else 0
+            ),
+            "resource_usage": {
+                "cpu": avg_usage["cpu"],
+                "ram": avg_usage["ram"],
+                "gpu": avg_usage["gpu"],
+                "vram": avg_usage["vram"],
             },
-            'overhead_capacity': snapshot.overhead_capacity
+            "overhead_capacity": snapshot.overhead_capacity,
         }
 
         return stats
@@ -498,15 +533,15 @@ class FullyDynamicDQNAgent:
             import torch
 
             save_data = {
-                'model_state_dict': self.model.state_dict(),
-                'target_model_state_dict': self.target_model.state_dict(),
-                'optimizer_state_dict': self.optimizer.state_dict(),
-                'epsilon': self.epsilon,
-                'current_config': self.current_config,
-                'training_stats': {
-                    'architecture_changes': self.training_stats['architecture_changes'],
-                    'optimization_history': self.training_stats['optimization_history']
-                }
+                "model_state_dict": self.model.state_dict(),
+                "target_model_state_dict": self.target_model.state_dict(),
+                "optimizer_state_dict": self.optimizer.state_dict(),
+                "epsilon": self.epsilon,
+                "current_config": self.current_config,
+                "training_stats": {
+                    "architecture_changes": self.training_stats["architecture_changes"],
+                    "optimization_history": self.training_stats["optimization_history"],
+                },
             }
 
             torch.save(save_data, filepath)
@@ -522,14 +557,14 @@ class FullyDynamicDQNAgent:
 
             checkpoint = torch.load(filepath, map_location=self.device)
 
-            self.model.load_state_dict(checkpoint['model_state_dict'])
-            self.target_model.load_state_dict(checkpoint['target_model_state_dict'])
-            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            self.epsilon = checkpoint['epsilon']
-            self.current_config = checkpoint.get('current_config', self.current_config)
+            self.model.load_state_dict(checkpoint["model_state_dict"])
+            self.target_model.load_state_dict(checkpoint["target_model_state_dict"])
+            self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            self.epsilon = checkpoint["epsilon"]
+            self.current_config = checkpoint.get("current_config", self.current_config)
 
-            if 'training_stats' in checkpoint:
-                self.training_stats.update(checkpoint['training_stats'])
+            if "training_stats" in checkpoint:
+                self.training_stats.update(checkpoint["training_stats"])
 
             logger.info(f"✅ Dynamic model loaded from {filepath}")
             logger.info(f"   Architecture: {self.current_config['architecture']}")
@@ -539,12 +574,13 @@ class FullyDynamicDQNAgent:
 
     def __del__(self):
         """Cleanup"""
-        if hasattr(self, 'monitor'):
+        if hasattr(self, "monitor"):
             self.monitor.stop_monitoring()
 
 
-def create_fully_dynamic_agent(state_size: int, action_size: int,
-                               auto_optimize: bool = True) -> FullyDynamicDQNAgent:
+def create_fully_dynamic_agent(
+    state_size: int, action_size: int, auto_optimize: bool = True
+) -> FullyDynamicDQNAgent:
     """
     Factory function to create fully dynamic agent
 
@@ -559,13 +595,11 @@ def create_fully_dynamic_agent(state_size: int, action_size: int,
     logger.info("🚀 Creating fully dynamic agent...")
 
     agent = FullyDynamicDQNAgent(
-        state_size=state_size,
-        action_size=action_size,
-        auto_optimize=auto_optimize
+        state_size=state_size, action_size=action_size, auto_optimize=auto_optimize
     )
 
     return agent
 
 
 # Export
-__all__ = ['FullyDynamicDQNAgent', 'create_fully_dynamic_agent']
+__all__ = ["FullyDynamicDQNAgent", "create_fully_dynamic_agent"]

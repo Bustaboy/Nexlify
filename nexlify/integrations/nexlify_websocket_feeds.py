@@ -5,11 +5,12 @@ High-performance real-time market data streaming
 """
 
 import asyncio
-import logging
 import json
-from typing import Dict, List, Callable, Optional
-from datetime import datetime
+import logging
 from collections import defaultdict
+from datetime import datetime
+from typing import Callable, Dict, List, Optional
+
 import ccxt.async_support as ccxt
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
@@ -53,18 +54,20 @@ class WebSocketFeedManager:
                 # Create exchange instance with WebSocket support
                 exchange_class = getattr(ccxt, exchange_id)
 
-                exchange = exchange_class({
-                    'apiKey': config.get('apiKey', ''),
-                    'secret': config.get('secret', ''),
-                    'enableRateLimit': True,
-                    'options': {
-                        'defaultType': 'spot',
-                        'warnOnFetchOHLCVLimitArgument': False
+                exchange = exchange_class(
+                    {
+                        "apiKey": config.get("apiKey", ""),
+                        "secret": config.get("secret", ""),
+                        "enableRateLimit": True,
+                        "options": {
+                            "defaultType": "spot",
+                            "warnOnFetchOHLCVLimitArgument": False,
+                        },
                     }
-                })
+                )
 
                 # Check if exchange supports WebSocket
-                if hasattr(exchange, 'watch_ticker'):
+                if hasattr(exchange, "watch_ticker"):
                     self.exchanges[exchange_id] = exchange
                     logger.info(f"✅ WebSocket enabled for {exchange_id}")
                 else:
@@ -89,9 +92,7 @@ class WebSocketFeedManager:
         stream_key = f"{exchange_id}_ticker_{'_'.join(symbols)}"
 
         if stream_key not in self.active_streams:
-            task = asyncio.create_task(
-                self._ticker_stream(exchange_id, symbols)
-            )
+            task = asyncio.create_task(self._ticker_stream(exchange_id, symbols))
             self.active_streams[stream_key] = task
             logger.info(f"📡 Subscribed to tickers: {exchange_id} {symbols}")
 
@@ -141,9 +142,7 @@ class WebSocketFeedManager:
         stream_key = f"{exchange_id}_trades_{'_'.join(symbols)}"
 
         if stream_key not in self.active_streams:
-            task = asyncio.create_task(
-                self._trades_stream(exchange_id, symbols)
-            )
+            task = asyncio.create_task(self._trades_stream(exchange_id, symbols))
             self.active_streams[stream_key] = task
             logger.info(f"📡 Subscribed to trades: {exchange_id} {symbols}")
 
@@ -160,7 +159,9 @@ class WebSocketFeedManager:
                         # Update cache (keep last 100 trades)
                         cache_key = f"{exchange_id}:{symbol}"
                         self.latest_trades[cache_key].extend(trades)
-                        self.latest_trades[cache_key] = self.latest_trades[cache_key][-100:]
+                        self.latest_trades[cache_key] = self.latest_trades[cache_key][
+                            -100:
+                        ]
                         self.message_count += len(trades)
 
                         # Trigger callbacks
@@ -179,7 +180,9 @@ class WebSocketFeedManager:
         except Exception as e:
             logger.error(f"Fatal error in trades stream: {e}")
 
-    async def subscribe_orderbook(self, exchange_id: str, symbols: List[str], limit: int = 20):
+    async def subscribe_orderbook(
+        self, exchange_id: str, symbols: List[str], limit: int = 20
+    ):
         """
         Subscribe to real-time order book updates
 
@@ -232,7 +235,9 @@ class WebSocketFeedManager:
         except Exception as e:
             logger.error(f"Fatal error in orderbook stream: {e}")
 
-    async def subscribe_ohlcv(self, exchange_id: str, symbols: List[str], timeframe: str = '1m'):
+    async def subscribe_ohlcv(
+        self, exchange_id: str, symbols: List[str], timeframe: str = "1m"
+    ):
         """
         Subscribe to real-time OHLCV (candlestick) updates
 
@@ -252,7 +257,9 @@ class WebSocketFeedManager:
                 self._ohlcv_stream(exchange_id, symbols, timeframe)
             )
             self.active_streams[stream_key] = task
-            logger.info(f"📡 Subscribed to OHLCV ({timeframe}): {exchange_id} {symbols}")
+            logger.info(
+                f"📡 Subscribed to OHLCV ({timeframe}): {exchange_id} {symbols}"
+            )
 
     async def _ohlcv_stream(self, exchange_id: str, symbols: List[str], timeframe: str):
         """Internal OHLCV stream handler"""
@@ -260,7 +267,7 @@ class WebSocketFeedManager:
 
         try:
             # Check if exchange supports watch_ohlcv
-            if not hasattr(exchange, 'watch_ohlcv'):
+            if not hasattr(exchange, "watch_ohlcv"):
                 logger.warning(f"{exchange_id} doesn't support OHLCV streaming")
                 return
 
@@ -324,12 +331,12 @@ class WebSocketFeedManager:
         msg_per_sec = self.message_count / uptime if uptime > 0 else 0
 
         return {
-            'active_streams': len(self.active_streams),
-            'total_messages': self.message_count,
-            'messages_per_second': msg_per_sec,
-            'uptime_seconds': uptime,
-            'cached_tickers': len(self.latest_tickers),
-            'cached_orderbooks': len(self.latest_orderbooks)
+            "active_streams": len(self.active_streams),
+            "total_messages": self.message_count,
+            "messages_per_second": msg_per_sec,
+            "uptime_seconds": uptime,
+            "cached_tickers": len(self.latest_tickers),
+            "cached_orderbooks": len(self.latest_orderbooks),
         }
 
     async def unsubscribe_all(self):
@@ -362,16 +369,21 @@ class WebSocketFeedManager:
 
 # Example usage and testing
 if __name__ == "__main__":
+
     async def ticker_callback(exchange_id, symbol, ticker):
         """Example ticker callback"""
-        print(f"[{exchange_id}] {symbol} - Price: {ticker['last']:.2f} "
-              f"Vol: {ticker['baseVolume']:.2f}")
+        print(
+            f"[{exchange_id}] {symbol} - Price: {ticker['last']:.2f} "
+            f"Vol: {ticker['baseVolume']:.2f}"
+        )
 
     async def trade_callback(exchange_id, symbol, trades):
         """Example trade callback"""
         for trade in trades:
-            print(f"[{exchange_id}] {symbol} - Trade: "
-                  f"{trade['side']} {trade['amount']:.4f} @ {trade['price']:.2f}")
+            print(
+                f"[{exchange_id}] {symbol} - Trade: "
+                f"{trade['side']} {trade['amount']:.4f} @ {trade['price']:.2f}"
+            )
 
     async def main():
         print("=" * 70)
@@ -386,17 +398,12 @@ if __name__ == "__main__":
         feed_manager.on_trade(trade_callback)
 
         # Initialize exchanges
-        await feed_manager.initialize({
-            'binance': {
-                'apiKey': '',
-                'secret': ''
-            }
-        })
+        await feed_manager.initialize({"binance": {"apiKey": "", "secret": ""}})
 
         # Subscribe to streams
-        symbols = ['BTC/USDT', 'ETH/USDT']
-        await feed_manager.subscribe_ticker('binance', symbols)
-        await feed_manager.subscribe_trades('binance', symbols)
+        symbols = ["BTC/USDT", "ETH/USDT"]
+        await feed_manager.subscribe_ticker("binance", symbols)
+        await feed_manager.subscribe_trades("binance", symbols)
 
         # Run for 30 seconds
         print("\n📡 Streaming market data for 30 seconds...\n")

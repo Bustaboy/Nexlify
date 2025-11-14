@@ -10,22 +10,23 @@ Tests cover:
 - Performance tracking
 """
 
-import pytest
 import asyncio
+import sys
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
-import sys
+import pytest
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from nexlify.backtesting.nexlify_paper_trading import PaperTradingEngine, PaperPosition
-from nexlify.environments.nexlify_rl_training_env import TradingEnvironment, EpisodeStats
+from nexlify.backtesting.nexlify_paper_trading import (PaperPosition,
+                                                       PaperTradingEngine)
 from nexlify.backtesting.nexlify_paper_trading_orchestrator import (
-    PaperTradingOrchestrator,
-    AgentConfig
-)
+    AgentConfig, PaperTradingOrchestrator)
+from nexlify.environments.nexlify_rl_training_env import (EpisodeStats,
+                                                          TradingEnvironment)
 
 
 class TestPaperTradingEngine:
@@ -34,11 +35,9 @@ class TestPaperTradingEngine:
     @pytest.fixture
     def engine(self):
         """Create paper trading engine"""
-        return PaperTradingEngine({
-            'paper_balance': 10000.0,
-            'fee_rate': 0.001,
-            'slippage': 0.0005
-        })
+        return PaperTradingEngine(
+            {"paper_balance": 10000.0, "fee_rate": 0.001, "slippage": 0.0005}
+        )
 
     @pytest.mark.asyncio
     async def test_initialization(self, engine):
@@ -53,14 +52,12 @@ class TestPaperTradingEngine:
     @pytest.mark.asyncio
     async def test_buy_order(self, engine):
         """Test buy order execution"""
-        result = await engine.place_order(
-            'BTC/USDT', 'buy', 0.1, 45000
-        )
+        result = await engine.place_order("BTC/USDT", "buy", 0.1, 45000)
 
-        assert result['success'] is True
-        assert 'position_id' in result
-        assert result['amount'] == 0.1
-        assert result['price'] == 45000
+        assert result["success"] is True
+        assert "position_id" in result
+        assert result["amount"] == 0.1
+        assert result["price"] == 45000
         assert len(engine.positions) == 1
 
         # Check balance was debited
@@ -70,18 +67,14 @@ class TestPaperTradingEngine:
     async def test_sell_order(self, engine):
         """Test sell order execution"""
         # First buy
-        buy_result = await engine.place_order(
-            'BTC/USDT', 'buy', 0.1, 45000
-        )
-        assert buy_result['success']
+        buy_result = await engine.place_order("BTC/USDT", "buy", 0.1, 45000)
+        assert buy_result["success"]
 
         # Then sell at higher price
-        sell_result = await engine.place_order(
-            'BTC/USDT', 'sell', 0.1, 47000
-        )
+        sell_result = await engine.place_order("BTC/USDT", "sell", 0.1, 47000)
 
-        assert sell_result['success']
-        assert sell_result['pnl'] > 0  # Should be profitable
+        assert sell_result["success"]
+        assert sell_result["pnl"] > 0  # Should be profitable
         assert len(engine.positions) == 0  # Position closed
         assert len(engine.completed_trades) == 1
 
@@ -90,31 +83,29 @@ class TestPaperTradingEngine:
         """Test buy with insufficient balance"""
         # Try to buy more than balance allows
         result = await engine.place_order(
-            'BTC/USDT', 'buy', 1.0, 45000  # Would cost $45k
+            "BTC/USDT", "buy", 1.0, 45000  # Would cost $45k
         )
 
-        assert result['success'] is False
-        assert 'error' in result
-        assert result['error'] == 'Insufficient balance'
+        assert result["success"] is False
+        assert "error" in result
+        assert result["error"] == "Insufficient balance"
 
     @pytest.mark.asyncio
     async def test_sell_without_position(self, engine):
         """Test sell without open position"""
-        result = await engine.place_order(
-            'BTC/USDT', 'sell', 0.1, 45000
-        )
+        result = await engine.place_order("BTC/USDT", "sell", 0.1, 45000)
 
-        assert result['success'] is False
-        assert 'error' in result
+        assert result["success"] is False
+        assert "error" in result
 
     @pytest.mark.asyncio
     async def test_position_updates(self, engine):
         """Test position price updates"""
         # Buy position
-        await engine.place_order('BTC/USDT', 'buy', 0.1, 45000)
+        await engine.place_order("BTC/USDT", "buy", 0.1, 45000)
 
         # Update with new price
-        await engine.update_positions({'BTC/USDT': 47000})
+        await engine.update_positions({"BTC/USDT": 47000})
 
         # Check unrealized PnL
         position = list(engine.positions.values())[0]
@@ -125,17 +116,17 @@ class TestPaperTradingEngine:
     async def test_statistics(self, engine):
         """Test statistics calculation"""
         # Execute some trades
-        await engine.place_order('BTC/USDT', 'buy', 0.1, 45000)
-        await engine.update_positions({'BTC/USDT': 47000})
-        await engine.place_order('BTC/USDT', 'sell', 0.1, 47000)
+        await engine.place_order("BTC/USDT", "buy", 0.1, 45000)
+        await engine.update_positions({"BTC/USDT": 47000})
+        await engine.place_order("BTC/USDT", "sell", 0.1, 47000)
 
         stats = engine.get_statistics()
 
-        assert 'total_return' in stats
-        assert 'win_rate' in stats
-        assert 'total_trades' in stats
-        assert stats['total_trades'] == 1
-        assert stats['winning_trades'] == 1
+        assert "total_return" in stats
+        assert "win_rate" in stats
+        assert "total_trades" in stats
+        assert stats["total_trades"] == 1
+        assert stats["winning_trades"] == 1
 
     @pytest.mark.asyncio
     async def test_fees_and_slippage(self, engine):
@@ -143,8 +134,8 @@ class TestPaperTradingEngine:
         initial_balance = engine.current_balance
 
         # Buy and immediately sell at same price
-        await engine.place_order('BTC/USDT', 'buy', 0.1, 45000)
-        await engine.place_order('BTC/USDT', 'sell', 0.1, 45000)
+        await engine.place_order("BTC/USDT", "buy", 0.1, 45000)
+        await engine.place_order("BTC/USDT", "sell", 0.1, 45000)
 
         # Should have less money due to fees and slippage
         assert engine.current_balance < initial_balance
@@ -157,9 +148,7 @@ class TestTradingEnvironment:
     def env(self):
         """Create trading environment"""
         return TradingEnvironment(
-            initial_balance=10000.0,
-            max_steps=100,
-            use_paper_trading=True
+            initial_balance=10000.0, max_steps=100, use_paper_trading=True
         )
 
     def test_initialization(self, env):
@@ -187,8 +176,8 @@ class TestTradingEnvironment:
         assert isinstance(state, np.ndarray)
         assert isinstance(reward, float)
         assert isinstance(done, bool)
-        assert 'balance' in info
-        assert 'equity' in info
+        assert "balance" in info
+        assert "equity" in info
 
         # Should have entered position
         assert env.position > 0
@@ -271,9 +260,9 @@ class TestTradingEnvironment:
 
         episode_stat = stats[0]
         assert isinstance(episode_stat, EpisodeStats)
-        assert hasattr(episode_stat, 'total_return')
-        assert hasattr(episode_stat, 'win_rate')
-        assert hasattr(episode_stat, 'sharpe_ratio')
+        assert hasattr(episode_stat, "total_return")
+        assert hasattr(episode_stat, "win_rate")
+        assert hasattr(episode_stat, "sharpe_ratio")
 
 
 class TestPaperTradingOrchestrator:
@@ -282,10 +271,12 @@ class TestPaperTradingOrchestrator:
     @pytest.fixture
     def orchestrator(self):
         """Create orchestrator"""
-        return PaperTradingOrchestrator({
-            'initial_balance': 10000.0,
-            'update_interval': 1  # Fast updates for testing
-        })
+        return PaperTradingOrchestrator(
+            {
+                "initial_balance": 10000.0,
+                "update_interval": 1,  # Fast updates for testing
+            }
+        )
 
     def test_initialization(self, orchestrator):
         """Test orchestrator initialization"""
@@ -296,22 +287,20 @@ class TestPaperTradingOrchestrator:
     def test_register_agent(self, orchestrator):
         """Test agent registration"""
         agent_config = AgentConfig(
-            agent_id='test_agent',
-            agent_type='rl_adaptive',
-            name='Test Agent'
+            agent_id="test_agent", agent_type="rl_adaptive", name="Test Agent"
         )
 
         orchestrator.register_agent(agent_config)
 
-        assert 'test_agent' in orchestrator.agents
-        assert 'test_agent' in orchestrator.agent_engines
+        assert "test_agent" in orchestrator.agents
+        assert "test_agent" in orchestrator.agent_engines
 
     def test_register_multiple_agents(self, orchestrator):
         """Test registering multiple agents"""
         configs = [
-            AgentConfig('agent1', 'rl_adaptive', 'Agent 1'),
-            AgentConfig('agent2', 'rl_ultra', 'Agent 2'),
-            AgentConfig('agent3', 'ml_ensemble', 'Agent 3')
+            AgentConfig("agent1", "rl_adaptive", "Agent 1"),
+            AgentConfig("agent2", "rl_ultra", "Agent 2"),
+            AgentConfig("agent3", "ml_ensemble", "Agent 3"),
         ]
 
         for config in configs:
@@ -322,62 +311,62 @@ class TestPaperTradingOrchestrator:
 
     def test_agent_engines_isolated(self, orchestrator):
         """Test that agent engines are isolated"""
-        agent1 = AgentConfig('agent1', 'rl_adaptive', 'Agent 1')
-        agent2 = AgentConfig('agent2', 'rl_adaptive', 'Agent 2')
+        agent1 = AgentConfig("agent1", "rl_adaptive", "Agent 1")
+        agent2 = AgentConfig("agent2", "rl_adaptive", "Agent 2")
 
         orchestrator.register_agent(agent1)
         orchestrator.register_agent(agent2)
 
         # Execute trade for agent1
-        engine1 = orchestrator.agent_engines['agent1']
-        engine2 = orchestrator.agent_engines['agent2']
+        engine1 = orchestrator.agent_engines["agent1"]
+        engine2 = orchestrator.agent_engines["agent2"]
 
         # Initial balances should be equal
         assert engine1.current_balance == engine2.current_balance
 
         # Execute trade in engine1
-        asyncio.run(engine1.place_order('BTC/USDT', 'buy', 0.1, 45000))
+        asyncio.run(engine1.place_order("BTC/USDT", "buy", 0.1, 45000))
 
         # Balances should now differ
         assert engine1.current_balance != engine2.current_balance
 
     def test_performance_tracking(self, orchestrator):
         """Test performance tracking"""
-        agent_config = AgentConfig('test_agent', 'rl_adaptive', 'Test Agent')
+        agent_config = AgentConfig("test_agent", "rl_adaptive", "Test Agent")
         orchestrator.register_agent(agent_config)
 
         # Record snapshot
-        orchestrator._record_performance_snapshot('test_agent')
+        orchestrator._record_performance_snapshot("test_agent")
 
-        assert 'test_agent' in orchestrator.performance_history
-        assert len(orchestrator.performance_history['test_agent']) == 1
+        assert "test_agent" in orchestrator.performance_history
+        assert len(orchestrator.performance_history["test_agent"]) == 1
 
     def test_comparison_metrics(self, orchestrator):
         """Test comparison metrics calculation"""
         # Register multiple agents
         for i in range(3):
-            config = AgentConfig(f'agent{i}', 'rl_adaptive', f'Agent {i}')
+            config = AgentConfig(f"agent{i}", "rl_adaptive", f"Agent {i}")
             orchestrator.register_agent(config)
-            orchestrator._record_performance_snapshot(f'agent{i}')
+            orchestrator._record_performance_snapshot(f"agent{i}")
 
         # Update comparison
         orchestrator._update_comparison_metrics()
 
-        assert 'agents' in orchestrator.comparison_metrics
-        assert len(orchestrator.comparison_metrics['agents']) == 3
+        assert "agents" in orchestrator.comparison_metrics
+        assert len(orchestrator.comparison_metrics["agents"]) == 3
 
     def test_leaderboard(self, orchestrator):
         """Test leaderboard generation"""
         # Register agents with different performance
         for i in range(3):
-            config = AgentConfig(f'agent{i}', 'rl_adaptive', f'Agent {i}')
+            config = AgentConfig(f"agent{i}", "rl_adaptive", f"Agent {i}")
             orchestrator.register_agent(config)
 
             # Simulate different performance
-            engine = orchestrator.agent_engines[f'agent{i}']
+            engine = orchestrator.agent_engines[f"agent{i}"]
             engine.current_balance = 10000 + (i * 500)
 
-            orchestrator._record_performance_snapshot(f'agent{i}')
+            orchestrator._record_performance_snapshot(f"agent{i}")
 
         orchestrator._update_comparison_metrics()
         leaderboard = orchestrator.get_leaderboard()
@@ -397,7 +386,7 @@ class TestIntegration:
         env = TradingEnvironment(
             initial_balance=10000.0,
             max_steps=50,  # Short episode for testing
-            use_paper_trading=True
+            use_paper_trading=True,
         )
 
         # Simple mock agent
@@ -432,8 +421,7 @@ class TestIntegration:
     def test_multi_environment_training(self):
         """Test training with multiple environments"""
         envs = [
-            TradingEnvironment(initial_balance=10000.0, max_steps=10)
-            for _ in range(3)
+            TradingEnvironment(initial_balance=10000.0, max_steps=10) for _ in range(3)
         ]
 
         # Each environment should be independent
@@ -446,18 +434,20 @@ class TestIntegration:
     @pytest.mark.asyncio
     async def test_orchestrator_workflow(self):
         """Test orchestrator complete workflow"""
-        orchestrator = PaperTradingOrchestrator({
-            'initial_balance': 10000.0,
-            'update_interval': 0.1  # Very fast for testing
-        })
+        orchestrator = PaperTradingOrchestrator(
+            {
+                "initial_balance": 10000.0,
+                "update_interval": 0.1,  # Very fast for testing
+            }
+        )
 
         # Register test agents
         for i in range(2):
             config = AgentConfig(
-                agent_id=f'test_agent_{i}',
-                agent_type='rl_adaptive',
-                name=f'Test Agent {i}',
-                enabled=True
+                agent_id=f"test_agent_{i}",
+                agent_type="rl_adaptive",
+                name=f"Test Agent {i}",
+                enabled=True,
             )
             orchestrator.register_agent(config)
 
@@ -469,8 +459,9 @@ class TestIntegration:
 def test_imports():
     """Test that all modules can be imported"""
     from nexlify.backtesting.nexlify_paper_trading import PaperTradingEngine
+    from nexlify.backtesting.nexlify_paper_trading_orchestrator import \
+        PaperTradingOrchestrator
     from nexlify.environments.nexlify_rl_training_env import TradingEnvironment
-    from nexlify.backtesting.nexlify_paper_trading_orchestrator import PaperTradingOrchestrator
 
     assert PaperTradingEngine is not None
     assert TradingEnvironment is not None
@@ -479,4 +470,4 @@ def test_imports():
 
 if __name__ == "__main__":
     # Run tests with pytest
-    pytest.main([__file__, '-v', '--tb=short'])
+    pytest.main([__file__, "-v", "--tb=short"])

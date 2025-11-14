@@ -10,17 +10,18 @@ Vendor-specific optimizations for:
 """
 
 import logging
-import subprocess
 import platform
-from typing import Dict, List, Optional, Tuple, Any
+import subprocess
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 
 class GPUVendor(Enum):
     """GPU vendor types"""
+
     NVIDIA = "nvidia"
     AMD = "amd"
     INTEL = "intel"
@@ -30,31 +31,34 @@ class GPUVendor(Enum):
 
 class NVIDIAArchitecture(Enum):
     """NVIDIA GPU architectures"""
-    MAXWELL = "maxwell"      # GTX 900 series (2014)
-    PASCAL = "pascal"        # GTX 10 series (2016)
-    VOLTA = "volta"          # Titan V, V100 (2017)
-    TURING = "turing"        # RTX 20 series, GTX 16 series (2018)
-    AMPERE = "ampere"        # RTX 30 series, A100 (2020)
-    ADA = "ada"              # RTX 40 series (2022)
-    HOPPER = "hopper"        # H100 (2022)
+
+    MAXWELL = "maxwell"  # GTX 900 series (2014)
+    PASCAL = "pascal"  # GTX 10 series (2016)
+    VOLTA = "volta"  # Titan V, V100 (2017)
+    TURING = "turing"  # RTX 20 series, GTX 16 series (2018)
+    AMPERE = "ampere"  # RTX 30 series, A100 (2020)
+    ADA = "ada"  # RTX 40 series (2022)
+    HOPPER = "hopper"  # H100 (2022)
     UNKNOWN = "unknown"
 
 
 class AMDArchitecture(Enum):
     """AMD GPU architectures"""
-    GCN = "gcn"              # Polaris, Vega (2016-2017)
-    RDNA = "rdna"            # RX 5000 series (2019)
-    RDNA2 = "rdna2"          # RX 6000 series (2020)
-    RDNA3 = "rdna3"          # RX 7000 series (2022)
-    CDNA = "cdna"            # MI100 (2020)
-    CDNA2 = "cdna2"          # MI200 series (2021)
-    CDNA3 = "cdna3"          # MI300 series (2023)
+
+    GCN = "gcn"  # Polaris, Vega (2016-2017)
+    RDNA = "rdna"  # RX 5000 series (2019)
+    RDNA2 = "rdna2"  # RX 6000 series (2020)
+    RDNA3 = "rdna3"  # RX 7000 series (2022)
+    CDNA = "cdna"  # MI100 (2020)
+    CDNA2 = "cdna2"  # MI200 series (2021)
+    CDNA3 = "cdna3"  # MI300 series (2023)
     UNKNOWN = "unknown"
 
 
 @dataclass
 class GPUCapabilities:
     """Detailed GPU capabilities"""
+
     vendor: GPUVendor
     name: str
     compute_capability: Optional[str]  # e.g., "8.6" for NVIDIA
@@ -81,6 +85,7 @@ class GPUCapabilities:
 @dataclass
 class GPUOptimizationConfig:
     """GPU-specific optimization configuration"""
+
     vendor: GPUVendor
 
     # Precision settings
@@ -129,10 +134,14 @@ class GPUOptimizer:
             logger.info(f"   Architecture: {self.capabilities.architecture}")
             logger.info(f"   VRAM: {self.capabilities.vram_gb:.1f} GB")
             if self.capabilities.has_tensor_cores:
-                logger.info(f"   ✓ Tensor Cores available ({self.capabilities.tensor_cores})")
-            logger.info(f"   Precision: FP16={self.capabilities.has_fp16}, "
-                       f"BF16={self.capabilities.has_bf16}, "
-                       f"TF32={self.capabilities.has_tf32}")
+                logger.info(
+                    f"   ✓ Tensor Cores available ({self.capabilities.tensor_cores})"
+                )
+            logger.info(
+                f"   Precision: FP16={self.capabilities.has_fp16}, "
+                f"BF16={self.capabilities.has_bf16}, "
+                f"TF32={self.capabilities.has_tf32}"
+            )
         else:
             logger.warning("⚠️  No GPU detected or GPU not supported")
 
@@ -236,7 +245,7 @@ class GPUOptimizer:
                 max_threads_per_sm=props.max_threads_per_multi_processor,
                 optimal_batch_size=optimal_batch_size,
                 supports_concurrent_kernels=True,
-                supports_multi_stream=True
+                supports_multi_stream=True,
             )
 
         except Exception as e:
@@ -249,7 +258,7 @@ class GPUOptimizer:
             import torch
 
             # Check for ROCm
-            if not hasattr(torch.version, 'hip') or torch.version.hip is None:
+            if not hasattr(torch.version, "hip") or torch.version.hip is None:
                 return None
 
             if not torch.cuda.is_available():  # ROCm uses CUDA API
@@ -266,14 +275,20 @@ class GPUOptimizer:
 
             # AMD precision support
             has_fp16 = True
-            has_bf16 = architecture in [AMDArchitecture.RDNA3, AMDArchitecture.CDNA2, AMDArchitecture.CDNA3]
+            has_bf16 = architecture in [
+                AMDArchitecture.RDNA3,
+                AMDArchitecture.CDNA2,
+                AMDArchitecture.CDNA3,
+            ]
             has_tf32 = False  # AMD doesn't have TF32
             has_fp8 = architecture == AMDArchitecture.CDNA3
             has_int8 = True
 
             # Matrix cores (AMD's version of Tensor Cores)
             has_matrix_cores = architecture in [
-                AMDArchitecture.CDNA, AMDArchitecture.CDNA2, AMDArchitecture.CDNA3
+                AMDArchitecture.CDNA,
+                AMDArchitecture.CDNA2,
+                AMDArchitecture.CDNA3,
             ]
 
             # Compute Units (AMD's SM equivalent)
@@ -308,7 +323,7 @@ class GPUOptimizer:
                 max_threads_per_sm=props.max_threads_per_multi_processor,
                 optimal_batch_size=optimal_batch_size,
                 supports_concurrent_kernels=True,
-                supports_multi_stream=True
+                supports_multi_stream=True,
             )
 
         except Exception as e:
@@ -327,7 +342,9 @@ class GPUOptimizer:
                 if torch.xpu.is_available():
                     device_id = 0
                     name = torch.xpu.get_device_name(device_id)
-                    vram_gb = torch.xpu.get_device_properties(device_id).total_memory / (1024**3)
+                    vram_gb = torch.xpu.get_device_properties(
+                        device_id
+                    ).total_memory / (1024**3)
 
                     return GPUCapabilities(
                         vendor=GPUVendor.INTEL,
@@ -350,7 +367,7 @@ class GPUOptimizer:
                         max_threads_per_sm=None,
                         optimal_batch_size=16,
                         supports_concurrent_kernels=True,
-                        supports_multi_stream=True
+                        supports_multi_stream=True,
                     )
             except ImportError:
                 pass
@@ -365,12 +382,12 @@ class GPUOptimizer:
         try:
             import torch
 
-            if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
                 # Apple Silicon detected
                 chip_name = platform.processor()
 
                 # Estimate based on chip
-                if 'M1' in chip_name or 'M2' in chip_name or 'M3' in chip_name:
+                if "M1" in chip_name or "M2" in chip_name or "M3" in chip_name:
                     return GPUCapabilities(
                         vendor=GPUVendor.APPLE,
                         name=chip_name,
@@ -392,7 +409,7 @@ class GPUOptimizer:
                         max_threads_per_sm=None,
                         optimal_batch_size=16,
                         supports_concurrent_kernels=False,
-                        supports_multi_stream=False
+                        supports_multi_stream=False,
                     )
 
         except Exception as e:
@@ -426,25 +443,27 @@ class GPUOptimizer:
         name_lower = name.lower()
 
         # CDNA (compute)
-        if 'mi300' in name_lower:
+        if "mi300" in name_lower:
             return AMDArchitecture.CDNA3
-        elif 'mi200' in name_lower or 'mi250' in name_lower:
+        elif "mi200" in name_lower or "mi250" in name_lower:
             return AMDArchitecture.CDNA2
-        elif 'mi100' in name_lower:
+        elif "mi100" in name_lower:
             return AMDArchitecture.CDNA
 
         # RDNA (gaming)
-        elif 'rx 7' in name_lower or '7900' in name_lower or '7800' in name_lower:
+        elif "rx 7" in name_lower or "7900" in name_lower or "7800" in name_lower:
             return AMDArchitecture.RDNA3
-        elif 'rx 6' in name_lower or '6900' in name_lower or '6800' in name_lower:
+        elif "rx 6" in name_lower or "6900" in name_lower or "6800" in name_lower:
             return AMDArchitecture.RDNA2
-        elif 'rx 5' in name_lower or '5700' in name_lower:
+        elif "rx 5" in name_lower or "5700" in name_lower:
             return AMDArchitecture.RDNA
 
         # GCN (older)
-        elif 'vega' in name_lower or 'radeon vii' in name_lower:
+        elif "vega" in name_lower or "radeon vii" in name_lower:
             return AMDArchitecture.GCN
-        elif 'polaris' in name_lower or 'rx 580' in name_lower or 'rx 480' in name_lower:
+        elif (
+            "polaris" in name_lower or "rx 580" in name_lower or "rx 480" in name_lower
+        ):
             return AMDArchitecture.GCN
 
         return AMDArchitecture.UNKNOWN
@@ -454,91 +473,92 @@ class GPUOptimizer:
         name_lower = name.lower()
 
         # High-end datacenter
-        if 'h100' in name_lower:
+        if "h100" in name_lower:
             return 3350.0  # HBM3
-        elif 'a100' in name_lower:
+        elif "a100" in name_lower:
             return 2000.0 if vram_gb >= 80 else 1555.0  # HBM2e
-        elif 'v100' in name_lower:
+        elif "v100" in name_lower:
             return 900.0
 
         # RTX 40 series (Ada)
-        elif '4090' in name_lower:
+        elif "4090" in name_lower:
             return 1008.0
-        elif '4080' in name_lower:
+        elif "4080" in name_lower:
             return 716.8
-        elif '4070' in name_lower:
+        elif "4070" in name_lower:
             return 504.2
 
         # RTX 30 series (Ampere)
-        elif '3090' in name_lower:
+        elif "3090" in name_lower:
             return 936.0
-        elif '3080' in name_lower:
+        elif "3080" in name_lower:
             return 760.0
-        elif '3070' in name_lower:
+        elif "3070" in name_lower:
             return 448.0
-        elif '3060' in name_lower:
+        elif "3060" in name_lower:
             return 360.0
 
         # RTX 20 series (Turing)
-        elif '2080' in name_lower:
+        elif "2080" in name_lower:
             return 616.0
-        elif '2070' in name_lower:
+        elif "2070" in name_lower:
             return 448.0
-        elif '2060' in name_lower:
+        elif "2060" in name_lower:
             return 336.0
 
         # GTX 10 series (Pascal)
-        elif '1080' in name_lower:
+        elif "1080" in name_lower:
             return 320.0
-        elif '1070' in name_lower:
+        elif "1070" in name_lower:
             return 256.0
-        elif '1060' in name_lower:
+        elif "1060" in name_lower:
             return 192.0
-        elif '1050' in name_lower:
+        elif "1050" in name_lower:
             return 112.0
 
         return None
 
-    def _estimate_amd_bandwidth(self, name: str, vram_gb: float,
-                                arch: AMDArchitecture) -> Optional[float]:
+    def _estimate_amd_bandwidth(
+        self, name: str, vram_gb: float, arch: AMDArchitecture
+    ) -> Optional[float]:
         """Estimate AMD memory bandwidth"""
         name_lower = name.lower()
 
         # CDNA datacenter
-        if 'mi300' in name_lower:
+        if "mi300" in name_lower:
             return 5300.0  # HBM3
-        elif 'mi250' in name_lower:
+        elif "mi250" in name_lower:
             return 3277.0  # HBM2e
-        elif 'mi200' in name_lower:
+        elif "mi200" in name_lower:
             return 1638.0
-        elif 'mi100' in name_lower:
+        elif "mi100" in name_lower:
             return 1228.0
 
         # RDNA3
-        elif '7900 xtx' in name_lower:
+        elif "7900 xtx" in name_lower:
             return 960.0
-        elif '7900 xt' in name_lower:
+        elif "7900 xt" in name_lower:
             return 800.0
-        elif '7800' in name_lower:
+        elif "7800" in name_lower:
             return 624.0
 
         # RDNA2
-        elif '6900' in name_lower:
+        elif "6900" in name_lower:
             return 512.0
-        elif '6800' in name_lower:
+        elif "6800" in name_lower:
             return 512.0
-        elif '6700' in name_lower:
+        elif "6700" in name_lower:
             return 384.0
 
         # RDNA
-        elif '5700' in name_lower:
+        elif "5700" in name_lower:
             return 448.0
 
         return None
 
-    def _calculate_nvidia_batch_size(self, vram_gb: float,
-                                     arch: NVIDIAArchitecture,
-                                     has_tensor_cores: bool) -> int:
+    def _calculate_nvidia_batch_size(
+        self, vram_gb: float, arch: NVIDIAArchitecture, has_tensor_cores: bool
+    ) -> int:
         """Calculate optimal batch size for NVIDIA GPU"""
 
         # Base batch size on VRAM
@@ -560,16 +580,20 @@ class GPUOptimizer:
             base_batch = 8
 
         # Adjust for architecture
-        if arch in [NVIDIAArchitecture.AMPERE, NVIDIAArchitecture.ADA, NVIDIAArchitecture.HOPPER]:
+        if arch in [
+            NVIDIAArchitecture.AMPERE,
+            NVIDIAArchitecture.ADA,
+            NVIDIAArchitecture.HOPPER,
+        ]:
             # Newer architectures benefit from larger batches with Tensor Cores
             if has_tensor_cores:
                 base_batch = int(base_batch * 1.25)
 
         return base_batch
 
-    def _calculate_amd_batch_size(self, vram_gb: float,
-                                  arch: AMDArchitecture,
-                                  has_matrix_cores: bool) -> int:
+    def _calculate_amd_batch_size(
+        self, vram_gb: float, arch: AMDArchitecture, has_matrix_cores: bool
+    ) -> int:
         """Calculate optimal batch size for AMD GPU"""
 
         # Base batch size on VRAM
@@ -594,7 +618,9 @@ class GPUOptimizer:
 
         return base_batch
 
-    def _create_optimization_config(self, caps: GPUCapabilities) -> GPUOptimizationConfig:
+    def _create_optimization_config(
+        self, caps: GPUCapabilities
+    ) -> GPUOptimizationConfig:
         """Create vendor-specific optimization configuration"""
 
         if caps.vendor == GPUVendor.NVIDIA:
@@ -611,7 +637,11 @@ class GPUOptimizer:
     def _create_nvidia_config(self, caps: GPUCapabilities) -> GPUOptimizationConfig:
         """Create NVIDIA-specific optimization config"""
 
-        arch = NVIDIAArchitecture(caps.architecture) if caps.architecture != "unknown" else NVIDIAArchitecture.UNKNOWN
+        arch = (
+            NVIDIAArchitecture(caps.architecture)
+            if caps.architecture != "unknown"
+            else NVIDIAArchitecture.UNKNOWN
+        )
 
         # Mixed precision settings
         use_mixed_precision = caps.has_fp16 or caps.has_bf16
@@ -651,17 +681,22 @@ class GPUOptimizer:
 
         # NVIDIA-specific settings
         vendor_specific = {
-            'compute_capability': caps.compute_capability,
-            'architecture': arch.value,
-            'enable_cudnn_benchmark': True,
-            'enable_tf32': use_tf32,
-            'matmul_precision': 'high' if use_tf32 else 'highest',
-            'cudnn_deterministic': False,  # False for performance
-            'cudnn_allow_tf32': use_tf32,
-            'cuda_launch_blocking': False,  # False for async
-            'use_cuda_graphs': arch in [NVIDIAArchitecture.AMPERE, NVIDIAArchitecture.ADA, NVIDIAArchitecture.HOPPER],
-            'enable_flash_attention': caps.has_tensor_cores and caps.vram_gb >= 8,
-            'optimal_thread_count': caps.sm_count * 128 if caps.sm_count else 1024,
+            "compute_capability": caps.compute_capability,
+            "architecture": arch.value,
+            "enable_cudnn_benchmark": True,
+            "enable_tf32": use_tf32,
+            "matmul_precision": "high" if use_tf32 else "highest",
+            "cudnn_deterministic": False,  # False for performance
+            "cudnn_allow_tf32": use_tf32,
+            "cuda_launch_blocking": False,  # False for async
+            "use_cuda_graphs": arch
+            in [
+                NVIDIAArchitecture.AMPERE,
+                NVIDIAArchitecture.ADA,
+                NVIDIAArchitecture.HOPPER,
+            ],
+            "enable_flash_attention": caps.has_tensor_cores and caps.vram_gb >= 8,
+            "optimal_thread_count": caps.sm_count * 128 if caps.sm_count else 1024,
         }
 
         return GPUOptimizationConfig(
@@ -680,13 +715,17 @@ class GPUOptimizer:
             persistent_workers=persistent_workers,
             optimal_batch_size=caps.optimal_batch_size,
             gradient_accumulation_steps=gradient_accumulation_steps,
-            vendor_specific=vendor_specific
+            vendor_specific=vendor_specific,
         )
 
     def _create_amd_config(self, caps: GPUCapabilities) -> GPUOptimizationConfig:
         """Create AMD-specific optimization config"""
 
-        arch = AMDArchitecture(caps.architecture) if caps.architecture != "unknown" else AMDArchitecture.UNKNOWN
+        arch = (
+            AMDArchitecture(caps.architecture)
+            if caps.architecture != "unknown"
+            else AMDArchitecture.UNKNOWN
+        )
 
         # Mixed precision settings
         use_mixed_precision = caps.has_fp16 or caps.has_bf16
@@ -724,15 +763,21 @@ class GPUOptimizer:
 
         # AMD-specific settings
         vendor_specific = {
-            'architecture': arch.value,
-            'use_miopen': True,
-            'miopen_benchmark': True,
-            'rocm_version': None,  # Could detect from torch.version.hip
-            'use_hipblas': True,
-            'use_rocblas': True,
-            'wave_size': 64 if arch in [AMDArchitecture.GCN, AMDArchitecture.CDNA, AMDArchitecture.CDNA2] else 32,
-            'use_infinity_cache': arch in [AMDArchitecture.RDNA2, AMDArchitecture.RDNA3],
-            'optimize_for_workload': 'compute' if 'CDNA' in arch.value else 'graphics',
+            "architecture": arch.value,
+            "use_miopen": True,
+            "miopen_benchmark": True,
+            "rocm_version": None,  # Could detect from torch.version.hip
+            "use_hipblas": True,
+            "use_rocblas": True,
+            "wave_size": (
+                64
+                if arch
+                in [AMDArchitecture.GCN, AMDArchitecture.CDNA, AMDArchitecture.CDNA2]
+                else 32
+            ),
+            "use_infinity_cache": arch
+            in [AMDArchitecture.RDNA2, AMDArchitecture.RDNA3],
+            "optimize_for_workload": "compute" if "CDNA" in arch.value else "graphics",
         }
 
         return GPUOptimizationConfig(
@@ -751,7 +796,7 @@ class GPUOptimizer:
             persistent_workers=persistent_workers,
             optimal_batch_size=caps.optimal_batch_size,
             gradient_accumulation_steps=gradient_accumulation_steps,
-            vendor_specific=vendor_specific
+            vendor_specific=vendor_specific,
         )
 
     def _create_intel_config(self, caps: GPUCapabilities) -> GPUOptimizationConfig:
@@ -773,9 +818,9 @@ class GPUOptimizer:
             optimal_batch_size=caps.optimal_batch_size,
             gradient_accumulation_steps=2,
             vendor_specific={
-                'use_ipex': True,
-                'use_xmx': True,  # Xe Matrix Extensions
-            }
+                "use_ipex": True,
+                "use_xmx": True,  # Xe Matrix Extensions
+            },
         )
 
     def _create_apple_config(self, caps: GPUCapabilities) -> GPUOptimizationConfig:
@@ -797,9 +842,9 @@ class GPUOptimizer:
             optimal_batch_size=caps.optimal_batch_size,
             gradient_accumulation_steps=2,
             vendor_specific={
-                'use_mps': True,
-                'use_neural_engine': False,  # Not exposed via PyTorch
-            }
+                "use_mps": True,
+                "use_neural_engine": False,  # Not exposed via PyTorch
+            },
         )
 
     def _create_default_config(self, caps: GPUCapabilities) -> GPUOptimizationConfig:
@@ -820,7 +865,7 @@ class GPUOptimizer:
             persistent_workers=False,
             optimal_batch_size=16,
             gradient_accumulation_steps=1,
-            vendor_specific={}
+            vendor_specific={},
         )
 
     def apply_optimizations(self):
@@ -861,19 +906,22 @@ class GPUOptimizer:
         if self.config.use_tf32:
             torch.backends.cuda.matmul.allow_tf32 = True
             torch.backends.cudnn.allow_tf32 = True
-            torch.set_float32_matmul_precision('high')
+            torch.set_float32_matmul_precision("high")
             logger.info("   ✓ TF32 enabled for matmul")
 
         # Memory management
         if self.config.use_memory_pool:
             torch.cuda.empty_cache()
             torch.cuda.set_per_process_memory_fraction(self.config.memory_fraction)
-            logger.info(f"   ✓ Memory fraction set to {self.config.memory_fraction:.0%}")
+            logger.info(
+                f"   ✓ Memory fraction set to {self.config.memory_fraction:.0%}"
+            )
 
         # Disable blocking for async execution
-        if not config.get('cuda_launch_blocking', False):
+        if not config.get("cuda_launch_blocking", False):
             import os
-            os.environ['CUDA_LAUNCH_BLOCKING'] = '0'
+
+            os.environ["CUDA_LAUNCH_BLOCKING"] = "0"
 
         logger.info(f"   ✓ Optimal batch size: {self.config.optimal_batch_size}")
         if self.config.use_bf16:
@@ -894,7 +942,9 @@ class GPUOptimizer:
         if self.config.use_memory_pool:
             torch.cuda.empty_cache()
             torch.cuda.set_per_process_memory_fraction(self.config.memory_fraction)
-            logger.info(f"   ✓ Memory fraction set to {self.config.memory_fraction:.0%}")
+            logger.info(
+                f"   ✓ Memory fraction set to {self.config.memory_fraction:.0%}"
+            )
 
         logger.info(f"   ✓ Optimal batch size: {self.config.optimal_batch_size}")
         logger.info(f"   ✓ Wave size: {config.get('wave_size', 64)}")
@@ -908,15 +958,18 @@ class GPUOptimizer:
         """Apply Intel-specific optimizations"""
         try:
             import intel_extension_for_pytorch as ipex
+
             logger.info("   ✓ Intel Extension for PyTorch available")
         except ImportError:
             logger.warning("   ⚠️  Intel Extension for PyTorch not found")
 
     def _apply_apple_optimizations(self, torch):
         """Apply Apple Silicon-specific optimizations"""
-        if hasattr(torch.backends, 'mps'):
+        if hasattr(torch.backends, "mps"):
             logger.info("   ✓ Metal Performance Shaders available")
-            logger.info("   ⚠️  Note: Unified memory - adjust batch sizes conservatively")
+            logger.info(
+                "   ⚠️  Note: Unified memory - adjust batch sizes conservatively"
+            )
 
     def get_device_string(self) -> str:
         """Get the appropriate device string for PyTorch"""
@@ -951,12 +1004,12 @@ def get_optimal_batch_size() -> int:
 
 # Export
 __all__ = [
-    'GPUVendor',
-    'NVIDIAArchitecture',
-    'AMDArchitecture',
-    'GPUCapabilities',
-    'GPUOptimizationConfig',
-    'GPUOptimizer',
-    'create_gpu_optimizer',
-    'get_optimal_batch_size'
+    "GPUVendor",
+    "NVIDIAArchitecture",
+    "AMDArchitecture",
+    "GPUCapabilities",
+    "GPUOptimizationConfig",
+    "GPUOptimizer",
+    "create_gpu_optimizer",
+    "get_optimal_batch_size",
 ]
