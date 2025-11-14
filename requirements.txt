@@ -129,4 +129,3 @@ trio==0.22.2
 # Training Dashboard & Monitoring
 dash==2.14.2
 plotly==5.18.0
-pandas==2.1.1
