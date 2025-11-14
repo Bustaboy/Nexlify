@@ -11,47 +11,48 @@ from nexlify.strategies.epsilon_decay import (
     ExponentialEpsilonDecay,
     EpsilonDecayFactory
 )
- 
+
 # Backward compatibility aliases
 MultiStrategy = MultiStrategyOptimizer
 MultiTimeframe = MultiTimeframeAnalyzer
 PredictiveFeatures = PredictiveEngine
 RLAgent = DQNAgent
- 
+
 # Ultra-Optimized RL Agent (optional - graceful if dependencies missing)
 try:
-    from nexlify.strategies.nexlify_ultra_optimized_rl_agent import UltraOptimizedDQNAgent
- 
+    from nexlify.strategies.nexlify_ultra_optimized_rl_agent import \
+        UltraOptimizedDQNAgent
+
     __all__ = [
-        'MultiStrategyOptimizer',
-        'MultiStrategy',
-        'MultiTimeframeAnalyzer',
-        'MultiTimeframe',
-        'PredictiveEngine',
-        'PredictiveFeatures',
-        'DQNAgent',
-        'RLAgent',
-        'UltraOptimizedDQNAgent',  # Ultra-optimized version with all optimizations
-        'EpsilonDecayStrategy',
-        'LinearEpsilonDecay',
-        'ScheduledEpsilonDecay',
-        'ExponentialEpsilonDecay',
-        'EpsilonDecayFactory',
+        "MultiStrategyOptimizer",
+        "MultiStrategy",
+        "MultiTimeframeAnalyzer",
+        "MultiTimeframe",
+        "PredictiveEngine",
+        "PredictiveFeatures",
+        "DQNAgent",
+        "RLAgent",
+        "UltraOptimizedDQNAgent",  # Ultra-optimized version with all optimizations
+        "EpsilonDecayStrategy",
+        "LinearEpsilonDecay",
+        "ScheduledEpsilonDecay",
+        "ExponentialEpsilonDecay",
+        "EpsilonDecayFactory",
     ]
 except ImportError:
     # Ultra-optimized agent not available (missing dependencies)
     __all__ = [
-        'MultiStrategyOptimizer',
-        'MultiStrategy',
-        'MultiTimeframeAnalyzer',
-        'MultiTimeframe',
-        'PredictiveEngine',
-        'PredictiveFeatures',
-        'DQNAgent',
-        'RLAgent',
-        'EpsilonDecayStrategy',
-        'LinearEpsilonDecay',
-        'ScheduledEpsilonDecay',
-        'ExponentialEpsilonDecay',
-        'EpsilonDecayFactory',
+        "MultiStrategyOptimizer",
+        "MultiStrategy",
+        "MultiTimeframeAnalyzer",
+        "MultiTimeframe",
+        "PredictiveEngine",
+        "PredictiveFeatures",
+        "DQNAgent",
+        "RLAgent",
+        "EpsilonDecayStrategy",
+        "LinearEpsilonDecay",
+        "ScheduledEpsilonDecay",
+        "ExponentialEpsilonDecay",
+        "EpsilonDecayFactory",
     ]
