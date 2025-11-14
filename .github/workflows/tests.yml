@@ -57,12 +57,9 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest pytest-asyncio pytest-mock
-        # Install minimal runtime dependencies needed for imports
-        pip install ccxt aiohttp pandas numpy scikit-learn || true
-        # Install remaining dependencies if requirements.txt exists
+        # Install requirements.txt first to get correct versions
         if [ -f requirements.txt ]; then
-          pip install -r requirements.txt 2>&1 | grep -v "already satisfied" || true
+          pip install -r requirements.txt
         fi
 
     - name: Run unit tests only (no integration/slow tests)
