@@ -125,3 +125,8 @@ trio==0.22.2
 # onnxruntime==1.16.3  # For ONNX Runtime inference
 # onnxruntime-gpu==1.16.3  # GPU version (use instead of onnxruntime if you have CUDA)
 # torch-tensorrt==1.4.0  # For TensorRT compilation (NVIDIA only, requires TensorRT SDK)
+
+# Training Dashboard & Monitoring
+dash==2.14.2
+plotly==5.18.0
+pandas==2.1.1
