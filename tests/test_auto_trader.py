@@ -122,7 +122,7 @@ class TestRiskManager:
         )
 
         assert should_trade is True
-        assert "approved" in reason.lower()
+        assert "passed" in reason.lower()
 
     def test_should_trade_daily_loss_exceeded(self, risk_manager):
         """Test should_trade rejects when daily loss exceeded"""
