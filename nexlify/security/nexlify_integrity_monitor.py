@@ -103,13 +103,16 @@ class IntegrityMonitor:
             ],
         )
 
+        # Data directory (can be overridden for tests)
+        self._data_path = None
+
         # Baseline file
-        self.baseline_file = Path("data/integrity_baseline.json")
-        self.baseline_file.parent.mkdir(parents=True, exist_ok=True)
+        self._baseline_file_path = Path("data/integrity_baseline.json")
+        self._baseline_file_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Violation log
-        self.violation_log_file = Path("data/integrity_violations.jsonl")
-        self.violation_log_file.parent.mkdir(parents=True, exist_ok=True)
+        self._violation_log_file_path = Path("data/integrity_violations.jsonl")
+        self._violation_log_file_path.parent.mkdir(parents=True, exist_ok=True)
 
         # State
         self.baseline: Dict[str, FileIntegrity] = {}
@@ -152,6 +155,32 @@ class IntegrityMonitor:
         self.kill_switch = kill_switch
         self.telegram_bot = telegram_bot
         logger.info("✅ Integrity Monitor dependencies injected")
+
+    @property
+    def data_path(self):
+        """Get data path"""
+        return self._data_path
+
+    @data_path.setter
+    def data_path(self, value):
+        """Set data path and clear baseline (for test isolation)"""
+        self._data_path = value
+        # Clear baseline when data_path changes (test isolation)
+        self.baseline = {}
+
+    @property
+    def baseline_file(self) -> Path:
+        """Get baseline file path (uses data_path if set for tests)"""
+        if self._data_path:
+            return Path(self._data_path) / "integrity_baseline.json"
+        return self._baseline_file_path
+
+    @property
+    def violation_log_file(self) -> Path:
+        """Get violation log file path (uses data_path if set for tests)"""
+        if self._data_path:
+            return Path(self._data_path) / "integrity_violations.jsonl"
+        return self._violation_log_file_path
 
     @staticmethod
     def calculate_file_checksum(file_path: str) -> Optional[str]:
@@ -632,8 +661,14 @@ class IntegrityMonitor:
     def detect_tampering(self) -> List[Dict]:
         """Detect tampering in all registered files (backward compatibility)"""
         results = self.verify_all_files()
-        # Extract violations from results
-        violations = [r.get("violation") for r in results if not r.get("valid") and r.get("violation")]
+        # Extract violations from results and add "file" key for backward compatibility
+        violations = []
+        for r in results:
+            if not r.get("valid") and r.get("violation"):
+                violation_dict = r.get("violation")
+                # Add "file" key as alias for "file_path" for backward compatibility
+                violation_dict["file"] = violation_dict.get("file_path", "")
+                violations.append(violation_dict)
         return violations
 
 

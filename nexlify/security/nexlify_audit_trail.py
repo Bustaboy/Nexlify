@@ -452,7 +452,7 @@ class AuditManager:
     def get_events_by_user(self, username: str, limit: int = 100) -> list:
         """Get events by username (backward compatibility)"""
         events = self.get_recent_events(event_type=None, limit=limit)
-        return [e for e in events if e.get("username") == username]
+        return [e for e in events if e.get("user") == username]
 
     def export_log(self, path: str, format: str = "json") -> bool:
         """Export audit log to file (backward compatibility)"""
