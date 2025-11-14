@@ -192,9 +192,7 @@
     },
     "default_architecture": "medium",
     "timeframe": "1h",
-    "auto_gamma": false,
-    "manual_gamma": null,
-    "gamma_adjustment_interval": 100
+    "manual_gamma": null
   },
 
   "epsilon_decay": {

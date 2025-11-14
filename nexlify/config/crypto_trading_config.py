@@ -35,15 +35,12 @@ class CryptoTradingConfig:
     # ========================================================================
 
     # Discount factor (default for 24/7 crypto trading)
-    # Used when auto_gamma is disabled (default behavior)
+    # Can be overridden by setting manual_gamma in config
+    # Or auto-selected based on timeframe using GammaSelector
     gamma: float = 0.89
 
-    # Trading timeframe (used for adaptive gamma selection when enabled)
+    # Trading timeframe (used by GammaSelector to choose optimal gamma)
     timeframe: str = "1h"
-
-    # Adaptive gamma settings (OPT-IN feature for backward compatibility)
-    auto_gamma: bool = False  # Disabled by default - set to True to enable adaptive gamma
-    gamma_adjustment_interval: int = 100  # Episodes between gamma adjustments
 
     # Learning rate (aggressive for rapid adaptation)
     learning_rate: float = 0.0015
@@ -286,10 +283,8 @@ class CryptoTradingConfig:
             "target_update_freq": self.target_update_freq,
             "replay_buffer_size": self.replay_buffer_size,
 
-            # Gamma optimizer settings
+            # Timeframe for gamma selection
             "timeframe": self.timeframe,
-            "auto_gamma": self.auto_gamma,
-            "gamma_adjustment_interval": self.gamma_adjustment_interval,
 
             # Epsilon decay
             "epsilon_decay_type": self.epsilon_decay_type,

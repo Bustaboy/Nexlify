@@ -30,11 +30,9 @@ class OptimizedAgentConfig:
     learning_rate: float = 0.0003  # CHANGED: 0.001 → 0.0003 (more conservative, stable learning)
     batch_size: int = 128  # CHANGED: 64 → 128 (more stable gradient estimates)
 
-    # Adaptive gamma selection (NEW - RECOMMENDED for optimized config)
+    # Timeframe-based gamma selection (NEW)
     timeframe: str = "1h"  # Trading timeframe (1m, 5m, 15m, 1h, 4h, 1d)
-    auto_gamma: bool = True  # RECOMMENDED: Enable automatic gamma selection
-    manual_gamma: Optional[float] = None  # Manual override (disables auto_gamma)
-    gamma_adjustment_interval: int = 100  # Episodes between gamma adjustments
+    manual_gamma: Optional[float] = None  # Manual override (disables timeframe selection)
 
     # Exploration - CRITICAL CHANGES for faster learning
     epsilon_start: float = 1.0
@@ -169,20 +167,20 @@ def print_config_comparison():
     print(f"{'Parameter':<30} {'Default':<20} {'Optimized':<20} {'Impact'}")
     print("-"*80)
     print(f"{'epsilon_decay':<30} {'0.995':<20} {'Linear/2000 steps':<20} {'🔴 CRITICAL'}")
-    print(f"{'gamma (discount)':<30} {'0.99 (fixed)':<20} {'Auto-adaptive':<20} {'🔴 CRITICAL'}")
+    print(f"{'gamma (discount)':<30} {'0.89 (fixed)':<20} {'Timeframe-based':<20} {'🟡 High'}")
     print(f"{'batch_size':<30} {'64':<20} {'128':<20} {'🟢 Medium'}")
     print(f"{'learning_rate':<30} {'0.001':<20} {'0.0003':<20} {'🟢 Medium'}")
     print(f"{'target_update_freq':<30} {'1000':<20} {'500':<20} {'🟢 Medium'}")
     print(f"{'n_step':<30} {'3':<20} {'5':<20} {'🟢 Low'}")
     print(f"{'swa_start':<30} {'5000':<20} {'3000':<20} {'🟢 Low'}")
     print("="*80)
-    print("\n📊 GAMMA OPTIMIZER:")
+    print("\n📊 GAMMA SELECTOR:")
     print("  Scalping (< 1h):    gamma = 0.90")
-    print("  Day trading (1-24h): gamma = 0.95  ← DEFAULT")
+    print("  Day trading (1-24h): gamma = 0.95")
     print("  Swing (1-7d):       gamma = 0.97")
     print("  Position (> 7d):    gamma = 0.99")
-    print("  Auto-adjusts based on actual trade durations!")
-    print("\nExpected improvement: 5-10x faster learning + 15-25% better reward capture")
+    print("  Set timeframe='1h' to auto-select gamma=0.95")
+    print("\nExpected improvement: 5-10x faster learning")
     print("Agent should show profit within 200-300 episodes (vs 1000+ currently)")
     print("="*80 + "\n")
 

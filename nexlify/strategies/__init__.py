@@ -11,8 +11,9 @@ from nexlify.strategies.epsilon_decay import (
     ExponentialEpsilonDecay,
     EpsilonDecayFactory,
 )
-from nexlify.strategies.gamma_optimizer import (
-    GammaOptimizer,
+from nexlify.strategies.gamma_selector import (
+    GammaSelector,
+    GammaOptimizer,  # Backward compatibility alias
     get_recommended_gamma,
     TRADING_STYLES,
 )
@@ -43,7 +44,8 @@ try:
         "ScheduledEpsilonDecay",
         "ExponentialEpsilonDecay",
         "EpsilonDecayFactory",
-        "GammaOptimizer",
+        "GammaSelector",
+        "GammaOptimizer",  # Backward compatibility
         "get_recommended_gamma",
         "TRADING_STYLES",
     ]
@@ -63,7 +65,8 @@ except ImportError:
         "ScheduledEpsilonDecay",
         "ExponentialEpsilonDecay",
         "EpsilonDecayFactory",
-        "GammaOptimizer",
+        "GammaSelector",
+        "GammaOptimizer",  # Backward compatibility
         "get_recommended_gamma",
         "TRADING_STYLES",
     ]
