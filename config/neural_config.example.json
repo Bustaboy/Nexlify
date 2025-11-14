@@ -190,7 +190,9 @@
       "large": [256, 256, 128, 64],
       "xlarge": [512, 512, 256, 128, 64]
     },
-    "default_architecture": "medium"
+    "default_architecture": "medium",
+    "timeframe": "1h",
+    "manual_gamma": null
   },
 
   "epsilon_decay": {

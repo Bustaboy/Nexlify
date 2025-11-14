@@ -34,8 +34,13 @@ class CryptoTradingConfig:
     # DQN AGENT HYPERPARAMETERS
     # ========================================================================
 
-    # Discount factor (lower for fast-moving crypto markets)
+    # Discount factor (default for 24/7 crypto trading)
+    # Can be overridden by setting manual_gamma in config
+    # Or auto-selected based on timeframe using GammaSelector
     gamma: float = 0.89
+
+    # Trading timeframe (used by GammaSelector to choose optimal gamma)
+    timeframe: str = "1h"
 
     # Learning rate (aggressive for rapid adaptation)
     learning_rate: float = 0.0015
@@ -277,6 +282,9 @@ class CryptoTradingConfig:
             "batch_size": self.batch_size,
             "target_update_freq": self.target_update_freq,
             "replay_buffer_size": self.replay_buffer_size,
+
+            # Timeframe for gamma selection
+            "timeframe": self.timeframe,
 
             # Epsilon decay
             "epsilon_decay_type": self.epsilon_decay_type,

@@ -10,12 +10,13 @@ import random
 from collections import deque
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 from nexlify.strategies.epsilon_decay import EpsilonDecayFactory, EpsilonDecayStrategy
+from nexlify.strategies.gamma_selector import GammaSelector, get_recommended_gamma
 from nexlify.config.crypto_trading_config import CRYPTO_24_7_CONFIG, FEATURE_PERIODS
 from nexlify.config.fee_providers import FeeProvider, FeeEstimate
 
@@ -529,7 +530,10 @@ class DQNAgent:
         self.config.update(kwargs)
 
         # Hyperparameters (pull from central config or override)
-        self.gamma = self.config.get("gamma", CRYPTO_24_7_CONFIG.gamma)
+        # Initialize gamma selector (selects optimal static gamma based on timeframe)
+        self.gamma_selector = self._create_gamma_selector()
+        self.gamma = self.gamma_selector.get_gamma()
+
         self.learning_rate = self.config.get("learning_rate", CRYPTO_24_7_CONFIG.learning_rate)
         self.learning_rate_decay = self.config.get("learning_rate_decay", CRYPTO_24_7_CONFIG.learning_rate_decay)
         self.batch_size = self.config.get("batch_size", CRYPTO_24_7_CONFIG.batch_size)
@@ -593,6 +597,34 @@ class DQNAgent:
             epsilon_end=epsilon_end,
             schedule=schedule,
         )
+
+    def _create_gamma_selector(self) -> GammaSelector:
+        """Create gamma selector from config"""
+        # Check for manual gamma override
+        manual_gamma = self.config.get("manual_gamma", None)
+
+        # BACKWARD COMPATIBILITY: Check if gamma was explicitly set
+        if manual_gamma is None and "gamma" in self.config:
+            manual_gamma = self.config["gamma"]
+            logger.info(f"🔙 Legacy gamma={manual_gamma:.3f} detected")
+
+        # DEFAULT FOR CRYPTO 24/7 TRADING: If no gamma specified, use 0.89
+        # This provides backward compatibility and crypto-optimized default
+        if manual_gamma is None and "gamma" not in self.config and "manual_gamma" not in self.config:
+            manual_gamma = 0.89
+            logger.info(f"🔄 Using crypto 24/7 default gamma={manual_gamma:.3f}")
+
+        # Get timeframe from config (default: 1h)
+        timeframe = self.config.get("timeframe", "1h")
+
+        # Create selector
+        selector = GammaSelector(
+            timeframe=timeframe,
+            manual_gamma=manual_gamma,
+            config=self.config
+        )
+
+        return selector
 
     def _get_device(self) -> str:
         """Detect available compute device"""
@@ -749,6 +781,14 @@ class DQNAgent:
         """Alias for decay_epsilon() for backward compatibility"""
         self.decay_epsilon()
 
+    def get_gamma_info(self) -> Dict[str, Any]:
+        """Get gamma selector information"""
+        return {
+            "gamma": self.gamma,
+            "style": self.gamma_selector.get_style_name(),
+            "timeframe": self.gamma_selector.timeframe
+        }
+
     def save(self, filepath: str):
         """Save model to file"""
         try:
@@ -759,6 +799,7 @@ class DQNAgent:
                 "optimizer_state_dict": self.optimizer.state_dict(),
                 "epsilon": self.epsilon,
                 "epsilon_step": self.epsilon_decay_strategy.current_step,
+                "gamma": self.gamma,
                 "training_history": self.training_history,
             }
 
@@ -790,6 +831,11 @@ class DQNAgent:
                 self.epsilon_decay_strategy.current_step = checkpoint["epsilon_step"]
                 self.epsilon_decay_strategy.current_epsilon = self.epsilon
 
+            # Restore gamma if saved (overrides selector default)
+            if "gamma" in checkpoint:
+                self.gamma = checkpoint["gamma"]
+                logger.info(f"✅ Restored gamma={self.gamma:.3f} from checkpoint")
+
             self.update_target_model()
 
             logger.info(f"✅ Model loaded from {filepath}")
@@ -819,6 +865,7 @@ class DQNAgent:
                 p.numel() for p in self.model.parameters() if p.requires_grad
             )
 
+            gamma_info = self.get_gamma_info()
             return (
                 f"DQN Agent Model Summary\n"
                 f"{'='*50}\n"
@@ -830,7 +877,7 @@ class DQNAgent:
                 f"Device: {self.device}\n"
                 f"Epsilon: {self.epsilon:.4f}\n"
                 f"Learning Rate: {self.learning_rate}\n"
-                f"Gamma: {self.gamma}\n"
+                f"Gamma: {self.gamma:.3f} ({gamma_info['style']}, timeframe: {gamma_info['timeframe']})\n"
             )
 
         except Exception as e:
