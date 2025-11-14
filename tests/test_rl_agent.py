@@ -38,16 +38,19 @@ def trading_env(sample_price_data):
 
 @pytest.fixture
 def dqn_agent():
-    """Create DQN agent"""
-    return DQNAgent(
-        state_size=8,
-        action_size=3,
-        learning_rate=0.001,
-        gamma=0.95,
-        epsilon=1.0,
-        epsilon_decay=0.995,
-        epsilon_min=0.01,
-    )
+    """Create DQN agent with new epsilon decay system (legacy 8-feature for backward compat tests)"""
+    config = {
+        'learning_rate': 0.001,
+        'gamma': 0.95,
+        'epsilon_decay_type': 'exponential',
+        'epsilon_start': 1.0,
+        'epsilon_end': 0.01,
+        'epsilon_decay_rate': 0.995,
+        'epsilon_decay_steps': 10000,
+    }
+    # Note: Uses state_size=8 for backward compatibility testing
+    # Production default is now 12 features (see test_crypto_optimized_defaults)
+    return DQNAgent(state_size=8, action_size=3, config=config)
 
 
 class TestTradingEnvironment:
@@ -61,7 +64,7 @@ class TestTradingEnvironment:
         assert trading_env.position_price == 0
         assert trading_env.current_step == 0
         assert trading_env.action_space_n == 3
-        assert trading_env.state_space_n == 8
+        assert trading_env.state_space_n == 12  # Updated for crypto-specific features
         assert len(trading_env.price_data) == len(sample_price_data)
 
     def test_reset(self, trading_env):
@@ -79,14 +82,14 @@ class TestTradingEnvironment:
         assert trading_env.position == 0
         assert trading_env.position_price == 0
         assert isinstance(state, np.ndarray)
-        assert len(state) == 8
+        assert len(state) == 12  # Updated for crypto-specific features
 
     def test_get_state(self, trading_env):
         """Test state representation"""
         state = trading_env._get_state()
 
         assert isinstance(state, np.ndarray)
-        assert len(state) == 8
+        assert len(state) == 12  # Updated for crypto-specific features
         assert state.dtype == np.float32
         # Check state is normalized/reasonable
         assert np.all(np.isfinite(state))
@@ -199,14 +202,37 @@ class TestDQNAgent:
 
     def test_initialization(self, dqn_agent):
         """Test agent initialization"""
-        assert dqn_agent.state_size == 8
+        assert dqn_agent.state_size == 8  # Test fixture uses 8
         assert dqn_agent.action_size == 3
-        assert dqn_agent.learning_rate == 0.001
-        assert dqn_agent.gamma == 0.95
+        assert dqn_agent.learning_rate == 0.001  # Test fixture specifies this
+        assert dqn_agent.gamma == 0.95  # Test fixture specifies this
         assert dqn_agent.epsilon == 1.0
-        assert dqn_agent.epsilon_decay == 0.995
-        assert dqn_agent.epsilon_min == 0.01
+        # New epsilon decay system
+        assert dqn_agent.epsilon_decay_strategy is not None
+        assert dqn_agent.epsilon_decay_strategy.epsilon_start == 1.0
+        assert dqn_agent.epsilon_decay_strategy.epsilon_end == 0.01  # Test fixture specifies this
         assert len(dqn_agent.memory) == 0
+
+    def test_crypto_optimized_defaults(self):
+        """Test 24/7 crypto-optimized default configuration"""
+        from nexlify.strategies.nexlify_rl_agent import DQNAgent
+        from nexlify.strategies.epsilon_decay import ScheduledEpsilonDecay
+
+        # Create agent with NO config - should use crypto defaults
+        agent = DQNAgent(state_size=12, action_size=3)
+
+        # Verify 24/7 crypto defaults
+        assert agent.gamma == 0.89  # Lower discount for fast crypto
+        assert agent.learning_rate == 0.0015  # Aggressive learning
+        assert agent.learning_rate_decay == 0.9998
+        assert agent.batch_size == 64
+        assert agent.target_update_freq == 1200
+        assert len(agent.memory.buffer) == 0
+        assert agent.memory.max_size == 60000  # Smaller buffer for regime adaptation
+
+        # Verify scheduled epsilon decay is used by default
+        assert isinstance(agent.epsilon_decay_strategy, ScheduledEpsilonDecay)
+        assert agent.epsilon_decay_strategy.epsilon_end == 0.22  # High exploration
 
     def test_remember(self, dqn_agent):
         """Test experience replay memory"""
@@ -247,17 +273,17 @@ class TestDQNAgent:
         dqn_agent.update_epsilon()
 
         assert dqn_agent.epsilon < initial_epsilon
-        assert dqn_agent.epsilon >= dqn_agent.epsilon_min
+        assert dqn_agent.epsilon >= dqn_agent.epsilon_decay_strategy.epsilon_end
 
     def test_epsilon_minimum(self, dqn_agent):
         """Test epsilon doesn't go below minimum"""
-        dqn_agent.epsilon = 0.05
+        epsilon_end = dqn_agent.epsilon_decay_strategy.epsilon_end
 
         # Decay many times
-        for _ in range(100):
+        for _ in range(1000):
             dqn_agent.update_epsilon()
 
-        assert dqn_agent.epsilon >= dqn_agent.epsilon_min
+        assert dqn_agent.epsilon >= epsilon_end
 
     def test_replay_insufficient_memory(self, dqn_agent):
         """Test replay with insufficient memory"""

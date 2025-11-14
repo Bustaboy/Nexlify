@@ -61,7 +61,7 @@ Core engine that simulates trading with realistic conditions:
 
 OpenAI Gym-compatible environment for training RL agents:
 
-**State Space (8 features):**
+**State Space (12 features (crypto-optimized)):**
 1. Normalized balance
 2. Position size
 3. Relative entry price

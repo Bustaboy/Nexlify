@@ -40,7 +40,7 @@ from nexlify_enhanced_agent_wrapper import EnhancedAgentWrapper, create_enhanced
 from nexlify.strategies.nexlify_ultra_optimized_rl_agent import UltraOptimizedDQNAgent
 
 # Option A: Wrap existing agent
-base_agent = UltraOptimizedDQNAgent(state_size=8, action_size=3)
+base_agent = UltraOptimizedDQNAgent(state_size=12, action_size=3)
 enhanced_agent = EnhancedAgentWrapper(
     base_agent,
     gradient_clip_norm=1.0,           # Clip gradients to norm 1.0
@@ -57,7 +57,7 @@ enhanced_agent = EnhancedAgentWrapper(
 # Option B: Factory function
 enhanced_agent = create_enhanced_agent(
     UltraOptimizedDQNAgent,
-    state_size=8,
+    state_size=12,
     action_size=3,
     use_enhancements=True,
     gradient_clip_norm=1.0,

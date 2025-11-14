@@ -39,23 +39,23 @@ def test_advanced_dqn_agent():
         )
 
         # Create agent
-        agent = AdvancedDQNAgent(state_size=8, action_size=3, config=config)
+        agent = AdvancedDQNAgent(state_size=12, action_size=3, config=config)
 
         # Test act
-        state = np.random.randn(8)
+        state = np.random.randn(12)
         action = agent.act(state, training=True)
         assert 0 <= action < 3, "Action out of range"
 
         # Test remember
-        next_state = np.random.randn(8)
+        next_state = np.random.randn(12)
         agent.remember(state, action, 1.0, next_state, False)
 
         # Fill buffer a bit
         for _ in range(100):
-            s = np.random.randn(8)
+            s = np.random.randn(12)
             a = np.random.randint(0, 3)
             r = np.random.randn()
-            ns = np.random.randn(8)
+            ns = np.random.randn(12)
             d = np.random.rand() > 0.95
             agent.remember(s, a, r, ns, d)
 
@@ -95,10 +95,10 @@ def test_prioritized_replay_buffer():
 
         # Add transitions
         for i in range(50):
-            state = np.random.randn(8)
+            state = np.random.randn(12)
             action = np.random.randint(0, 3)
             reward = np.random.randn()
-            next_state = np.random.randn(8)
+            next_state = np.random.randn(12)
             done = False
             error = np.random.rand()
 
@@ -135,10 +135,10 @@ def test_dueling_dqn():
     from nexlify_advanced_dqn_agent import DuelingDQN
 
     try:
-        model = DuelingDQN(state_size=8, action_size=3, hidden_layers=[64, 32])
+        model = DuelingDQN(state_size=12, action_size=3, hidden_layers=[64, 32])
 
         # Forward pass
-        state = torch.randn(1, 8)
+        state = torch.randn(1, 12)
         q_values = model(state)
 
         assert q_values.shape == (1, 3), f"Output shape should be (1, 3), got {q_values.shape}"
@@ -214,10 +214,10 @@ def test_data_augmentation():
             augmentation_probability=1.0  # Always augment for testing
         )
 
-        agent = AdvancedDQNAgent(state_size=8, action_size=3, config=config)
+        agent = AdvancedDQNAgent(state_size=12, action_size=3, config=config)
 
         # Test augmentation
-        original_state = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0])
+        original_state = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0])
         augmented_state = agent._augment_state(original_state)
 
         # Should be different (with very high probability)
@@ -252,14 +252,14 @@ def test_n_step_returns():
             buffer_size=1000
         )
 
-        agent = AdvancedDQNAgent(state_size=8, action_size=3, config=config)
+        agent = AdvancedDQNAgent(state_size=12, action_size=3, config=config)
 
         # Add 5 transitions
         for i in range(5):
-            state = np.random.randn(8)
+            state = np.random.randn(12)
             action = np.random.randint(0, 3)
             reward = 1.0  # Constant reward for easy checking
-            next_state = np.random.randn(8)
+            next_state = np.random.randn(12)
             done = False
 
             agent.remember(state, action, reward, next_state, done)

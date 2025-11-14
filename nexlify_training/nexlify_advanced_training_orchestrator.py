@@ -605,7 +605,7 @@ class AdvancedTrainingOrchestrator:
 
         # Initialize agent (will be used across all phases for continuous learning)
         agent = UltraOptimizedDQNAgent(
-            state_size=8,  # [balance, position, entry_price, price, price_change, RSI, MACD, volume]
+            state_size=12,  # [balance, position, entry_price, price, price_change, RSI, MACD, volume]
             action_size=3,  # BUY, SELL, HOLD
             device=self.device
         )

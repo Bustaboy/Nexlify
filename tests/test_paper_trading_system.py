@@ -154,7 +154,7 @@ class TestTradingEnvironment:
     def test_initialization(self, env):
         """Test environment initialization"""
         assert env.initial_balance == 10000.0
-        assert env.state_size == 8
+        assert env.state_size == 12  # Updated for crypto-specific features
         assert env.action_size == 3
         assert env.max_steps == 100
 
@@ -163,7 +163,7 @@ class TestTradingEnvironment:
         state = env.reset()
 
         assert isinstance(state, np.ndarray)
-        assert state.shape == (8,)
+        assert state.shape == (12,)  # Updated for crypto-specific features
         assert env.current_step == 0
         assert env.balance == env.initial_balance
         assert env.position == 0.0

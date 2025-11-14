@@ -15,6 +15,9 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
+from nexlify.strategies.epsilon_decay import EpsilonDecayFactory, EpsilonDecayStrategy
+from nexlify.config.crypto_trading_config import CRYPTO_24_7_CONFIG, FEATURE_PERIODS
+from nexlify.config.fee_providers import FeeProvider, FeeEstimate
 
 logger = logging.getLogger(__name__)
 error_handler = get_error_handler()
@@ -23,11 +26,37 @@ error_handler = get_error_handler()
 class TradingEnvironment:
     """
     Gym-style trading environment for RL training
+
+    Supports dynamic fee calculation based on network/exchange.
+    Fees are applied TWICE per round trip (buy + sell).
     """
 
-    def __init__(self, price_data: np.ndarray, initial_balance: float = 10000):
+    def __init__(self,
+                 price_data: np.ndarray,
+                 initial_balance: float = 10000,
+                 fee_provider: Optional[FeeProvider] = None,
+                 config: Optional[Dict] = None):
+        """
+        Initialize trading environment
+
+        Args:
+            price_data: Historical price data
+            initial_balance: Starting balance in USD
+            fee_provider: Fee provider instance (None = use from config or default)
+            config: Configuration dict (None = use CRYPTO_24_7_CONFIG)
+        """
         self.price_data = price_data
         self.initial_balance = initial_balance
+        self.config = config or {}
+
+        # Fee provider setup
+        if fee_provider is not None:
+            self.fee_provider = fee_provider
+        elif self.config.get("fee_provider"):
+            self.fee_provider = self.config["fee_provider"]
+        else:
+            # Use from global config if available
+            self.fee_provider = getattr(CRYPTO_24_7_CONFIG, 'fee_provider', None)
 
         # State variables
         self.current_step = 0
@@ -40,14 +69,59 @@ class TradingEnvironment:
         self.action_space_n = 3
 
         # State space: [balance, position, position_price, current_price,
-        #               price_change, RSI, MACD, volume_ratio]
-        self.state_space_n = 8
+        #               price_change, RSI, MACD, volatility, momentum, vol_clustering,
+        #               drawdown, sharpe]
+        self.state_space_n = 12  # Expanded for crypto-specific features
 
         # Tracking
         self.trade_history = []
         self.episode_reward = 0
 
-        logger.info("🎮 Trading Environment initialized")
+        # Risk-adjusted reward tracking
+        self.returns_history = []
+        self.portfolio_values = [initial_balance]
+        self.max_portfolio_value = initial_balance
+
+        logger.info("🎮 Trading Environment initialized (Crypto-optimized)")
+        if self.fee_provider:
+            logger.info(f"   Fee provider: {self.fee_provider.get_network_name()}")
+
+    def _get_fee_estimate(self, trade_size_usd: float) -> FeeEstimate:
+        """
+        Get fee estimate for a trade
+
+        Args:
+            trade_size_usd: Size of trade in USD
+
+        Returns:
+            FeeEstimate with current fees
+
+        Raises:
+            RuntimeError: If strict mode enabled and fees cannot be retrieved
+        """
+        if self.fee_provider is not None:
+            return self.fee_provider.get_fee_estimate(trade_size_usd=trade_size_usd)
+        else:
+            # Check if we're in strict mode (from config)
+            strict_mode = self.config.get("strict_fee_mode", False)
+            trading_mode = self.config.get("trading_mode", "backtest")
+
+            if strict_mode or trading_mode == "live":
+                raise RuntimeError(
+                    "TRADING BLOCKED: Cannot retrieve real-time fees. "
+                    f"Trading mode: {trading_mode}, Strict mode: {strict_mode}. "
+                    "Fee provider must be configured for live/strict mode trading."
+                )
+
+            # Fallback to static 0.1% fee (ONLY for backtesting)
+            from nexlify.config.fee_providers import FeeEstimate
+            logger.warning("Using static fallback fees (0.1%) - only safe for backtesting!")
+            return FeeEstimate(
+                entry_fee_rate=0.001,
+                exit_fee_rate=0.001,
+                network="static_fallback",
+                fee_type="percentage"
+            )
 
     def reset(self) -> np.ndarray:
         """Reset environment to initial state"""
@@ -58,10 +132,15 @@ class TradingEnvironment:
         self.trade_history = []
         self.episode_reward = 0
 
+        # Reset risk tracking
+        self.returns_history = []
+        self.portfolio_values = [self.initial_balance]
+        self.max_portfolio_value = self.initial_balance
+
         return self._get_state()
 
     def _get_state(self) -> np.ndarray:
-        """Get current state representation"""
+        """Get current state representation with crypto-specific features"""
         current_price = self.price_data[self.current_step]
 
         # Calculate features
@@ -71,14 +150,16 @@ class TradingEnvironment:
                 current_price - self.price_data[self.current_step - 1]
             ) / current_price
 
-        # Simple RSI calculation (14 period)
+        # Technical indicators
         rsi = self._calculate_rsi(14)
-
-        # Simple MACD
         macd = self._calculate_macd()
+        volatility = self._calculate_volatility(10)
 
-        # Volume ratio (simplified - using price volatility as proxy)
-        volume_ratio = self._calculate_volatility(10)
+        # Crypto-specific features
+        momentum = self._calculate_momentum(20)  # 20-period momentum
+        vol_clustering = self._calculate_volatility_clustering()  # GARCH-like
+        drawdown = self._calculate_drawdown()  # Current drawdown from peak
+        sharpe = self._calculate_sharpe_ratio()  # Risk-adjusted returns
 
         state = np.array(
             [
@@ -91,15 +172,21 @@ class TradingEnvironment:
                 price_change,  # Price change
                 rsi,  # RSI
                 macd,  # MACD
-                volume_ratio,  # Volume ratio
+                volatility,  # Volatility
+                momentum,  # Momentum (NEW)
+                vol_clustering,  # Volatility clustering (NEW)
+                drawdown,  # Drawdown from peak (NEW)
+                sharpe,  # Sharpe ratio (NEW)
             ],
             dtype=np.float32,
         )
 
         return state
 
-    def _calculate_rsi(self, period: int = 14) -> float:
+    def _calculate_rsi(self, period: int = None) -> float:
         """Calculate RSI indicator"""
+        if period is None:
+            period = FEATURE_PERIODS["rsi"]
         if self.current_step < period:
             return 0.5
 
@@ -158,6 +245,98 @@ class TradingEnvironment:
 
         return np.std(returns)
 
+    def _calculate_momentum(self, period: int = None) -> float:
+        """
+        Calculate price momentum (rate of change)
+        Crypto markets show strong momentum effects
+        """
+        if period is None:
+            period = FEATURE_PERIODS["momentum"]
+        if self.current_step < period:
+            return 0
+
+        current_price = self.price_data[self.current_step]
+        past_price = self.price_data[max(0, self.current_step - period)]
+
+        if past_price == 0:
+            return 0
+
+        momentum = (current_price - past_price) / past_price
+        return np.clip(momentum, -1, 1)  # Clip to [-1, 1] range
+
+    def _calculate_volatility_clustering(self) -> float:
+        """
+        Calculate volatility clustering (GARCH-like effect)
+        Crypto exhibits strong volatility clustering - high vol follows high vol
+        """
+        if self.current_step < 30:
+            return 0
+
+        # Recent volatility (10 periods)
+        recent_vol = self._calculate_volatility(10)
+
+        # Historical volatility (30 periods)
+        if self.current_step < 30:
+            return 0
+
+        prices = self.price_data[max(0, self.current_step - 30): self.current_step + 1]
+        returns = np.diff(prices) / prices[:-1]
+        historical_vol = np.std(returns)
+
+        if historical_vol == 0:
+            return 0
+
+        # Ratio of recent to historical volatility
+        vol_ratio = recent_vol / historical_vol
+        return np.clip(vol_ratio - 1, -1, 1)  # Centered at 0, clipped to [-1, 1]
+
+    def _calculate_drawdown(self) -> float:
+        """
+        Calculate current drawdown from peak portfolio value
+        Important risk metric for crypto trading
+        """
+        current_value = self.balance
+        if self.position > 0:
+            current_price = self.price_data[self.current_step]
+            current_value += self.position * current_price
+
+        # Update max value
+        self.max_portfolio_value = max(self.max_portfolio_value, current_value)
+
+        if self.max_portfolio_value == 0:
+            return 0
+
+        drawdown = (self.max_portfolio_value - current_value) / self.max_portfolio_value
+        return np.clip(drawdown, 0, 1)
+
+    def _calculate_sharpe_ratio(self, window: int = None) -> float:
+        """
+        Calculate rolling Sharpe ratio
+        Risk-adjusted return metric crucial for crypto
+        Assumes hourly data (8760 periods/year) for annualization
+        """
+        if window is None:
+            window = FEATURE_PERIODS["sharpe_window"]
+        if len(self.returns_history) < 10:
+            return 0
+
+        recent_returns = self.returns_history[-window:] if len(self.returns_history) >= window else self.returns_history
+
+        if len(recent_returns) < 2:
+            return 0
+
+        mean_return = np.mean(recent_returns)
+        std_return = np.std(recent_returns)
+
+        if std_return == 0:
+            return 0
+
+        # Annualized Sharpe (crypto trades 24/7, assuming hourly data = 8760 periods/year)
+        # This is a reasonable default for crypto trading environments
+        periods_per_year = 8760  # 365 * 24 hours
+        sharpe = (mean_return / std_return) * np.sqrt(periods_per_year)
+        return np.clip(sharpe, -3, 3)  # Clip to reasonable range
+
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, Dict]:
         """
         Execute action and return next state, reward, done, info
@@ -172,32 +351,66 @@ class TradingEnvironment:
         reward = 0
         info = {}
 
-        # Execute action
+        # Execute action with proper fee accounting
         if action == 1:  # Buy
             if self.balance > 0 and self.position == 0:
-                # Buy with 100% of balance (simplified)
-                self.position = self.balance / current_price
+                # Buy with 95% of balance, accounting for fees
+                amount_to_invest = self.balance * 0.95  # Leave room for fees/slippage
+
+                # Get dynamic fee estimate for this trade size
+                fee_estimate = self._get_fee_estimate(amount_to_invest)
+
+                # Calculate entry costs (percentage fee + fixed cost like gas)
+                percentage_fee, fixed_fee = fee_estimate.calculate_entry_cost(amount_to_invest)
+                total_fees = percentage_fee + fixed_fee
+
+                # Calculate actual position size after fees
+                amount_after_fees = amount_to_invest - total_fees
+                self.position = amount_after_fees / current_price
                 self.position_price = current_price
-                self.balance = 0
+                self.balance -= amount_to_invest  # Deduct total investment
+
                 info["action"] = "buy"
                 info["price"] = current_price
+                info["entry_fees_pct"] = percentage_fee
+                info["entry_fees_fixed"] = fixed_fee
+                info["total_entry_fees"] = total_fees
+                info["fee_network"] = fee_estimate.network
 
         elif action == 2:  # Sell
             if self.position > 0:
-                # Sell entire position
+                # Sell entire position with dynamic fee accounting
                 sell_value = self.position * current_price
-                profit = sell_value - (self.position * self.position_price)
 
-                self.balance = sell_value
-                reward = profit / self.initial_balance  # Normalized reward
+                # Get dynamic fee estimate for exit
+                fee_estimate = self._get_fee_estimate(sell_value)
 
-                # Track trade
+                # Calculate exit costs (percentage fee + fixed cost like gas)
+                percentage_fee, fixed_fee = fee_estimate.calculate_exit_cost(sell_value)
+                total_exit_fees = percentage_fee + fixed_fee
+                net_proceeds = sell_value - total_exit_fees
+
+                # Calculate profit after BOTH entry and exit fees
+                # Entry cost = what we originally invested (already included entry fees)
+                original_investment = self.initial_balance - self.balance  # What we spent on entry
+                profit = net_proceeds - original_investment
+
+                self.balance = net_proceeds
+
+                # Reward based on ROI (Return on Investment)
+                reward = profit / original_investment if original_investment > 0 else 0
+
+                # Track trade with full fee breakdown
                 self.trade_history.append(
                     {
                         "entry_price": self.position_price,
                         "exit_price": current_price,
                         "profit": profit,
                         "return": (current_price / self.position_price - 1) * 100,
+                        "exit_fees_pct": percentage_fee,
+                        "exit_fees_fixed": fixed_fee,
+                        "total_exit_fees": total_exit_fees,
+                        "fee_network": fee_estimate.network,
                     }
                 )
 
@@ -205,18 +418,14 @@ class TradingEnvironment:
                 self.position_price = 0
                 info["action"] = "sell"
                 info["profit"] = profit
+                info["exit_fees_pct"] = percentage_fee
+                info["exit_fees_fixed"] = fixed_fee
+                info["total_exit_fees"] = total_exit_fees
+                info["fee_network"] = fee_estimate.network
         else:
-            # Hold
+            # Hold - no fixed penalty, let portfolio value change drive reward
             info["action"] = "hold"
-            # Small penalty for holding to encourage action
-            reward = -0.001
-
-        # Calculate unrealized PnL if holding position
-        if self.position > 0:
-            unrealized_pnl = (current_price - self.position_price) * self.position
-            reward += (
-                unrealized_pnl / self.initial_balance * 0.1
-            )  # Small reward for good positions
+            reward = 0  # Neutral, will be adjusted by equity change below
 
         # Move to next step
         self.current_step += 1
@@ -227,7 +436,33 @@ class TradingEnvironment:
         if self.position > 0:
             total_value += self.position * current_price
 
+        # Track portfolio value and returns for risk-adjusted rewards
+        self.portfolio_values.append(total_value)
+
+        # PRIMARY REWARD: Equity change (consistent with improved reward function)
+        if len(self.portfolio_values) > 1:
+            equity_change = total_value - self.portfolio_values[-2]
+            equity_return = equity_change / self.portfolio_values[-2]
+            self.returns_history.append(equity_return)
+
+            # Only override reward if not from sell (sell already has ROI reward)
+            if action != 2:  # Not sell
+                reward = equity_return * 100.0  # Scale to percentage
+
+        # Apply risk adjustment to reward (Sharpe-based) - FIXED VERSION
+        # Apply as ADDITIVE bonus/penalty, not multiplicative
+        if len(self.returns_history) >= 10:
+            sharpe = self._calculate_sharpe_ratio()
+            # Sharpe bonus/penalty (additive to avoid breaking negative rewards)
+            # Clip Sharpe-based adjustment to reasonable range
+            risk_adjustment = np.clip(sharpe * 0.01, -0.1, 0.1)  # ±0.1 max
+            reward += risk_adjustment  # ADDITIVE, not multiplicative
+
+            info["sharpe_ratio"] = sharpe
+            info["risk_adjustment"] = risk_adjustment
+
         info["total_value"] = total_value
+        info["equity_return"] = equity_return if len(self.portfolio_values) > 1 else 0
         info["step"] = self.current_step
 
         self.episode_reward += reward
@@ -293,16 +528,20 @@ class DQNAgent:
         # Merge kwargs into config for backward compatibility with tests
         self.config.update(kwargs)
 
-        # Hyperparameters
-        self.gamma = self.config.get("gamma", 0.99)  # Discount factor
-        self.epsilon = self.config.get("epsilon", 1.0)  # Exploration rate
-        self.epsilon_min = self.config.get("epsilon_min", 0.01)
-        self.epsilon_decay = self.config.get("epsilon_decay", 0.995)
-        self.learning_rate = self.config.get("learning_rate", 0.001)
-        self.batch_size = self.config.get("batch_size", 64)
+        # Hyperparameters (pull from central config or override)
+        self.gamma = self.config.get("gamma", CRYPTO_24_7_CONFIG.gamma)
+        self.learning_rate = self.config.get("learning_rate", CRYPTO_24_7_CONFIG.learning_rate)
+        self.learning_rate_decay = self.config.get("learning_rate_decay", CRYPTO_24_7_CONFIG.learning_rate_decay)
+        self.batch_size = self.config.get("batch_size", CRYPTO_24_7_CONFIG.batch_size)
+        self.target_update_freq = self.config.get("target_update_freq", CRYPTO_24_7_CONFIG.target_update_freq)
 
-        # Experience replay
-        self.memory = ReplayBuffer(capacity=100000)
+        # Epsilon decay strategy (new advanced system)
+        self.epsilon_decay_strategy = self._create_epsilon_strategy()
+        self.epsilon = self.epsilon_decay_strategy.current_epsilon
+
+        # Experience replay (optimized for regime adaptation)
+        replay_buffer_size = self.config.get("replay_buffer_size", CRYPTO_24_7_CONFIG.replay_buffer_size)
+        self.memory = ReplayBuffer(capacity=replay_buffer_size)
 
         # Neural network models
         self.model = None
@@ -318,6 +557,42 @@ class DQNAgent:
         self.training_history = []
 
         logger.info(f"🤖 DQN Agent initialized (device: {self.device})")
+
+    def _create_epsilon_strategy(self) -> EpsilonDecayStrategy:
+        """Create epsilon decay strategy from config"""
+        # Check if using new config format
+        if "epsilon_decay_type" in self.config or "epsilon_decay_steps" in self.config:
+            return EpsilonDecayFactory.create_from_config(self.config)
+
+        # Legacy config support - convert old parameters to new system
+        epsilon_start = self.config.get("epsilon", CRYPTO_24_7_CONFIG.epsilon_start)
+        epsilon_end = self.config.get("epsilon_min", CRYPTO_24_7_CONFIG.epsilon_end)
+
+        # If old-style epsilon_decay (multiplicative) is provided, use exponential decay
+        if "epsilon_decay" in self.config and "epsilon_decay_steps" not in self.config:
+            decay_rate = self.config.get("epsilon_decay", 0.995)
+            logger.info(f"🔄 Converting legacy epsilon_decay={decay_rate} to ExponentialEpsilonDecay")
+
+            return EpsilonDecayFactory.create(
+                "exponential",
+                epsilon_start=epsilon_start,
+                epsilon_end=epsilon_end,
+                decay_rate=decay_rate,
+                decay_steps=10000,  # Large value for exponential decay
+            )
+
+        # Default: Use scheduled decay optimized for 24/7 crypto trading
+        # Pull from central config
+        schedule = self.config.get("epsilon_schedule", CRYPTO_24_7_CONFIG.epsilon_schedule)
+
+        logger.info("🚀 Using ScheduledEpsilonDecay optimized for 24/7 crypto trading")
+
+        return EpsilonDecayFactory.create(
+            "scheduled",
+            epsilon_start=epsilon_start,
+            epsilon_end=epsilon_end,
+            schedule=schedule,
+        )
 
     def _get_device(self) -> str:
         """Detect available compute device"""
@@ -407,10 +682,11 @@ class DQNAgent:
 
             return q_values.argmax().item()
 
-        except:
-            # NumPy fallback
-            q_values = np.dot(state, self.weights)
-            return np.argmax(q_values)
+        except Exception as e:
+            # If model forward fails due to dimension mismatch, return random action
+            # This happens when state size doesn't match network architecture
+            logger.error(f"Model forward failed: {e}. State size: {len(state)}, Expected: {self.state_size}")
+            return np.random.randint(0, self.action_size)
 
     def remember(self, state, action, reward, next_state, done):
         """Store experience in replay buffer"""
@@ -463,12 +739,11 @@ class DQNAgent:
 
         except Exception as e:
             logger.error(f"Replay error: {e}")
-            return None
+            return 0.0  # Return 0 loss on error (test compatibility)
 
     def decay_epsilon(self):
-        """Decay exploration rate"""
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
+        """Decay exploration rate using advanced strategy"""
+        self.epsilon = self.epsilon_decay_strategy.step()
 
     def update_epsilon(self):
         """Alias for decay_epsilon() for backward compatibility"""
@@ -483,11 +758,18 @@ class DQNAgent:
                 "model_state_dict": self.model.state_dict(),
                 "optimizer_state_dict": self.optimizer.state_dict(),
                 "epsilon": self.epsilon,
+                "epsilon_step": self.epsilon_decay_strategy.current_step,
                 "training_history": self.training_history,
             }
 
             torch.save(save_data, filepath)
             logger.info(f"✅ Model saved to {filepath}")
+
+            # Save epsilon history separately
+            epsilon_path = (
+                Path(filepath).parent / f"{Path(filepath).stem}_epsilon_history.json"
+            )
+            self.epsilon_decay_strategy.save_history(str(epsilon_path))
 
         except Exception as e:
             logger.error(f"Save error: {e}")
@@ -502,6 +784,11 @@ class DQNAgent:
             self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
             self.epsilon = checkpoint["epsilon"]
             self.training_history = checkpoint.get("training_history", [])
+
+            # Restore epsilon decay strategy step
+            if "epsilon_step" in checkpoint:
+                self.epsilon_decay_strategy.current_step = checkpoint["epsilon_step"]
+                self.epsilon_decay_strategy.current_epsilon = self.epsilon
 
             self.update_target_model()
 

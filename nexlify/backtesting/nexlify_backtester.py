@@ -649,7 +649,7 @@ class RLStrategy(BaseStrategy):
             model_path = Path("models/rl_agent_trained.pth")
 
             if model_path.exists():
-                self.rl_agent = DQNAgent(state_size=8, action_size=3)
+                self.rl_agent = DQNAgent(state_size=12, action_size=3)
                 self.rl_agent.load(str(model_path))
                 logger.info("🧠 RL agent loaded for backtesting")
         except Exception as e:

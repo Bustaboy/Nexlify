@@ -313,7 +313,7 @@ class PaperTradingOrchestrator:
         # Get paper trading engine
         paper_engine = self.agent_engines[agent_id]
 
-        # Build state vector (8 features matching RL agent expectations)
+        # Build state vector (12 features (crypto-optimized) matching RL agent expectations)
         state = np.array(
             [
                 paper_engine.current_balance

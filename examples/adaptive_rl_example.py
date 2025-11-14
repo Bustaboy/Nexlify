@@ -32,7 +32,7 @@ def example_1_auto_detection():
 
     # Create agent with automatic hardware detection
     agent = create_optimized_agent(
-        state_size=8,
+        state_size=12,
         action_size=3,
         auto_detect=True  # This is the default
     )
@@ -61,7 +61,7 @@ def example_2_manual_override():
     }
 
     agent = create_optimized_agent(
-        state_size=8,
+        state_size=12,
         action_size=3,
         auto_detect=True,
         config_override=custom_config
@@ -171,7 +171,7 @@ def example_5_save_load():
     print("=" * 70)
 
     # Create agent
-    agent = create_optimized_agent(state_size=8, action_size=3)
+    agent = create_optimized_agent(state_size=12, action_size=3)
 
     # Save model
     save_path = "models/example_model.pth"
@@ -180,7 +180,7 @@ def example_5_save_load():
     print(f"\n💾 Model saved to {save_path}")
 
     # Load model
-    new_agent = create_optimized_agent(state_size=8, action_size=3)
+    new_agent = create_optimized_agent(state_size=12, action_size=3)
     new_agent.load(save_path)
     print(f"✅ Model loaded from {save_path}")
 

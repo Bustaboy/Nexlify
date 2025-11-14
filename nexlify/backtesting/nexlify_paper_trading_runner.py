@@ -261,14 +261,14 @@ class PaperTradingRunner:
         try:
             if agent_config.agent_type == "rl_adaptive":
                 agent = create_optimized_agent(
-                    state_size=8,
+                    state_size=12,
                     action_size=3,
                     auto_detect=True,
                     config_override=agent_config.config,
                 )
             elif agent_config.agent_type == "rl_ultra":
                 agent = create_ultra_optimized_agent(
-                    state_size=8,
+                    state_size=12,
                     action_size=3,
                     profile=OptimizationProfile.AUTO,
                     enable_sentiment=agent_config.config.get("enable_sentiment", False),

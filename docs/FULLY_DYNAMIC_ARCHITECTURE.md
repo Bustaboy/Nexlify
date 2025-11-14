@@ -465,7 +465,7 @@ from nexlify.strategies.nexlify_fully_dynamic_rl_agent import create_fully_dynam
 
 # Create agent - it automatically optimizes for your hardware
 agent = create_fully_dynamic_agent(
-    state_size=8,
+    state_size=12,
     action_size=3,
     auto_optimize=True  # Enable continuous optimization
 )

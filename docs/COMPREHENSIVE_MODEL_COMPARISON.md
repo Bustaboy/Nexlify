@@ -57,7 +57,7 @@ class DQNAgent:
 - ❌ No gradient accumulation
 - ❌ Single model size for all hardware
 
-**State Space** (8 features):
+**State Space** (12 features (crypto-optimized)):
 ```python
 state = [
     balance / initial_balance,
@@ -229,7 +229,7 @@ state = np.array([
 ```
 
 **Limitations**:
-- Only 8 features
+- Only 12 features (crypto-optimized)
 - Basic technical indicators
 - No advanced analytics
 - Limited market context
@@ -758,7 +758,7 @@ models/perfect_ml/
 
 ```python
 # RL agent
-rl_agent = DQNAgent(state_size=8, action_size=3)
+rl_agent = DQNAgent(state_size=12, action_size=3)
 
 # Predictive engine (not really ML)
 predictor = PredictiveEngine()
