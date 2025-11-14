@@ -260,20 +260,11 @@ def print_gamma_recommendations():
 
 
 # ============================================================================
-# BACKWARD COMPATIBILITY
-# ============================================================================
-
-# Alias for backward compatibility
-GammaOptimizer = GammaSelector
-
-
-# ============================================================================
 # MODULE EXPORTS
 # ============================================================================
 
 __all__ = [
     "GammaSelector",
-    "GammaOptimizer",  # Backward compatibility
     "TradingStyle",
     "TRADING_STYLES",
     "TIMEFRAME_TO_HOURS",

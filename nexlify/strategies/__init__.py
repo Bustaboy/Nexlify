@@ -13,9 +13,12 @@ from nexlify.strategies.epsilon_decay import (
 )
 from nexlify.strategies.gamma_selector import (
     GammaSelector,
-    GammaOptimizer,  # Backward compatibility alias
     get_recommended_gamma,
     TRADING_STYLES,
+)
+from nexlify.strategies.multi_gamma_trainer import (
+    MultiGammaTrainer,
+    HardwareBenchmark,
 )
 
 # Backward compatibility aliases
@@ -45,9 +48,10 @@ try:
         "ExponentialEpsilonDecay",
         "EpsilonDecayFactory",
         "GammaSelector",
-        "GammaOptimizer",  # Backward compatibility
         "get_recommended_gamma",
         "TRADING_STYLES",
+        "MultiGammaTrainer",
+        "HardwareBenchmark",
     ]
 except ImportError:
     # Ultra-optimized agent not available (missing dependencies)
@@ -66,7 +70,8 @@ except ImportError:
         "ExponentialEpsilonDecay",
         "EpsilonDecayFactory",
         "GammaSelector",
-        "GammaOptimizer",  # Backward compatibility
         "get_recommended_gamma",
         "TRADING_STYLES",
+        "MultiGammaTrainer",
+        "HardwareBenchmark",
     ]
