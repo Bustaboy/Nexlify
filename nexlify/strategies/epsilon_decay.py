@@ -45,12 +45,15 @@ class EpsilonDecayStrategy(ABC):
 
     def step(self) -> float:
         """
-        Update and return epsilon for current step
+        Update and return epsilon for next step
 
         Returns:
-            Current epsilon value
+            Next epsilon value (after decay)
         """
+        # Increment step first, then calculate epsilon
+        self.current_step += 1
         self.current_epsilon = self.get_epsilon(self.current_step)
+
         self.epsilon_history.append({
             'step': self.current_step,
             'epsilon': self.current_epsilon
@@ -59,7 +62,6 @@ class EpsilonDecayStrategy(ABC):
         # Check and log threshold crossings
         self._check_thresholds()
 
-        self.current_step += 1
         return self.current_epsilon
 
     def _check_thresholds(self):

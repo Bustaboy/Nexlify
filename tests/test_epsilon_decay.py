@@ -437,7 +437,7 @@ class TestDQNAgentIntegration:
         """Test legacy config is converted to new system"""
         from nexlify.strategies.nexlify_rl_agent import DQNAgent
 
-        # Old style config
+        # Old style config with epsilon_decay (multiplicative)
         config = {
             'epsilon': 1.0,
             'epsilon_min': 0.01,
@@ -446,9 +446,9 @@ class TestDQNAgentIntegration:
 
         agent = DQNAgent(state_size=8, action_size=3, config=config)
 
-        # Should still create a strategy (linear by default)
+        # Should create exponential strategy when epsilon_decay is provided
         assert hasattr(agent, 'epsilon_decay_strategy')
-        assert isinstance(agent.epsilon_decay_strategy, LinearEpsilonDecay)
+        assert isinstance(agent.epsilon_decay_strategy, ExponentialEpsilonDecay)
 
 
 if __name__ == '__main__':
