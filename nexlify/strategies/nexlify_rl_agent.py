@@ -249,8 +249,10 @@ class TradingEnvironment:
 class ReplayBuffer:
     """Experience replay buffer for DQN"""
 
-    def __init__(self, capacity: int = 100000):
-        self.buffer = deque(maxlen=capacity)
+    def __init__(self, capacity: int = None, max_size: int = None):
+        # Support both capacity and max_size for backward compatibility
+        size = capacity or max_size or 100000
+        self.buffer = deque(maxlen=size)
 
     def push(self, state, action, reward, next_state, done):
         """Add experience to buffer"""
@@ -270,10 +272,13 @@ class DQNAgent:
     Uses neural network to approximate Q-values
     """
 
-    def __init__(self, state_size: int, action_size: int, config: Dict = None):
+    def __init__(self, state_size: int, action_size: int, config: Dict = None, **kwargs):
         self.state_size = state_size
         self.action_size = action_size
         self.config = config or {}
+
+        # Merge kwargs into config for backward compatibility with tests
+        self.config.update(kwargs)
 
         # Hyperparameters
         self.gamma = self.config.get("gamma", 0.99)  # Discount factor
