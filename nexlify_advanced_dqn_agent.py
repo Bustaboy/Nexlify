@@ -247,15 +247,19 @@ class AgentConfig:
     # Network architecture
     hidden_layers: List[int] = None  # Will be set dynamically
 
-    # Training hyperparameters
-    gamma: float = 0.99  # Discount factor
-    learning_rate: float = 0.001
-    batch_size: int = 64
+    # Training hyperparameters (OPTIMIZED for trading)
+    gamma: float = 0.95  # OPTIMIZED: 0.99 → 0.95 (shorter planning horizon)
+    learning_rate: float = 0.0003  # OPTIMIZED: 0.001 → 0.0003 (more stable)
+    batch_size: int = 128  # OPTIMIZED: 64 → 128 (better gradients)
 
-    # Exploration
+    # Exploration (CRITICAL FIX!)
     epsilon_start: float = 1.0
-    epsilon_end: float = 0.01
+    epsilon_end: float = 0.05  # OPTIMIZED: 0.01 → 0.05 (maintain exploration)
     epsilon_decay: float = 0.995
+
+    # LINEAR epsilon decay (CRITICAL: enables learning!)
+    use_linear_epsilon_decay: bool = True  # OPTIMIZED: False → True (was blocking learning!)
+    epsilon_decay_steps: int = 2000  # Linear decay 1.0 → 0.05 over 2000 steps
 
     # Replay buffer
     buffer_size: int = 100000
@@ -265,16 +269,16 @@ class AgentConfig:
     per_beta_increment: float = 0.001
 
     # N-step returns
-    n_step: int = 3  # Number of steps for n-step returns
+    n_step: int = 5  # OPTIMIZED: 3 → 5 (better credit assignment)
 
     # Target network
-    target_update_frequency: int = 1000  # Steps between target network updates
+    target_update_frequency: int = 500  # OPTIMIZED: 1000 → 500 (faster sync)
 
     # Phase 1: Best practices
     gradient_clip_norm: float = 1.0
     weight_decay: float = 1e-5  # L2 regularization
-    lr_scheduler_type: str = 'plateau'  # 'plateau', 'cosine', or 'none'
-    lr_scheduler_patience: int = 5
+    lr_scheduler_type: str = 'cosine'  # OPTIMIZED: 'plateau' → 'cosine'
+    lr_scheduler_patience: int = 10  # OPTIMIZED: 5 → 10
     lr_scheduler_factor: float = 0.5
     lr_min: float = 1e-6
 
@@ -282,12 +286,12 @@ class AgentConfig:
     use_double_dqn: bool = True
     use_dueling_dqn: bool = True
     use_swa: bool = True
-    swa_start: int = 5000  # Training steps before SWA starts
-    swa_lr: float = 0.0005
+    swa_start: int = 3000  # OPTIMIZED: 5000 → 3000 (earlier)
+    swa_lr: float = 0.0001  # OPTIMIZED: 0.0005 → 0.0001
 
     # Phase 3: Expert techniques
-    use_data_augmentation: bool = True
-    augmentation_probability: float = 0.5
+    use_data_augmentation: bool = False  # OPTIMIZED: True → False (simpler initially)
+    augmentation_probability: float = 0.3  # OPTIMIZED: 0.5 → 0.3
 
     # Early stopping
     early_stop_patience: int = 10
@@ -600,8 +604,15 @@ class AdvancedDQNAgent:
             self.lr_scheduler.step()
 
         # Decay epsilon
-        self.epsilon = max(self.config.epsilon_end,
-                          self.epsilon * self.config.epsilon_decay)
+        if self.config.use_linear_epsilon_decay:
+            # Linear decay from start to end over epsilon_decay_steps
+            decay_rate = (self.config.epsilon_start - self.config.epsilon_end) / self.config.epsilon_decay_steps
+            self.epsilon = max(self.config.epsilon_end,
+                             self.config.epsilon_start - decay_rate * self.training_steps)
+        else:
+            # Multiplicative decay (original method)
+            self.epsilon = max(self.config.epsilon_end,
+                              self.epsilon * self.config.epsilon_decay)
 
         # Track metrics
         if self.config.track_metrics:

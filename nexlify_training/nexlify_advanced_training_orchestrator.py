@@ -28,6 +28,9 @@ import json
 from dataclasses import dataclass, asdict
 import torch
 
+# Import auto-tuner
+from nexlify_rl_auto_tuner import AutoHyperparameterTuner, TuningMetrics
+
 from nexlify_data.nexlify_historical_data_fetcher import HistoricalDataFetcher, FetchConfig
 from nexlify_data.nexlify_external_features import ExternalFeatureEnricher
 from nexlify_ml.nexlify_feature_engineering import AdvancedFeatureEngineer
@@ -91,7 +94,8 @@ class AdvancedTrainingOrchestrator:
         self,
         output_dir: str = "./training_output",
         cache_enabled: bool = True,
-        device: Optional[str] = None
+        device: Optional[str] = None,
+        enable_auto_tuning: bool = True
     ):
         """
         Initialize the training orchestrator
@@ -100,6 +104,7 @@ class AdvancedTrainingOrchestrator:
             output_dir: Directory for saving models and results
             cache_enabled: Whether to use data caching
             device: Training device ('cuda', 'cpu', or None for auto)
+            enable_auto_tuning: Enable automatic hyperparameter tuning (default: True)
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -118,6 +123,21 @@ class AdvancedTrainingOrchestrator:
         self.data_fetcher = HistoricalDataFetcher()
         self.feature_enricher = ExternalFeatureEnricher()
         self.feature_engineer = AdvancedFeatureEngineer()
+
+        # Initialize auto-tuner
+        self.enable_auto_tuning = enable_auto_tuning
+        if enable_auto_tuning:
+            self.auto_tuner = AutoHyperparameterTuner(
+                window_size=50,
+                min_episodes_before_tuning=100,
+                tuning_frequency=50,
+                enable_lr_tuning=True,
+                enable_epsilon_tuning=True,
+                verbose=True
+            )
+            logger.info("🎯 Automatic hyperparameter tuning ENABLED")
+        else:
+            self.auto_tuner = None
 
         # Training state
         self.cache_enabled = cache_enabled
@@ -439,6 +459,49 @@ class AdvancedTrainingOrchestrator:
             phase_metrics.append(metrics)
             self.all_metrics.append(metrics)
 
+            # Auto-tune hyperparameters based on performance
+            if self.auto_tuner is not None:
+                # Calculate average metrics over recent episodes
+                recent_window = min(50, len(phase_metrics))
+                recent_metrics = phase_metrics[-recent_window:]
+
+                avg_return = np.mean([m.return_pct for m in recent_metrics])
+                avg_sharpe = np.mean([m.sharpe_ratio for m in recent_metrics])
+                avg_win_rate = np.mean([m.win_rate for m in recent_metrics])
+                avg_loss = np.mean([m.avg_loss for m in recent_metrics])
+
+                # Get Q-value statistics from agent
+                q_values = agent.metrics.get('q_value_history', [])
+                q_mean = np.mean(q_values[-100:]) if q_values else 0.0
+                q_std = np.std(q_values[-100:]) if q_values else 0.0
+
+                # Create tuning metrics
+                tuning_metrics = TuningMetrics(
+                    episode=episode,
+                    avg_return=avg_return,
+                    avg_sharpe=avg_sharpe,
+                    win_rate=avg_win_rate,
+                    epsilon=agent.epsilon,
+                    learning_rate=agent.optimizer.param_groups[0]['lr'],
+                    avg_loss=avg_loss,
+                    q_value_mean=q_mean,
+                    q_value_std=q_std
+                )
+
+                # Get auto-tuning adjustments
+                adjustments = self.auto_tuner.update(tuning_metrics)
+
+                # Apply adjustments
+                if adjustments:
+                    if 'epsilon' in adjustments:
+                        agent.epsilon = adjustments['epsilon']
+                        logger.info(f"   🎯 Auto-tuned epsilon → {agent.epsilon:.4f}")
+
+                    if 'learning_rate' in adjustments:
+                        for param_group in agent.optimizer.param_groups:
+                            param_group['lr'] = adjustments['learning_rate']
+                        logger.info(f"   🎯 Auto-tuned learning rate → {adjustments['learning_rate']:.6f}")
+
             # Logging
             if episode % 10 == 0:
                 logger.info(
@@ -480,6 +543,20 @@ class AdvancedTrainingOrchestrator:
 
         logger.info(f"\n✓ Completed {phase.name}")
         logger.info(f"Best episode reward: {best_episode_reward:.2f}")
+
+        # Log auto-tuner summary
+        if self.auto_tuner is not None:
+            summary = self.auto_tuner.get_summary()
+            logger.info("\n" + "="*80)
+            logger.info("🎯 AUTO-TUNING SUMMARY")
+            logger.info("="*80)
+            logger.info(f"Total adjustments made: {summary['total_adjustments']}")
+            logger.info(f"Final performance trend: {summary['performance_trend']}")
+            logger.info(f"Episodes since improvement: {summary['episodes_since_improvement']}")
+            logger.info(f"Best performance: {summary['best_performance']:.2f}%")
+            logger.info(f"Recent avg return: {summary['recent_avg_return']:.2f}%")
+            logger.info(f"Recent avg Sharpe: {summary['recent_avg_sharpe']:.2f}")
+            logger.info("="*80 + "\n")
 
         return phase_metrics
 
