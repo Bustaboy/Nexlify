@@ -222,6 +222,39 @@
     }
   },
 
+  "ensemble": {
+    "enabled": false,
+    "strategy": "weighted_avg",
+    "ensemble_size": 3,
+    "diversity_penalty": 0.1,
+    "high_uncertainty_threshold": 0.5,
+    "meta_model_hidden_size": 64,
+    "meta_learning_rate": 0.001,
+    "training": {
+      "num_models": 5,
+      "episodes_per_model": 1000,
+      "parallel_training": true,
+      "max_workers": null,
+      "seed_start": 42,
+      "epsilon_variations": true,
+      "save_all_checkpoints": true,
+      "validation_episodes": 100,
+      "output_dir": "./models/ensemble"
+    },
+    "model_selection": {
+      "selection_method": "diverse",
+      "min_validation_score": 0.0,
+      "max_correlation": 0.8,
+      "use_diversity_penalty": true
+    },
+    "inference": {
+      "return_uncertainty": true,
+      "log_high_uncertainty": true,
+      "log_disagreements": true,
+      "uncertainty_action": "warn"
+    }
+  },
+
   "paths": {
     "data_dir": "data",
     "logs_dir": "logs",
