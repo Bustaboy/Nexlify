@@ -142,7 +142,7 @@ def demo_dqn_agent_integration():
 
     print(f"\nAgent Config: {config}")
 
-    agent = DQNAgent(state_size=8, action_size=3, config=config)
+    agent = DQNAgent(state_size=12, action_size=3, config=config)
 
     print(f"\nAgent created with:")
     print(f"  Strategy: {type(agent.epsilon_decay_strategy).__name__}")

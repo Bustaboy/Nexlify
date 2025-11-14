@@ -406,7 +406,7 @@ class TestDQNAgentIntegration:
             'epsilon_decay_steps': 2000
         }
 
-        agent = DQNAgent(state_size=8, action_size=3, config=config)
+        agent = DQNAgent(state_size=12, action_size=3, config=config)
 
         assert hasattr(agent, 'epsilon_decay_strategy')
         assert isinstance(agent.epsilon_decay_strategy, LinearEpsilonDecay)
@@ -423,7 +423,7 @@ class TestDQNAgentIntegration:
             'epsilon_decay_steps': 100
         }
 
-        agent = DQNAgent(state_size=8, action_size=3, config=config)
+        agent = DQNAgent(state_size=12, action_size=3, config=config)
 
         initial_epsilon = agent.epsilon
 
@@ -444,7 +444,7 @@ class TestDQNAgentIntegration:
             'epsilon_decay': 0.995
         }
 
-        agent = DQNAgent(state_size=8, action_size=3, config=config)
+        agent = DQNAgent(state_size=12, action_size=3, config=config)
 
         # Should create exponential strategy when epsilon_decay is provided
         assert hasattr(agent, 'epsilon_decay_strategy')

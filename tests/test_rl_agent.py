@@ -38,7 +38,7 @@ def trading_env(sample_price_data):
 
 @pytest.fixture
 def dqn_agent():
-    """Create DQN agent with new epsilon decay system"""
+    """Create DQN agent with new epsilon decay system (legacy 8-feature for backward compat tests)"""
     config = {
         'learning_rate': 0.001,
         'gamma': 0.95,
@@ -48,6 +48,8 @@ def dqn_agent():
         'epsilon_decay_rate': 0.995,
         'epsilon_decay_steps': 10000,
     }
+    # Note: Uses state_size=8 for backward compatibility testing
+    # Production default is now 12 features (see test_crypto_optimized_defaults)
     return DQNAgent(state_size=8, action_size=3, config=config)
 
 

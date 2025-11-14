@@ -146,14 +146,14 @@ from nexlify.strategies.nexlify_rl_agent import TradingEnvironment
 
 # Automatic hardware detection
 agent = create_optimized_agent(
-    state_size=8,
+    state_size=12,
     action_size=3,
     auto_detect=True
 )
 
 # Manual override
 agent = create_optimized_agent(
-    state_size=8,
+    state_size=12,
     action_size=3,
     config_override={
         'model_size': 'large',
@@ -298,7 +298,7 @@ custom_config = {
 }
 
 agent = create_optimized_agent(
-    state_size=8,
+    state_size=12,
     action_size=3,
     config_override=custom_config
 )
@@ -407,7 +407,7 @@ from nexlify.core.arasaka_neural_net import ArasakaNeuralNetwork
 from nexlify.strategies.nexlify_adaptive_rl_agent import create_optimized_agent
 
 # Load trained model
-agent = create_optimized_agent(state_size=8, action_size=3)
+agent = create_optimized_agent(state_size=12, action_size=3)
 agent.load("models/adaptive_rl/best_model.pth")
 
 # Use in trading system

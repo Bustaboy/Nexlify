@@ -57,7 +57,7 @@ class TradingEnvironment:
         initial_balance: float = 10000.0,
         fee_rate: float = 0.001,
         slippage: float = 0.0005,
-        state_size: int = 8,
+        state_size: int = 12,  # Updated for crypto-specific features
         action_size: int = 3,
         max_steps: int = 1000,
         use_paper_trading: bool = True,
@@ -645,17 +645,17 @@ class TradingEnvironment:
 
     def _get_state(self) -> np.ndarray:
         """
-        Get current state vector
+        Get current state vector with crypto-specific features
 
         Returns:
-            State vector with normalized features
+            State vector with normalized features (12 features)
         """
         current_equity = self._get_current_equity()
 
         # Calculate technical indicators from price history
         rsi = self._calculate_rsi()
         macd = self._calculate_macd()
-        volume_ratio = 1.0  # Placeholder
+        volatility = self._calculate_volatility()
 
         # Calculate price change
         if len(self.price_history) > 1:
@@ -665,7 +665,13 @@ class TradingEnvironment:
         else:
             price_change = 0.0
 
-        # Build state vector (8 features)
+        # Crypto-specific features
+        momentum = self._calculate_momentum()
+        vol_clustering = self._calculate_volatility_clustering()
+        drawdown = self._calculate_drawdown()
+        sharpe = self._calculate_sharpe_from_equity()
+
+        # Build state vector (12 features - crypto optimized)
         state = np.array(
             [
                 self.balance / self.initial_balance,  # Normalized balance
@@ -680,7 +686,11 @@ class TradingEnvironment:
                 price_change,  # Price change
                 rsi / 100,  # Normalized RSI
                 macd,  # MACD (already normalized)
-                volume_ratio,  # Volume ratio
+                volatility,  # Volatility
+                momentum,  # Momentum (NEW)
+                vol_clustering,  # Volatility clustering (NEW)
+                drawdown,  # Drawdown from peak (NEW)
+                sharpe,  # Sharpe ratio (NEW)
             ]
         )
 
@@ -725,6 +735,105 @@ class TradingEnvironment:
         macd = (ema_12 - ema_26) / ema_26  # Normalized
 
         return macd
+
+    def _calculate_volatility(self, period: int = 10) -> float:
+        """Calculate price volatility"""
+        if len(self.price_history) < period + 1:
+            return 0.0
+
+        prices = np.array(self.price_history[-(period + 1):])
+        returns = np.diff(prices) / prices[:-1]
+
+        return float(np.std(returns))
+
+    def _calculate_momentum(self, period: int = 20) -> float:
+        """
+        Calculate price momentum (rate of change)
+        Crypto markets show strong momentum effects
+        """
+        if len(self.price_history) < period + 1:
+            return 0.0
+
+        current_price = self.price_history[-1]
+        past_price = self.price_history[-(period + 1)]
+
+        if past_price == 0:
+            return 0.0
+
+        momentum = (current_price - past_price) / past_price
+        return float(np.clip(momentum, -1, 1))
+
+    def _calculate_volatility_clustering(self) -> float:
+        """
+        Calculate volatility clustering (GARCH-like effect)
+        Crypto exhibits strong volatility clustering
+        """
+        if len(self.price_history) < 40:
+            return 0.0
+
+        # Recent volatility (10 periods)
+        recent_vol = self._calculate_volatility(10)
+
+        # Historical volatility (30 periods)
+        if len(self.price_history) < 31:
+            return 0.0
+
+        prices = np.array(self.price_history[-31:])
+        returns = np.diff(prices) / prices[:-1]
+        historical_vol = np.std(returns)
+
+        if historical_vol == 0:
+            return 0.0
+
+        vol_ratio = recent_vol / historical_vol
+        return float(np.clip(vol_ratio - 1, -1, 1))
+
+    def _calculate_drawdown(self) -> float:
+        """
+        Calculate current drawdown from peak equity
+        Important risk metric for crypto trading
+        """
+        if len(self.equity_curve) < 2:
+            return 0.0
+
+        equity_array = np.array(self.equity_curve)
+        running_max = np.maximum.accumulate(equity_array)
+        current_equity = equity_array[-1]
+        peak_equity = running_max[-1]
+
+        if peak_equity == 0:
+            return 0.0
+
+        drawdown = (peak_equity - current_equity) / peak_equity
+        return float(np.clip(drawdown, 0, 1))
+
+    def _calculate_sharpe_from_equity(self, window: int = 50) -> float:
+        """
+        Calculate rolling Sharpe ratio from equity curve
+        Risk-adjusted return metric crucial for crypto
+        """
+        if len(self.equity_curve) < 10:
+            return 0.0
+
+        recent_equity = self.equity_curve[-window:] if len(self.equity_curve) >= window else self.equity_curve
+
+        if len(recent_equity) < 2:
+            return 0.0
+
+        returns = np.diff(recent_equity) / np.array(recent_equity[:-1])
+
+        if len(returns) < 2:
+            return 0.0
+
+        mean_return = np.mean(returns)
+        std_return = np.std(returns)
+
+        if std_return == 0:
+            return 0.0
+
+        # Annualized Sharpe
+        sharpe = (mean_return / std_return) * np.sqrt(self.periods_per_year)
+        return float(np.clip(sharpe, -3, 3))
 
     def _record_episode_stats(self, final_equity: float):
         """Record statistics for completed episode"""

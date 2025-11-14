@@ -117,7 +117,7 @@ def get_optimized_config() -> OptimizedAgentConfig:
 
     # Set architecture if not specified
     if config.hidden_layers is None:
-        config.hidden_layers = [128, 128, 64]  # Smaller network for 8 features
+        config.hidden_layers = [128, 128, 64]  # Smaller network for 12 features (crypto-optimized)
 
     return config
 

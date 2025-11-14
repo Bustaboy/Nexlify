@@ -238,8 +238,8 @@ class AutoExecutionEngine:
                 self.use_rl = False
                 return
 
-            # Create agent (state_size=8, action_size=3)
-            self.rl_agent = DQNAgent(state_size=8, action_size=3)
+            # Create agent (state_size=12, action_size=3)
+            self.rl_agent = DQNAgent(state_size=12, action_size=3)
             self.rl_agent.load(str(model_path))
 
             logger.info("🧠 RL Agent loaded successfully")

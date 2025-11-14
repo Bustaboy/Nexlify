@@ -39,7 +39,7 @@ def test_advanced_dqn_agent():
         )
 
         # Create agent
-        agent = AdvancedDQNAgent(state_size=8, action_size=3, config=config)
+        agent = AdvancedDQNAgent(state_size=12, action_size=3, config=config)
 
         # Test act
         state = np.random.randn(8)
@@ -135,7 +135,7 @@ def test_dueling_dqn():
     from nexlify_advanced_dqn_agent import DuelingDQN
 
     try:
-        model = DuelingDQN(state_size=8, action_size=3, hidden_layers=[64, 32])
+        model = DuelingDQN(state_size=12, action_size=3, hidden_layers=[64, 32])
 
         # Forward pass
         state = torch.randn(1, 8)
@@ -214,7 +214,7 @@ def test_data_augmentation():
             augmentation_probability=1.0  # Always augment for testing
         )
 
-        agent = AdvancedDQNAgent(state_size=8, action_size=3, config=config)
+        agent = AdvancedDQNAgent(state_size=12, action_size=3, config=config)
 
         # Test augmentation
         original_state = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0])
@@ -252,7 +252,7 @@ def test_n_step_returns():
             buffer_size=1000
         )
 
-        agent = AdvancedDQNAgent(state_size=8, action_size=3, config=config)
+        agent = AdvancedDQNAgent(state_size=12, action_size=3, config=config)
 
         # Add 5 transitions
         for i in range(5):

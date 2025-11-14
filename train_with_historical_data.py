@@ -292,7 +292,7 @@ class AutoRetrainingOrchestrator:
         """Load model from checkpoint"""
         checkpoint = torch.load(model_path, map_location='cpu')
 
-        agent = UltraOptimizedDQNAgent(state_size=8, action_size=3)
+        agent = UltraOptimizedDQNAgent(state_size=12, action_size=3)
         agent.model.load_state_dict(checkpoint['model_state_dict'])
         agent.target_model.load_state_dict(checkpoint['target_model_state_dict'])
         agent.epsilon = 0  # No exploration during evaluation

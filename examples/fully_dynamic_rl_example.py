@@ -175,7 +175,7 @@ def example_5_fully_dynamic_agent():
 
     # Create agent
     agent = create_fully_dynamic_agent(
-        state_size=8,
+        state_size=12,
         action_size=3,
         auto_optimize=True
     )

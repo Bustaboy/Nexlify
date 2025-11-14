@@ -144,7 +144,7 @@ def test_dqn_integration():
         'epsilon_decay_steps': 2000
     }
 
-    agent = DQNAgent(state_size=8, action_size=3, config=config)
+    agent = DQNAgent(state_size=12, action_size=3, config=config)
 
     print(f"  Agent epsilon: {agent.epsilon:.4f}")
     print(f"  Strategy type: {type(agent.epsilon_decay_strategy).__name__}")
@@ -173,7 +173,7 @@ def test_legacy_config():
         'epsilon_decay': 0.995
     }
 
-    agent = DQNAgent(state_size=8, action_size=3, config=config)
+    agent = DQNAgent(state_size=12, action_size=3, config=config)
 
     print(f"  Agent epsilon: {agent.epsilon:.4f}")
     print(f"  Strategy type: {type(agent.epsilon_decay_strategy).__name__}")
