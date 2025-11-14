@@ -192,7 +192,7 @@
     },
     "default_architecture": "medium",
     "timeframe": "1h",
-    "auto_gamma": true,
+    "auto_gamma": false,
     "manual_gamma": null,
     "gamma_adjustment_interval": 100
   },

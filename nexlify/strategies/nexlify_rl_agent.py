@@ -600,8 +600,26 @@ class DQNAgent:
 
     def _create_gamma_optimizer(self) -> GammaOptimizer:
         """Create gamma optimizer from config"""
-        # Check if auto_gamma is enabled (default: True)
-        auto_gamma = self.config.get("auto_gamma", True)
+        # BACKWARD COMPATIBILITY: Check if gamma was explicitly set in legacy config
+        # If gamma is set but auto_gamma is not mentioned, use legacy behavior
+        if "gamma" in self.config and "auto_gamma" not in self.config:
+            # Legacy config with explicit gamma - preserve old behavior
+            manual_gamma = self.config["gamma"]
+            auto_gamma = False
+            timeframe = self.config.get("timeframe", "1h")
+            logger.info(f"🔙 Legacy gamma={manual_gamma:.3f} detected (auto-adjustment disabled)")
+
+            return GammaOptimizer(
+                timeframe=timeframe,
+                auto_adjust=False,
+                manual_gamma=manual_gamma,
+                adjustment_interval=self.config.get("gamma_adjustment_interval", 100),
+                config=self.config
+            )
+
+        # New behavior: check for auto_gamma setting
+        # Default to FALSE for backward compatibility (opt-in feature)
+        auto_gamma = self.config.get("auto_gamma", False)
 
         # Get manual gamma override if provided
         manual_gamma = self.config.get("manual_gamma", None)
@@ -610,6 +628,10 @@ class DQNAgent:
         if manual_gamma is not None:
             auto_gamma = False
             logger.info(f"📌 Using MANUAL gamma={manual_gamma:.3f} (auto-adjustment disabled)")
+        elif not auto_gamma:
+            # If auto_gamma is disabled, use legacy default or explicit gamma
+            manual_gamma = self.config.get("gamma", CRYPTO_24_7_CONFIG.gamma)
+            logger.info(f"⚙️  Using static gamma={manual_gamma:.3f} (auto-gamma disabled)")
 
         # Get timeframe from config (default: 1h)
         timeframe = self.config.get("timeframe", "1h")

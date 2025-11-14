@@ -34,15 +34,15 @@ class CryptoTradingConfig:
     # DQN AGENT HYPERPARAMETERS
     # ========================================================================
 
-    # Discount factor (DEPRECATED - use GammaOptimizer with timeframe instead)
-    # This value is only used if auto_gamma is disabled
+    # Discount factor (default for 24/7 crypto trading)
+    # Used when auto_gamma is disabled (default behavior)
     gamma: float = 0.89
 
-    # Trading timeframe (used for adaptive gamma selection)
+    # Trading timeframe (used for adaptive gamma selection when enabled)
     timeframe: str = "1h"
 
-    # Adaptive gamma settings
-    auto_gamma: bool = True  # Enable automatic gamma selection based on timeframe
+    # Adaptive gamma settings (OPT-IN feature for backward compatibility)
+    auto_gamma: bool = False  # Disabled by default - set to True to enable adaptive gamma
     gamma_adjustment_interval: int = 100  # Episodes between gamma adjustments
 
     # Learning rate (aggressive for rapid adaptation)

@@ -30,9 +30,9 @@ class OptimizedAgentConfig:
     learning_rate: float = 0.0003  # CHANGED: 0.001 → 0.0003 (more conservative, stable learning)
     batch_size: int = 128  # CHANGED: 64 → 128 (more stable gradient estimates)
 
-    # Adaptive gamma selection (NEW)
+    # Adaptive gamma selection (NEW - RECOMMENDED for optimized config)
     timeframe: str = "1h"  # Trading timeframe (1m, 5m, 15m, 1h, 4h, 1d)
-    auto_gamma: bool = True  # Enable automatic gamma selection
+    auto_gamma: bool = True  # RECOMMENDED: Enable automatic gamma selection
     manual_gamma: Optional[float] = None  # Manual override (disables auto_gamma)
     gamma_adjustment_interval: int = 100  # Episodes between gamma adjustments
 
