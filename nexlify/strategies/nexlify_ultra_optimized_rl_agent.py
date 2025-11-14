@@ -91,6 +91,7 @@ class UltraOptimizedDQNAgent:
         enable_sentiment: bool = True,
         sentiment_config: Optional[Dict] = None,
         cache_dir: str = "./cache",
+        config: Optional[Dict] = None,
     ):
         """
         Initialize ultra-optimized agent
@@ -102,9 +103,11 @@ class UltraOptimizedDQNAgent:
             enable_sentiment: Enable sentiment analysis features
             sentiment_config: Sentiment API keys (optional)
             cache_dir: Directory for smart cache
+            config: Configuration dictionary with RL hyperparameters
         """
         self.state_size = state_size
         self.action_size = action_size
+        self.config = config or {}
 
         logger.info("🚀 Initializing Ultra-Optimized DQN Agent...")
 
@@ -176,8 +179,18 @@ class UltraOptimizedDQNAgent:
                 self.model_optimized = True
                 logger.info("   ✓ Model optimizations applied")
 
+        # Get RL hyperparameters from config
+        rl_config = self.config.get('rl_agent', {})
+        learning_rate = rl_config.get('learning_rate', 0.001)
+        replay_buffer_size = rl_config.get('replay_buffer_size', 100000)
+        self.gamma = rl_config.get('discount_factor', 0.99)
+        self.epsilon = rl_config.get('epsilon_start', 1.0)
+        self.epsilon_min = rl_config.get('epsilon_min', 0.01)
+        self.epsilon_decay = rl_config.get('epsilon_decay', 0.995)
+
         # Optimizer
-        self.optimizer_nn = optim.Adam(self.model.parameters(), lr=0.001)
+        self.optimizer_nn = optim.Adam(self.model.parameters(), lr=learning_rate)
+        logger.info(f"   Learning rate: {learning_rate}")
 
         # Mixed precision training (if enabled)
         self.scaler = None
@@ -186,13 +199,13 @@ class UltraOptimizedDQNAgent:
             logger.info("   ✓ Mixed precision training enabled")
 
         # Experience replay buffer
-        self.memory = deque(maxlen=100000)
+        self.memory = deque(maxlen=replay_buffer_size)
+        logger.info(f"   Replay buffer size: {replay_buffer_size:,}")
 
         # RL hyperparameters
-        self.gamma = 0.99
-        self.epsilon = 1.0
-        self.epsilon_min = 0.01
-        self.epsilon_decay = 0.995
+        logger.info(f"   Discount factor (gamma): {self.gamma}")
+        logger.info(f"   Epsilon: {self.epsilon} -> {self.epsilon_min} (decay: {self.epsilon_decay})")
+
         self.batch_size = self.optimal_batch_size
 
         # Thermal adaptation
@@ -206,10 +219,26 @@ class UltraOptimizedDQNAgent:
 
     def _build_optimal_architecture(self) -> List[int]:
         """
-        Build optimal neural network architecture based on hardware
+        Build optimal neural network architecture based on hardware or config
 
-        Uses GPU VRAM and compute capability to determine best size
+        If config specifies an architecture, use that; otherwise auto-detect based on GPU VRAM
         """
+        # Check if architecture is specified in config
+        rl_config = self.config.get('rl_agent', {})
+        if 'architecture' in rl_config:
+            arch = rl_config['architecture']
+            if isinstance(arch, list):
+                logger.info(f"   Architecture (from config): {arch}")
+                return arch
+            elif isinstance(arch, str):
+                # Named architecture from config
+                architectures = rl_config.get('architectures', {})
+                if arch in architectures:
+                    selected_arch = architectures[arch]
+                    logger.info(f"   Architecture ('{arch}' from config): {selected_arch}")
+                    return selected_arch
+
+        # Auto-detect based on hardware
         gpu_info = self.monitor.get_gpu_info_summary()
 
         if not gpu_info["available"]:
@@ -246,7 +275,7 @@ class UltraOptimizedDQNAgent:
             logger.info(f"   ✓ Tensor Cores detected - optimizing for mixed precision")
 
         logger.info(
-            f"   Architecture: {arch} ({sum([arch[i] * (arch[i-1] if i > 0 else self.state_size) for i in range(len(arch))])} parameters)"
+            f"   Architecture (auto-detected): {arch} ({sum([arch[i] * (arch[i-1] if i > 0 else self.state_size) for i in range(len(arch))])} parameters)"
         )
 
         return arch

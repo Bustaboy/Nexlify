@@ -132,9 +132,14 @@ class PositionManager:
 
     def __init__(self, config: Dict):
         self.config = config
-        self.take_profit_percent = config.get("take_profit", 5.0)  # 5%
-        self.stop_loss_percent = config.get("stop_loss", 2.0)  # 2%
-        self.trailing_stop_percent = config.get("trailing_stop", 3.0)  # 3%
+
+        # Support new nested config structure (auto_trader.exit_strategy) with backward compatibility
+        exit_config = config.get("exit_strategy", {})
+
+        # Try new structure first, fall back to old structure for backward compatibility
+        self.take_profit_percent = exit_config.get("take_profit_percent", config.get("take_profit", 5.0))  # 5%
+        self.stop_loss_percent = exit_config.get("stop_loss_percent", config.get("stop_loss", 2.0))  # 2%
+        self.trailing_stop_percent = exit_config.get("trailing_stop_percent", config.get("trailing_stop", 3.0))  # 3%
         self.max_hold_time_hours = config.get("max_hold_time_hours", 24)
 
     async def should_close_position(
@@ -194,7 +199,10 @@ class AutoExecutionEngine:
 
         # Initialize managers
         self.risk_manager = RiskManager(self.config.get("trading", {}) or self.config.get("risk_management", {}))
-        self.position_manager = PositionManager(self.config.get("trading", {}))
+
+        # Position manager: try new auto_trader config first, fall back to trading config
+        position_config = self.config.get("auto_trader", self.config.get("trading", {}))
+        self.position_manager = PositionManager(position_config)
 
         # State tracking
         self.active_trades: Dict[str, TradeExecution] = {}
@@ -203,7 +211,11 @@ class AutoExecutionEngine:
 
         # Backward compatibility attributes for tests
         self.enabled = self.config.get("enabled", True)
-        self.check_interval = self.config.get("check_interval", 60)
+
+        # Check interval: try auto_trader config first, fall back to top-level
+        auto_trader_config = self.config.get("auto_trader", {})
+        self.check_interval = auto_trader_config.get("check_interval_seconds", self.config.get("check_interval", 60))
+
         self.is_running = False  # Alias for is_active, updated by start/stop
         self.exchanges = {}  # Exchange connections
 

@@ -173,6 +173,53 @@
     "min_confidence": 0.7
   },
 
+  "rl_agent": {
+    "discount_factor": 0.99,
+    "epsilon_start": 1.0,
+    "epsilon_min": 0.01,
+    "epsilon_decay": 0.995,
+    "learning_rate": 0.001,
+    "replay_buffer_size": 100000,
+    "batch_size": 64,
+    "target_update_frequency": 10,
+    "save_frequency": 100,
+    "architectures": {
+      "tiny": [64, 32],
+      "small": [128, 64],
+      "medium": [128, 128, 64],
+      "large": [256, 256, 128, 64],
+      "xlarge": [512, 512, 256, 128, 64]
+    },
+    "default_architecture": "medium"
+  },
+
+  "epsilon_decay": {
+    "type": "scheduled",
+    "start": 1.0,
+    "end": 0.22,
+    "linear_decay_steps": 2000,
+    "scheduled_milestones": {
+      "0": 1.0,
+      "200": 0.65,
+      "800": 0.35,
+      "2000": 0.22
+    }
+  },
+
+  "paths": {
+    "data_dir": "data",
+    "logs_dir": "logs",
+    "cache_dir": "cache",
+    "models_dir": "models",
+    "reports_dir": "reports",
+    "trading_database": "data/trading.db",
+    "audit_logs_dir": "logs/audit",
+    "crash_reports_dir": "logs/crash_reports",
+    "defi_positions_file": "data/defi_positions.json",
+    "flash_crash_events_log": "data/flash_crash_events.jsonl",
+    "risk_state_file": "data/risk_state.json"
+  },
+
   "backtesting": {
     "enabled": true,
     "initial_balance": 10000,
@@ -217,5 +264,48 @@
     },
     "rebalance_threshold": 0.05,
     "min_rebalance_amount": 100
+  },
+
+  "auto_trader": {
+    "enabled": false,
+    "check_interval_seconds": 60,
+    "exit_strategy": {
+      "take_profit_percent": 0.05,
+      "stop_loss_percent": 0.02,
+      "trailing_stop_percent": 0.03
+    }
+  },
+
+  "gui": {
+    "cpu_sample_interval_seconds": 1,
+    "http_timeout_seconds": 5,
+    "default_scan_interval_seconds": 300,
+    "chart_update_interval_ms": 5000,
+    "intense_mode": {
+      "scan_interval_seconds": 60,
+      "chart_update_interval_ms": 1000
+    },
+    "balanced_mode": {
+      "scan_interval_seconds": 120,
+      "chart_update_interval_ms": 3000
+    },
+    "conservative_mode": {
+      "scan_interval_seconds": 300,
+      "chart_update_interval_ms": 5000
+    }
+  },
+
+  "monitoring": {
+    "sample_interval_seconds": 0.1,
+    "resize_check_interval_seconds": 60,
+    "thread_join_timeout_seconds": 1.0,
+    "neural_net_update_interval_seconds": 60
+  },
+
+  "cache": {
+    "enabled": true,
+    "ttl_seconds": 3600,
+    "max_size_mb": 500,
+    "compression_enabled": true
   }
 }

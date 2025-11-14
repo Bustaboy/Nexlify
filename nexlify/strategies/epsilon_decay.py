@@ -17,10 +17,15 @@ logger = logging.getLogger(__name__)
 class EpsilonDecayStrategy(ABC):
     """Base class for epsilon decay strategies"""
 
-    def __init__(self, epsilon_start: float = 1.0, epsilon_end: float = 0.22):
-        self.epsilon_start = epsilon_start
-        self.epsilon_end = epsilon_end
-        self.current_epsilon = epsilon_start
+    def __init__(self, epsilon_start: float = 1.0, epsilon_end: float = 0.22, config: Optional[Dict] = None):
+        # Use config if provided, otherwise use defaults
+        if config is None:
+            config = {}
+
+        epsilon_config = config.get('epsilon_decay', {})
+        self.epsilon_start = epsilon_config.get('start', epsilon_start)
+        self.epsilon_end = epsilon_config.get('end', epsilon_end)
+        self.current_epsilon = self.epsilon_start
         self.current_step = 0
 
         # Monitoring and logging
@@ -28,7 +33,7 @@ class EpsilonDecayStrategy(ABC):
         self.thresholds_crossed = set()
         self.key_thresholds = [0.9, 0.7, 0.5, 0.3, 0.1]
 
-        logger.info(f"🎯 Initialized {self.__class__.__name__} (start={epsilon_start:.2f}, end={epsilon_end:.2f})")
+        logger.info(f"🎯 Initialized {self.__class__.__name__} (start={self.epsilon_start:.2f}, end={self.epsilon_end:.2f})")
 
     @abstractmethod
     def get_epsilon(self, step: int) -> float:
@@ -113,10 +118,17 @@ class LinearEpsilonDecay(EpsilonDecayStrategy):
     """
 
     def __init__(self, epsilon_start: float = 1.0, epsilon_end: float = 0.22,
-                 decay_steps: int = 2000):
-        super().__init__(epsilon_start, epsilon_end)
-        self.decay_steps = decay_steps
-        logger.info(f"📉 Linear decay over {decay_steps} steps")
+                 decay_steps: int = 2000, config: Optional[Dict] = None):
+        super().__init__(epsilon_start, epsilon_end, config)
+
+        # Get decay_steps from config if available
+        if config:
+            epsilon_config = config.get('epsilon_decay', {})
+            self.decay_steps = epsilon_config.get('linear_decay_steps', decay_steps)
+        else:
+            self.decay_steps = decay_steps
+
+        logger.info(f"📉 Linear decay over {self.decay_steps} steps")
 
     def get_epsilon(self, step: int) -> float:
         """
@@ -155,8 +167,16 @@ class ScheduledEpsilonDecay(EpsilonDecayStrategy):
     """
 
     def __init__(self, epsilon_start: float = 1.0, epsilon_end: float = 0.22,
-                 schedule: Optional[Dict[int, float]] = None):
-        super().__init__(epsilon_start, epsilon_end)
+                 schedule: Optional[Dict[int, float]] = None, config: Optional[Dict] = None):
+        super().__init__(epsilon_start, epsilon_end, config)
+
+        # Try to get schedule from config first
+        if config:
+            epsilon_config = config.get('epsilon_decay', {})
+            config_schedule = epsilon_config.get('scheduled_milestones', None)
+            if config_schedule:
+                # Convert string keys to int for JSON compatibility
+                schedule = {int(k): v for k, v in config_schedule.items()}
 
         # Default schedule if none provided (optimized for 24/7 crypto trading)
         if schedule is None:
@@ -169,7 +189,7 @@ class ScheduledEpsilonDecay(EpsilonDecayStrategy):
 
         # Ensure schedule starts at 0 and ends with epsilon_end
         if 0 not in schedule:
-            schedule[0] = epsilon_start
+            schedule[0] = self.epsilon_start
 
         # Sort schedule by step
         self.schedule = sorted(schedule.items())
@@ -221,19 +241,26 @@ class ExponentialEpsilonDecay(EpsilonDecayStrategy):
     """
 
     def __init__(self, epsilon_start: float = 1.0, epsilon_end: float = 0.22,
-                 decay_steps: int = 2000, decay_rate: Optional[float] = None):
-        super().__init__(epsilon_start, epsilon_end)
+                 decay_steps: int = 2000, decay_rate: Optional[float] = None, config: Optional[Dict] = None):
+        super().__init__(epsilon_start, epsilon_end, config)
+
+        # Get decay_steps from config if available
+        if config:
+            epsilon_config = config.get('epsilon_decay', {})
+            decay_steps = epsilon_config.get('linear_decay_steps', decay_steps)
+            if decay_rate is None and 'decay_rate' in epsilon_config:
+                decay_rate = epsilon_config['decay_rate']
 
         if decay_rate is None:
             # Auto-calculate decay rate to reach epsilon_end at decay_steps
             # epsilon_end = epsilon_start * decay_rate^decay_steps
             # decay_rate = (epsilon_end / epsilon_start)^(1/decay_steps)
-            self.decay_rate = (epsilon_end / epsilon_start) ** (1 / decay_steps)
+            self.decay_rate = (self.epsilon_end / self.epsilon_start) ** (1 / decay_steps)
         else:
             self.decay_rate = decay_rate
 
         self.decay_steps = decay_steps
-        logger.info(f"📊 Exponential decay with rate {self.decay_rate:.6f} over {decay_steps} steps")
+        logger.info(f"📊 Exponential decay with rate {self.decay_rate:.6f} over {self.decay_steps} steps")
 
     def get_epsilon(self, step: int) -> float:
         """
@@ -265,12 +292,13 @@ class EpsilonDecayFactory:
     }
 
     @staticmethod
-    def create(strategy_type: str = 'linear', **kwargs) -> EpsilonDecayStrategy:
+    def create(strategy_type: str = 'linear', config: Optional[Dict] = None, **kwargs) -> EpsilonDecayStrategy:
         """
         Create epsilon decay strategy based on type
 
         Args:
             strategy_type: Type of strategy ('linear', 'scheduled', 'exponential')
+            config: Configuration dictionary
             **kwargs: Strategy-specific parameters
 
         Returns:
@@ -279,6 +307,10 @@ class EpsilonDecayFactory:
         Raises:
             ValueError: If strategy_type is not recognized
         """
+        # Get strategy_type from config if not explicitly provided
+        if config and 'epsilon_decay' in config:
+            strategy_type = config['epsilon_decay'].get('type', strategy_type)
+
         strategy_type = strategy_type.lower()
 
         if strategy_type not in EpsilonDecayFactory.STRATEGIES:
@@ -293,6 +325,8 @@ class EpsilonDecayFactory:
         # Default to LinearEpsilonDecay for trading
         logger.info(f"🏭 Creating {strategy_type} epsilon decay strategy")
 
+        # Pass config to strategy constructor
+        kwargs['config'] = config
         return strategy_class(**kwargs)
 
     @staticmethod
@@ -302,34 +336,46 @@ class EpsilonDecayFactory:
 
         Args:
             config: Configuration dictionary with keys:
-                - epsilon_decay_type: Strategy type
-                - epsilon_start: Starting epsilon value
-                - epsilon_end: Ending epsilon value
-                - epsilon_decay_steps: Number of decay steps
+                - epsilon_decay.type: Strategy type
+                - epsilon_decay.start: Starting epsilon value
+                - epsilon_decay.end: Ending epsilon value
+                - epsilon_decay.linear_decay_steps: Number of decay steps
                 - Other strategy-specific parameters
 
         Returns:
             EpsilonDecayStrategy instance
         """
-        strategy_type = config.get('epsilon_decay_type', 'linear')
+        epsilon_config = config.get('epsilon_decay', {})
+
+        # For backward compatibility, also check old keys
+        strategy_type = epsilon_config.get('type', config.get('epsilon_decay_type', 'linear'))
 
         # Extract common parameters
         params = {
-            'epsilon_start': config.get('epsilon_start', 1.0),
-            'epsilon_end': config.get('epsilon_end', 0.05),
+            'epsilon_start': epsilon_config.get('start', config.get('epsilon_start', 1.0)),
+            'epsilon_end': epsilon_config.get('end', config.get('epsilon_end', 0.22)),
+            'config': config
         }
 
         # Add decay_steps if present
-        if 'epsilon_decay_steps' in config:
+        if 'linear_decay_steps' in epsilon_config:
+            params['decay_steps'] = epsilon_config['linear_decay_steps']
+        elif 'epsilon_decay_steps' in config:
             params['decay_steps'] = config['epsilon_decay_steps']
 
         # Add schedule for scheduled decay
-        if strategy_type == 'scheduled' and 'epsilon_schedule' in config:
+        if strategy_type == 'scheduled' and 'scheduled_milestones' in epsilon_config:
+            # Convert string keys to int for JSON compatibility
+            params['schedule'] = {int(k): v for k, v in epsilon_config['scheduled_milestones'].items()}
+        elif strategy_type == 'scheduled' and 'epsilon_schedule' in config:
             params['schedule'] = config['epsilon_schedule']
 
         # Add decay_rate for exponential decay
-        if strategy_type == 'exponential' and 'epsilon_decay_rate' in config:
-            params['decay_rate'] = config['epsilon_decay_rate']
+        if strategy_type == 'exponential':
+            if 'decay_rate' in epsilon_config:
+                params['decay_rate'] = epsilon_config['decay_rate']
+            elif 'epsilon_decay_rate' in config:
+                params['decay_rate'] = config['epsilon_decay_rate']
 
         return EpsilonDecayFactory.create(strategy_type, **params)
 
