@@ -196,7 +196,7 @@ class SecuritySuite:
         Returns:
             (success: bool, message: str)
         """
-        success, message = self.pin_manager.verify_pin(username, pin, ip_address)
+        success, message = self.pin_manager.verify_pin(pin, username, ip_address)
 
         if success:
             self.authenticated_user = username

@@ -325,14 +325,14 @@ class PINManager:
             return False, f"PIN setup failed: {str(e)}"
 
     def verify_pin(
-        self, username: str, pin: str, ip_address: str = ""
+        self, pin: str, username: str = "default", ip_address: str = ""
     ) -> Tuple[bool, str]:
         """
         Verify PIN for authentication
 
         Args:
-            username: Username
             pin: PIN to verify
+            username: Username (default: "default")
             ip_address: IP address of request (for logging)
 
         Returns:

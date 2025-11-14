@@ -577,11 +577,6 @@ class IntegrityMonitor:
         return violations
 
     # Backward compatibility methods for tests
-    @property
-    def enabled(self) -> bool:
-        """Check if integrity monitor is enabled"""
-        return self.config.get("integrity_monitor", {}).get("enabled", True)
-
     @staticmethod
     def calculate_file_hash(file_path: str) -> Optional[str]:
         """Calculate file hash (backward compatibility)"""
