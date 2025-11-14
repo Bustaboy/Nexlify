@@ -192,7 +192,21 @@
     },
     "default_architecture": "medium",
     "timeframe": "1h",
-    "manual_gamma": null
+    "manual_gamma": null,
+    "gradient_clip_norm": 1.0,
+    "gradient_explosion_threshold": 10.0,
+    "gradient_vanishing_threshold": 1e-06,
+    "lr_scheduler_type": "cosine",
+    "lr_warmup_enabled": true,
+    "lr_warmup_steps": 1000,
+    "lr_warmup_start": 1e-05,
+    "lr_min": 1e-06,
+    "lr_cosine_T_0": 50,
+    "lr_cosine_T_mult": 2,
+    "lr_plateau_factor": 0.5,
+    "lr_plateau_patience": 10,
+    "lr_step_size": 500,
+    "lr_step_gamma": 0.5
   },
 
   "epsilon_decay": {
