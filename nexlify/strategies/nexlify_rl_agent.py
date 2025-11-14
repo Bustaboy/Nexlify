@@ -4,14 +4,15 @@ Nexlify Reinforcement Learning Module
 Deep Q-Network (DQN) agent for autonomous trading optimization
 """
 
-import numpy as np
-import logging
-from typing import Dict, List, Tuple, Optional
-from collections import deque
-import random
-from datetime import datetime
 import json
+import logging
+import random
+from collections import deque
+from datetime import datetime
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 from nexlify.strategies.epsilon_decay import EpsilonDecayFactory, EpsilonDecayStrategy
@@ -67,7 +68,9 @@ class TradingEnvironment:
         # Calculate features
         price_change = 0
         if self.current_step > 0:
-            price_change = (current_price - self.price_data[self.current_step - 1]) / current_price
+            price_change = (
+                current_price - self.price_data[self.current_step - 1]
+            ) / current_price
 
         # Simple RSI calculation (14 period)
         rsi = self._calculate_rsi(14)
@@ -78,16 +81,21 @@ class TradingEnvironment:
         # Volume ratio (simplified - using price volatility as proxy)
         volume_ratio = self._calculate_volatility(10)
 
-        state = np.array([
-            self.balance / self.initial_balance,  # Normalized balance
-            self.position,  # Position size
-            self.position_price / current_price if current_price > 0 else 0,  # Relative entry price
-            current_price / self.initial_balance,  # Normalized price
-            price_change,  # Price change
-            rsi,  # RSI
-            macd,  # MACD
-            volume_ratio  # Volume ratio
-        ], dtype=np.float32)
+        state = np.array(
+            [
+                self.balance / self.initial_balance,  # Normalized balance
+                self.position,  # Position size
+                (
+                    self.position_price / current_price if current_price > 0 else 0
+                ),  # Relative entry price
+                current_price / self.initial_balance,  # Normalized price
+                price_change,  # Price change
+                rsi,  # RSI
+                macd,  # MACD
+                volume_ratio,  # Volume ratio
+            ],
+            dtype=np.float32,
+        )
 
         return state
 
@@ -96,7 +104,9 @@ class TradingEnvironment:
         if self.current_step < period:
             return 0.5
 
-        prices = self.price_data[max(0, self.current_step - period):self.current_step + 1]
+        prices = self.price_data[
+            max(0, self.current_step - period) : self.current_step + 1
+        ]
         deltas = np.diff(prices)
 
         gains = deltas[deltas > 0].sum()
@@ -115,7 +125,7 @@ class TradingEnvironment:
         if self.current_step < 26:
             return 0
 
-        prices = self.price_data[max(0, self.current_step - 26):self.current_step + 1]
+        prices = self.price_data[max(0, self.current_step - 26) : self.current_step + 1]
 
         ema_12 = self._ema(prices, 12)
         ema_26 = self._ema(prices, 26)
@@ -132,7 +142,7 @@ class TradingEnvironment:
         multiplier = 2 / (period + 1)
         ema = prices[-period]
 
-        for price in prices[-period + 1:]:
+        for price in prices[-period + 1 :]:
             ema = (price - ema) * multiplier + ema
 
         return ema
@@ -142,7 +152,9 @@ class TradingEnvironment:
         if self.current_step < period:
             return 0
 
-        prices = self.price_data[max(0, self.current_step - period):self.current_step + 1]
+        prices = self.price_data[
+            max(0, self.current_step - period) : self.current_step + 1
+        ]
         returns = np.diff(prices) / prices[:-1]
 
         return np.std(returns)
@@ -168,8 +180,8 @@ class TradingEnvironment:
                 self.position = self.balance / current_price
                 self.position_price = current_price
                 self.balance = 0
-                info['action'] = 'buy'
-                info['price'] = current_price
+                info["action"] = "buy"
+                info["price"] = current_price
 
         elif action == 2:  # Sell
             if self.position > 0:
@@ -181,27 +193,31 @@ class TradingEnvironment:
                 reward = profit / self.initial_balance  # Normalized reward
 
                 # Track trade
-                self.trade_history.append({
-                    'entry_price': self.position_price,
-                    'exit_price': current_price,
-                    'profit': profit,
-                    'return': (current_price / self.position_price - 1) * 100
-                })
+                self.trade_history.append(
+                    {
+                        "entry_price": self.position_price,
+                        "exit_price": current_price,
+                        "profit": profit,
+                        "return": (current_price / self.position_price - 1) * 100,
+                    }
+                )
 
                 self.position = 0
                 self.position_price = 0
-                info['action'] = 'sell'
-                info['profit'] = profit
+                info["action"] = "sell"
+                info["profit"] = profit
         else:
             # Hold
-            info['action'] = 'hold'
+            info["action"] = "hold"
             # Small penalty for holding to encourage action
             reward = -0.001
 
         # Calculate unrealized PnL if holding position
         if self.position > 0:
             unrealized_pnl = (current_price - self.position_price) * self.position
-            reward += unrealized_pnl / self.initial_balance * 0.1  # Small reward for good positions
+            reward += (
+                unrealized_pnl / self.initial_balance * 0.1
+            )  # Small reward for good positions
 
         # Move to next step
         self.current_step += 1
@@ -212,8 +228,8 @@ class TradingEnvironment:
         if self.position > 0:
             total_value += self.position * current_price
 
-        info['total_value'] = total_value
-        info['step'] = self.current_step
+        info["total_value"] = total_value
+        info["step"] = self.current_step
 
         self.episode_reward += reward
 
@@ -223,23 +239,36 @@ class TradingEnvironment:
 
     def get_portfolio_value(self) -> float:
         """Get current total portfolio value"""
-        current_price = self.price_data[self.current_step] if self.current_step < len(self.price_data) else 0
+        current_price = (
+            self.price_data[self.current_step]
+            if self.current_step < len(self.price_data)
+            else 0
+        )
         return self.balance + (self.position * current_price)
 
 
 class ReplayBuffer:
     """Experience replay buffer for DQN"""
 
-    def __init__(self, capacity: int = 100000):
-        self.buffer = deque(maxlen=capacity)
+    def __init__(self, capacity: int = None, max_size: int = None):
+        # Support both capacity and max_size for backward compatibility
+        size = capacity or max_size or 100000
+        self.buffer = deque(maxlen=size)
+        self.max_size = size  # Expose max_size for tests
 
     def push(self, state, action, reward, next_state, done):
         """Add experience to buffer"""
         self.buffer.append((state, action, reward, next_state, done))
 
+    def add(self, state, action, reward, next_state, done):
+        """Alias for push() for backward compatibility with tests"""
+        self.push(state, action, reward, next_state, done)
+
     def sample(self, batch_size: int) -> List:
         """Sample random batch from buffer"""
-        return random.sample(self.buffer, batch_size)
+        # Handle case where batch_size > buffer size
+        actual_batch_size = min(batch_size, len(self.buffer))
+        return random.sample(self.buffer, actual_batch_size)
 
     def __len__(self):
         return len(self.buffer)
@@ -251,15 +280,24 @@ class DQNAgent:
     Uses neural network to approximate Q-values
     """
 
-    def __init__(self, state_size: int, action_size: int, config: Dict = None):
+    def __init__(self, state_size: int, action_size: int, config: Dict = None, **kwargs):
+        # Validate inputs
+        if state_size <= 0:
+            raise ValueError(f"state_size must be positive, got {state_size}")
+        if action_size <= 0:
+            raise ValueError(f"action_size must be positive, got {action_size}")
+
         self.state_size = state_size
         self.action_size = action_size
         self.config = config or {}
 
+        # Merge kwargs into config for backward compatibility with tests
+        self.config.update(kwargs)
+
         # Hyperparameters
-        self.gamma = self.config.get('gamma', 0.99)  # Discount factor
-        self.learning_rate = self.config.get('learning_rate', 0.001)
-        self.batch_size = self.config.get('batch_size', 64)
+        self.gamma = self.config.get("gamma", 0.99)  # Discount factor
+        self.learning_rate = self.config.get("learning_rate", 0.001)
+        self.batch_size = self.config.get("batch_size", 64)
 
         # Epsilon decay strategy (new advanced system)
         self.epsilon_decay_strategy = self._create_epsilon_strategy()
@@ -286,27 +324,28 @@ class DQNAgent:
     def _create_epsilon_strategy(self) -> EpsilonDecayStrategy:
         """Create epsilon decay strategy from config"""
         # Check if using new config format
-        if 'epsilon_decay_type' in self.config or 'epsilon_decay_steps' in self.config:
+        if "epsilon_decay_type" in self.config or "epsilon_decay_steps" in self.config:
             return EpsilonDecayFactory.create_from_config(self.config)
 
         # Legacy config support - convert old parameters to new system
-        epsilon_start = self.config.get('epsilon', 1.0)
-        epsilon_end = self.config.get('epsilon_min', 0.05)
-        decay_steps = self.config.get('epsilon_decay_steps', 2000)
+        epsilon_start = self.config.get("epsilon", 1.0)
+        epsilon_end = self.config.get("epsilon_min", 0.05)
+        decay_steps = self.config.get("epsilon_decay_steps", 2000)
 
-        logger.info(f"🔄 Converting legacy epsilon config to LinearEpsilonDecay")
+        logger.info("🔄 Converting legacy epsilon config to LinearEpsilonDecay")
 
         return EpsilonDecayFactory.create(
-            'linear',
+            "linear",
             epsilon_start=epsilon_start,
             epsilon_end=epsilon_end,
-            decay_steps=decay_steps
+            decay_steps=decay_steps,
         )
 
     def _get_device(self) -> str:
         """Detect available compute device"""
         try:
             import torch
+
             if torch.cuda.is_available():
                 return "cuda"
         except ImportError:
@@ -346,7 +385,9 @@ class DQNAgent:
             self.update_target_model()
 
             # Optimizer
-            self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
+            self.optimizer = torch.optim.Adam(
+                self.model.parameters(), lr=self.learning_rate
+            )
             self.criterion = nn.MSELoss()
 
             logger.info("✅ PyTorch DQN model built")
@@ -364,7 +405,7 @@ class DQNAgent:
     def update_target_model(self):
         """Copy weights from model to target model"""
         try:
-            if hasattr(self, 'model') and self.model is not None:
+            if hasattr(self, "model") and self.model is not None:
                 self.target_model.load_state_dict(self.model.state_dict())
         except:
             pass
@@ -397,16 +438,17 @@ class DQNAgent:
         """Store experience in replay buffer"""
         self.memory.push(state, action, reward, next_state, done)
 
-    def replay(self):
+    def replay(self, batch_size: int = None):
         """Train on batch from replay buffer"""
-        if len(self.memory) < self.batch_size:
-            return
+        batch_size = batch_size or self.batch_size
+        if len(self.memory) < batch_size:
+            return 0.0  # Return 0 loss when insufficient data (test compatibility)
 
         try:
             import torch
 
             # Sample batch
-            batch = self.memory.sample(self.batch_size)
+            batch = self.memory.sample(batch_size)
             states, actions, rewards, next_states, dones = zip(*batch)
 
             # Convert to tensors
@@ -449,24 +491,30 @@ class DQNAgent:
         """Decay exploration rate using advanced strategy"""
         self.epsilon = self.epsilon_decay_strategy.step()
 
+    def update_epsilon(self):
+        """Alias for decay_epsilon() for backward compatibility"""
+        self.decay_epsilon()
+
     def save(self, filepath: str):
         """Save model to file"""
         try:
             import torch
 
             save_data = {
-                'model_state_dict': self.model.state_dict(),
-                'optimizer_state_dict': self.optimizer.state_dict(),
-                'epsilon': self.epsilon,
-                'epsilon_step': self.epsilon_decay_strategy.current_step,
-                'training_history': self.training_history
+                "model_state_dict": self.model.state_dict(),
+                "optimizer_state_dict": self.optimizer.state_dict(),
+                "epsilon": self.epsilon,
+                "epsilon_step": self.epsilon_decay_strategy.current_step,
+                "training_history": self.training_history,
             }
 
             torch.save(save_data, filepath)
             logger.info(f"✅ Model saved to {filepath}")
 
             # Save epsilon history separately
-            epsilon_path = Path(filepath).parent / f"{Path(filepath).stem}_epsilon_history.json"
+            epsilon_path = (
+                Path(filepath).parent / f"{Path(filepath).stem}_epsilon_history.json"
+            )
             self.epsilon_decay_strategy.save_history(str(epsilon_path))
 
         except Exception as e:
@@ -478,14 +526,14 @@ class DQNAgent:
             import torch
 
             checkpoint = torch.load(filepath)
-            self.model.load_state_dict(checkpoint['model_state_dict'])
-            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            self.epsilon = checkpoint['epsilon']
-            self.training_history = checkpoint.get('training_history', [])
+            self.model.load_state_dict(checkpoint["model_state_dict"])
+            self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            self.epsilon = checkpoint["epsilon"]
+            self.training_history = checkpoint.get("training_history", [])
 
             # Restore epsilon decay strategy step
-            if 'epsilon_step' in checkpoint:
-                self.epsilon_decay_strategy.current_step = checkpoint['epsilon_step']
+            if "epsilon_step" in checkpoint:
+                self.epsilon_decay_strategy.current_step = checkpoint["epsilon_step"]
                 self.epsilon_decay_strategy.current_epsilon = self.epsilon
 
             self.update_target_model()
@@ -495,6 +543,52 @@ class DQNAgent:
         except Exception as e:
             logger.error(f"Load error: {e}")
 
+    def get_model_summary(self) -> str:
+        """Get summary of model architecture and parameters"""
+        try:
+            import torch
+
+            if self.model is None:
+                param_count = self.weights.size if hasattr(self, "weights") else 0
+                return (
+                    f"DQN Agent Model Summary\n"
+                    f"{'='*50}\n"
+                    f"Type: NumPy Fallback\n"
+                    f"State Size: {self.state_size}\n"
+                    f"Action Size: {self.action_size}\n"
+                    f"Parameters: {param_count}\n"
+                )
+
+            # Count parameters
+            total_params = sum(p.numel() for p in self.model.parameters())
+            trainable_params = sum(
+                p.numel() for p in self.model.parameters() if p.requires_grad
+            )
+
+            return (
+                f"DQN Agent Model Summary\n"
+                f"{'='*50}\n"
+                f"Type: PyTorch DQN\n"
+                f"State Size: {self.state_size}\n"
+                f"Action Size: {self.action_size}\n"
+                f"Total Parameters: {total_params:,}\n"
+                f"Trainable Parameters: {trainable_params:,}\n"
+                f"Device: {self.device}\n"
+                f"Epsilon: {self.epsilon:.4f}\n"
+                f"Learning Rate: {self.learning_rate}\n"
+                f"Gamma: {self.gamma}\n"
+            )
+
+        except Exception as e:
+            logger.error(f"Model summary error: {e}")
+            return (
+                f"DQN Agent Model Summary (Error)\n"
+                f"{'='*50}\n"
+                f"State Size: {self.state_size}\n"
+                f"Action Size: {self.action_size}\n"
+                f"Error: {str(e)}\n"
+            )
+
 
 # Export main classes
-__all__ = ['TradingEnvironment', 'DQNAgent', 'ReplayBuffer']
+__all__ = ["TradingEnvironment", "DQNAgent", "ReplayBuffer"]
