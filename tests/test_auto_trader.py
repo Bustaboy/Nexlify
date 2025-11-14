@@ -14,22 +14,18 @@ from unittest.mock import Mock, AsyncMock, MagicMock, patch
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from nexlify.core.nexlify_auto_trader import (
-    AutoTrader,
-    RiskManager,
-    TradeExecution
-)
+from nexlify.core.nexlify_auto_trader import AutoTrader, RiskManager, TradeExecution
 
 
 @pytest.fixture
 def risk_config():
     """Standard risk management configuration"""
     return {
-        'max_position_size': 100.0,
-        'max_concurrent_trades': 5,
-        'max_daily_loss': 100.0,
-        'min_profit_percent': 0.5,
-        'min_confidence': 0.7
+        "max_position_size": 100.0,
+        "max_concurrent_trades": 5,
+        "max_daily_loss": 100.0,
+        "min_profit_percent": 0.5,
+        "min_confidence": 0.7,
     }
 
 
@@ -43,15 +39,15 @@ def risk_manager(risk_config):
 def auto_trader_config():
     """Standard auto trader configuration"""
     return {
-        'enabled': True,
-        'check_interval': 60,
-        'risk_management': {
-            'max_position_size': 100.0,
-            'max_concurrent_trades': 5,
-            'max_daily_loss': 100.0,
-            'min_profit_percent': 0.5,
-            'min_confidence': 0.7
-        }
+        "enabled": True,
+        "check_interval": 60,
+        "risk_management": {
+            "max_position_size": 100.0,
+            "max_concurrent_trades": 5,
+            "max_daily_loss": 100.0,
+            "min_profit_percent": 0.5,
+            "min_confidence": 0.7,
+        },
     }
 
 
@@ -117,15 +113,10 @@ class TestRiskManager:
 
     def test_should_trade_all_checks_pass(self, risk_manager):
         """Test should_trade when all checks pass"""
-        pair_data = {
-            'profit_score': 1.5,
-            'confidence': 0.8
-        }
+        pair_data = {"profit_score": 1.5, "confidence": 0.8}
 
         should_trade, reason = risk_manager.should_trade(
-            pair_data=pair_data,
-            balance=10000.0,
-            active_trades=2
+            pair_data=pair_data, balance=10000.0, active_trades=2
         )
 
         assert should_trade is True
@@ -135,15 +126,10 @@ class TestRiskManager:
         """Test should_trade rejects when daily loss exceeded"""
         risk_manager.daily_profit = -150.0
 
-        pair_data = {
-            'profit_score': 1.5,
-            'confidence': 0.8
-        }
+        pair_data = {"profit_score": 1.5, "confidence": 0.8}
 
         should_trade, reason = risk_manager.should_trade(
-            pair_data=pair_data,
-            balance=10000.0,
-            active_trades=2
+            pair_data=pair_data, balance=10000.0, active_trades=2
         )
 
         assert should_trade is False
@@ -151,15 +137,10 @@ class TestRiskManager:
 
     def test_should_trade_max_trades_reached(self, risk_manager):
         """Test should_trade rejects when max concurrent trades reached"""
-        pair_data = {
-            'profit_score': 1.5,
-            'confidence': 0.8
-        }
+        pair_data = {"profit_score": 1.5, "confidence": 0.8}
 
         should_trade, reason = risk_manager.should_trade(
-            pair_data=pair_data,
-            balance=10000.0,
-            active_trades=5  # At limit
+            pair_data=pair_data, balance=10000.0, active_trades=5  # At limit
         )
 
         assert should_trade is False
@@ -167,15 +148,10 @@ class TestRiskManager:
 
     def test_should_trade_low_profit_score(self, risk_manager):
         """Test should_trade rejects when profit score too low"""
-        pair_data = {
-            'profit_score': 0.3,  # Below 0.5 threshold
-            'confidence': 0.8
-        }
+        pair_data = {"profit_score": 0.3, "confidence": 0.8}  # Below 0.5 threshold
 
         should_trade, reason = risk_manager.should_trade(
-            pair_data=pair_data,
-            balance=10000.0,
-            active_trades=2
+            pair_data=pair_data, balance=10000.0, active_trades=2
         )
 
         assert should_trade is False
@@ -183,15 +159,10 @@ class TestRiskManager:
 
     def test_should_trade_low_confidence(self, risk_manager):
         """Test should_trade rejects when confidence too low"""
-        pair_data = {
-            'profit_score': 1.5,
-            'confidence': 0.5  # Below 0.7 threshold
-        }
+        pair_data = {"profit_score": 1.5, "confidence": 0.5}  # Below 0.7 threshold
 
         should_trade, reason = risk_manager.should_trade(
-            pair_data=pair_data,
-            balance=10000.0,
-            active_trades=2
+            pair_data=pair_data, balance=10000.0, active_trades=2
         )
 
         assert should_trade is False
@@ -214,7 +185,7 @@ class TestTradeExecution:
             profit_target=51000.0,
             stop_loss=49000.0,
             strategy="neural_net",
-            status="open"
+            status="open",
         )
 
         assert trade.trade_id == "trade_123"
@@ -232,10 +203,7 @@ class TestAutoTrader:
         """Create auto trader instance"""
         trader = AutoTrader(auto_trader_config)
         # Mock exchanges to avoid real connections
-        trader.exchanges = {
-            'binance': AsyncMock(),
-            'kraken': AsyncMock()
-        }
+        trader.exchanges = {"binance": AsyncMock(), "kraken": AsyncMock()}
         return trader
 
     def test_initialization(self, auto_trader):
@@ -264,29 +232,29 @@ class TestAutoTrader:
     async def test_get_account_balance(self, auto_trader):
         """Test getting account balance"""
         # Mock exchange balance
-        auto_trader.exchanges['binance'].fetch_balance = AsyncMock(return_value={
-            'USDT': {'free': 10000.0, 'used': 0.0, 'total': 10000.0}
-        })
+        auto_trader.exchanges["binance"].fetch_balance = AsyncMock(
+            return_value={"USDT": {"free": 10000.0, "used": 0.0, "total": 10000.0}}
+        )
 
-        balance = await auto_trader.get_account_balance('binance')
+        balance = await auto_trader.get_account_balance("binance")
         assert balance == 10000.0
 
     @pytest.mark.asyncio
     async def test_get_account_balance_error(self, auto_trader):
         """Test getting account balance with error"""
         # Mock exchange error
-        auto_trader.exchanges['binance'].fetch_balance = AsyncMock(
+        auto_trader.exchanges["binance"].fetch_balance = AsyncMock(
             side_effect=Exception("API Error")
         )
 
-        balance = await auto_trader.get_account_balance('binance')
+        balance = await auto_trader.get_account_balance("binance")
         assert balance == 0.0  # Returns 0 on error
 
     def test_get_active_trades_count(self, auto_trader):
         """Test counting active trades"""
         # Add some trades
         auto_trader.active_trades = {
-            'trade1': TradeExecution(
+            "trade1": TradeExecution(
                 trade_id="trade1",
                 symbol="BTC/USDT",
                 exchange="binance",
@@ -297,9 +265,9 @@ class TestAutoTrader:
                 profit_target=51000.0,
                 stop_loss=49000.0,
                 strategy="test",
-                status="open"
+                status="open",
             ),
-            'trade2': TradeExecution(
+            "trade2": TradeExecution(
                 trade_id="trade2",
                 symbol="ETH/USDT",
                 exchange="binance",
@@ -310,8 +278,8 @@ class TestAutoTrader:
                 profit_target=3100.0,
                 stop_loss=2900.0,
                 strategy="test",
-                status="open"
-            )
+                status="open",
+            ),
         }
 
         assert auto_trader.get_active_trades_count() == 2
@@ -338,11 +306,11 @@ class TestAutoTrader:
         """Test getting auto trader status"""
         status = auto_trader.get_status()
 
-        assert 'enabled' in status
-        assert 'running' in status
-        assert 'active_trades' in status
-        assert 'daily_profit' in status
-        assert 'daily_trades' in status
+        assert "enabled" in status
+        assert "running" in status
+        assert "active_trades" in status
+        assert "daily_profit" in status
+        assert "daily_trades" in status
 
 
 class TestEdgeCases:
@@ -364,9 +332,7 @@ class TestEdgeCases:
         pair_data = {}  # Empty
 
         should_trade, reason = risk_manager.should_trade(
-            pair_data=pair_data,
-            balance=10000.0,
-            active_trades=2
+            pair_data=pair_data, balance=10000.0, active_trades=2
         )
 
         # Should handle missing fields gracefully

@@ -21,9 +21,9 @@ class CyberpunkEffects:
 
     def __init__(self, config: Dict = None):
         self.config = config or {}
-        self.effects_enabled = self.config.get('effects_enabled', True)
-        self.glow_intensity = self.config.get('glow_intensity', 20)
-        self.animation_speed = self.config.get('animation_speed', 200)
+        self.effects_enabled = self.config.get("effects_enabled", True)
+        self.glow_intensity = self.config.get("glow_intensity", 20)
+        self.animation_speed = self.config.get("animation_speed", 200)
 
         logger.info("✨ Modern UI Effects initialized")
 
@@ -75,7 +75,11 @@ class CyberpunkEffects:
             return
 
         try:
-            from PyQt5.QtCore import QPropertyAnimation, QEasingCurve, QAbstractAnimation
+            from PyQt5.QtCore import (
+                QPropertyAnimation,
+                QEasingCurve,
+                QAbstractAnimation,
+            )
             from PyQt5.QtWidgets import QGraphicsOpacityEffect
 
             # Create opacity effect
@@ -95,7 +99,7 @@ class CyberpunkEffects:
             animation.start(QAbstractAnimation.DeleteWhenStopped)
 
             # Store reference so it doesn't get garbage collected
-            if not hasattr(widget, '_animations'):
+            if not hasattr(widget, "_animations"):
                 widget._animations = []
             widget._animations.append(animation)
 
@@ -110,17 +114,17 @@ class CyberpunkEffects:
             Dictionary of color names to hex values
         """
         return {
-            'bg_primary': '#0a0a0a',
-            'bg_secondary': '#151515',
-            'bg_tertiary': '#1f1f1f',
-            'accent_cyan': '#00ffff',
-            'accent_magenta': '#ff00ff',
-            'accent_green': '#00ff00',
-            'accent_yellow': '#ffff00',
-            'accent_red': '#ff0000',
-            'text_primary': '#ffffff',
-            'text_secondary': '#b0b0b0',
-            'text_dim': '#606060'
+            "bg_primary": "#0a0a0a",
+            "bg_secondary": "#151515",
+            "bg_tertiary": "#1f1f1f",
+            "accent_cyan": "#00ffff",
+            "accent_magenta": "#ff00ff",
+            "accent_green": "#00ff00",
+            "accent_yellow": "#ffff00",
+            "accent_red": "#ff0000",
+            "text_primary": "#ffffff",
+            "text_secondary": "#b0b0b0",
+            "text_dim": "#606060",
         }
 
     def play_typing_sound(self):
@@ -133,13 +137,13 @@ class CyberpunkEffects:
         """Play notification sound"""
         # Map notification types to sound effects
         sound_map = {
-            'info': 'notification',
-            'success': 'profit',
-            'warning': 'notification',
-            'error': 'emergency_alarm'
+            "info": "notification",
+            "success": "profit",
+            "warning": "notification",
+            "error": "emergency_alarm",
         }
 
-        sound_name = sound_map.get(notification_type, 'notification')
+        sound_name = sound_map.get(notification_type, "notification")
 
         # This would play the sound through SoundManager
         # For now, it's a placeholder
@@ -153,21 +157,21 @@ class SoundManager:
 
     def __init__(self, config: Dict = None):
         self.config = config or {}
-        self.sounds_enabled = self.config.get('sounds_enabled', True)
-        self.volume = self.config.get('volume', 0.7)
+        self.sounds_enabled = self.config.get("sounds_enabled", True)
+        self.volume = self.config.get("volume", 0.7)
         self.sounds_dir = Path("assets/sounds")
         self.initialized = False
 
         # Sound file paths
         self.sound_files = {
-            'trading_start': 'trading_start.wav',
-            'trade_executed': 'trade_executed.wav',
-            'profit': 'profit.wav',
-            'loss': 'loss.wav',
-            'notification': 'notification.wav',
-            'emergency_alarm': 'emergency_alarm.wav',
-            'typing': 'typing.wav',
-            'click': 'click.wav'
+            "trading_start": "trading_start.wav",
+            "trade_executed": "trade_executed.wav",
+            "profit": "profit.wav",
+            "loss": "loss.wav",
+            "notification": "notification.wav",
+            "emergency_alarm": "emergency_alarm.wav",
+            "typing": "typing.wav",
+            "click": "click.wav",
         }
 
         logger.info("🔊 Sound Manager initialized")
@@ -218,6 +222,7 @@ class SoundManager:
                 try:
                     # Attempt to use playsound
                     from playsound import playsound
+
                     playsound(str(sound_file))
                 except ImportError:
                     # Fallback: use system beep or no sound
@@ -277,8 +282,13 @@ class NotificationManager:
         self.sound_manager = sound_manager
         self.notification_history = []
 
-    def notify(self, title: str, message: str, notification_type: str = "info",
-              play_sound: bool = True):
+    def notify(
+        self,
+        title: str,
+        message: str,
+        notification_type: str = "info",
+        play_sound: bool = True,
+    ):
         """
         Send a system notification
 
@@ -290,23 +300,25 @@ class NotificationManager:
         """
         try:
             # Store in history
-            self.notification_history.append({
-                'title': title,
-                'message': message,
-                'type': notification_type,
-                'timestamp': logger.Formatter().formatTime(logger.LogRecord(
-                    '', 0, '', 0, '', '', ''
-                ))
-            })
+            self.notification_history.append(
+                {
+                    "title": title,
+                    "message": message,
+                    "type": notification_type,
+                    "timestamp": logger.Formatter().formatTime(
+                        logger.LogRecord("", 0, "", 0, "", "", "")
+                    ),
+                }
+            )
 
             # Play sound if enabled
             if play_sound and self.sound_manager:
-                if notification_type == 'error':
-                    self.sound_manager.play('emergency_alarm')
-                elif notification_type == 'success':
-                    self.sound_manager.play('profit')
+                if notification_type == "error":
+                    self.sound_manager.play("emergency_alarm")
+                elif notification_type == "success":
+                    self.sound_manager.play("profit")
                 else:
-                    self.sound_manager.play('notification')
+                    self.sound_manager.play("notification")
 
             # Try to send OS notification
             self._send_os_notification(title, message, notification_type)
@@ -314,30 +326,27 @@ class NotificationManager:
         except Exception as e:
             logger.debug(f"Notification error: {e}")
 
-    def _send_os_notification(self, title: str, message: str,
-                             notification_type: str):
+    def _send_os_notification(self, title: str, message: str, notification_type: str):
         """Send OS-level notification"""
         try:
             # Try plyer for cross-platform notifications
             from plyer import notification as plyer_notify
 
             plyer_notify.notify(
-                title=title,
-                message=message,
-                app_name='Nexlify',
-                timeout=10
+                title=title, message=message, app_name="Nexlify", timeout=10
             )
 
         except ImportError:
             # Fallback: try platform-specific methods
             import platform
+
             system = platform.system()
 
-            if system == 'Windows':
+            if system == "Windows":
                 self._send_windows_notification(title, message)
-            elif system == 'Darwin':  # macOS
+            elif system == "Darwin":  # macOS
                 self._send_macos_notification(title, message)
-            elif system == 'Linux':
+            elif system == "Linux":
                 self._send_linux_notification(title, message)
 
         except Exception as e:
@@ -347,6 +356,7 @@ class NotificationManager:
         """Send Windows notification"""
         try:
             from win10toast import ToastNotifier
+
             toaster = ToastNotifier()
             toaster.show_toast(title, message, duration=10, threaded=True)
         except:
@@ -356,8 +366,9 @@ class NotificationManager:
         """Send macOS notification"""
         try:
             import subprocess
+
             script = f'display notification "{message}" with title "{title}"'
-            subprocess.run(['osascript', '-e', script])
+            subprocess.run(["osascript", "-e", script])
         except:
             pass
 
@@ -365,7 +376,8 @@ class NotificationManager:
         """Send Linux notification"""
         try:
             import subprocess
-            subprocess.run(['notify-send', title, message])
+
+            subprocess.run(["notify-send", title, message])
         except:
             pass
 
@@ -381,6 +393,8 @@ def create_sound_manager(config: Dict = None) -> SoundManager:
     return SoundManager(config)
 
 
-def create_notification_manager(sound_manager: Optional[SoundManager] = None) -> NotificationManager:
+def create_notification_manager(
+    sound_manager: Optional[SoundManager] = None,
+) -> NotificationManager:
     """Create and return a NotificationManager instance"""
     return NotificationManager(sound_manager)

@@ -25,52 +25,54 @@ logger = logging.getLogger(__name__)
 
 class OptimizationProfile(Enum):
     """Optimization profiles"""
-    AUTO = "auto"                               # Automatically benchmark and enable best (RECOMMENDED)
+
+    AUTO = "auto"  # Automatically benchmark and enable best (RECOMMENDED)
     ULTRA_LOW_OVERHEAD = "ultra_low_overhead"  # < 1% overhead
-    BALANCED = "balanced"                       # < 5% overhead
-    MAXIMUM_PERFORMANCE = "maximum"             # All optimizations
-    INFERENCE_ONLY = "inference"                # Inference optimizations only
+    BALANCED = "balanced"  # < 5% overhead
+    MAXIMUM_PERFORMANCE = "maximum"  # All optimizations
+    INFERENCE_ONLY = "inference"  # Inference optimizations only
     CUSTOM = "custom"
 
 
 @dataclass
 class OptimizationConfig:
     """Configuration for optimizations"""
+
     # Hardware detection (one-time, startup only)
-    detect_gpu_capabilities: bool = True        # < 0.1s startup overhead
-    detect_cpu_topology: bool = True            # < 0.1s startup overhead
-    detect_multi_gpu: bool = True               # < 0.2s startup overhead
+    detect_gpu_capabilities: bool = True  # < 0.1s startup overhead
+    detect_cpu_topology: bool = True  # < 0.1s startup overhead
+    detect_multi_gpu: bool = True  # < 0.2s startup overhead
 
     # Background monitoring (ongoing overhead)
-    enable_thermal_monitoring: bool = False      # 30s interval = 0.001% overhead
-    thermal_check_interval: float = 30.0        # Seconds between checks
+    enable_thermal_monitoring: bool = False  # 30s interval = 0.001% overhead
+    thermal_check_interval: float = 30.0  # Seconds between checks
 
-    enable_resource_monitoring: bool = False     # 100ms interval = 0.1% overhead
-    resource_check_interval: float = 0.5        # Seconds between checks
+    enable_resource_monitoring: bool = False  # 100ms interval = 0.1% overhead
+    resource_check_interval: float = 0.5  # Seconds between checks
 
     # Caching (overhead from memory, but massive speedup)
-    enable_smart_cache: bool = False            # Memory overhead, disk speedup
-    cache_size_mb: int = 1000                   # Memory overhead
-    enable_compression: bool = True             # CPU overhead, disk savings (LZ4 is fast!)
+    enable_smart_cache: bool = False  # Memory overhead, disk speedup
+    cache_size_mb: int = 1000  # Memory overhead
+    enable_compression: bool = True  # CPU overhead, disk savings (LZ4 is fast!)
 
     # Model optimization (one-time compilation overhead)
-    enable_compilation: bool = False            # 10-60s compile time, 30-50% speedup
-    compilation_mode: str = "default"           # "default", "reduce-overhead", "max-autotune"
+    enable_compilation: bool = False  # 10-60s compile time, 30-50% speedup
+    compilation_mode: str = "default"  # "default", "reduce-overhead", "max-autotune"
 
-    enable_quantization: bool = False           # 5-30s conversion, 4x memory + 2-4x speed
-    quantization_method: str = "dynamic"        # "dynamic", "static", "fp16"
+    enable_quantization: bool = False  # 5-30s conversion, 4x memory + 2-4x speed
+    quantization_method: str = "dynamic"  # "dynamic", "static", "fp16"
 
     # GPU optimizations (zero overhead)
-    enable_gpu_optimizations: bool = True       # Zero overhead, automatic
-    enable_mixed_precision: bool = True         # Zero overhead, 2-3x speedup
-    enable_tensor_cores: bool = True            # Zero overhead, 2-5x speedup
+    enable_gpu_optimizations: bool = True  # Zero overhead, automatic
+    enable_mixed_precision: bool = True  # Zero overhead, 2-3x speedup
+    enable_tensor_cores: bool = True  # Zero overhead, 2-5x speedup
 
     # CPU optimizations (zero overhead)
-    enable_ht_smt_optimization: bool = True     # Zero overhead, better threading
-    enable_cpu_affinity: bool = False           # Slight benefit, restrictive
+    enable_ht_smt_optimization: bool = True  # Zero overhead, better threading
+    enable_cpu_affinity: bool = False  # Slight benefit, restrictive
 
     # Multi-GPU (zero overhead if single GPU)
-    enable_multi_gpu: bool = True               # Zero overhead for single GPU
+    enable_multi_gpu: bool = True  # Zero overhead for single GPU
 
 
 class OptimizationManager:
@@ -106,26 +108,28 @@ class OptimizationManager:
         if profile == OptimizationProfile.AUTO:
             # AUTO mode: Will benchmark on first use
             # For now, return balanced config
-            logger.info("AUTO mode: Will benchmark optimizations on first model optimization")
+            logger.info(
+                "AUTO mode: Will benchmark optimizations on first model optimization"
+            )
             return self._create_config(OptimizationProfile.BALANCED)
 
         elif profile == OptimizationProfile.ULTRA_LOW_OVERHEAD:
             # Only zero-overhead optimizations
             return OptimizationConfig(
-                detect_gpu_capabilities=True,        # One-time, < 0.1s
-                detect_cpu_topology=True,            # One-time, < 0.1s
-                detect_multi_gpu=True,               # One-time, < 0.2s
-                enable_thermal_monitoring=False,     # Disabled for ultra-low
-                enable_resource_monitoring=False,    # Disabled for ultra-low
-                enable_smart_cache=False,            # Disabled (memory overhead)
-                enable_compilation=False,            # Disabled (startup overhead)
-                enable_quantization=False,           # Disabled (conversion overhead)
-                enable_gpu_optimizations=True,       # Zero overhead
-                enable_mixed_precision=True,         # Zero overhead, huge speedup
-                enable_tensor_cores=True,            # Zero overhead, huge speedup
-                enable_ht_smt_optimization=True,     # Zero overhead
-                enable_cpu_affinity=False,           # Disabled (restrictive)
-                enable_multi_gpu=True                # Zero overhead if single GPU
+                detect_gpu_capabilities=True,  # One-time, < 0.1s
+                detect_cpu_topology=True,  # One-time, < 0.1s
+                detect_multi_gpu=True,  # One-time, < 0.2s
+                enable_thermal_monitoring=False,  # Disabled for ultra-low
+                enable_resource_monitoring=False,  # Disabled for ultra-low
+                enable_smart_cache=False,  # Disabled (memory overhead)
+                enable_compilation=False,  # Disabled (startup overhead)
+                enable_quantization=False,  # Disabled (conversion overhead)
+                enable_gpu_optimizations=True,  # Zero overhead
+                enable_mixed_precision=True,  # Zero overhead, huge speedup
+                enable_tensor_cores=True,  # Zero overhead, huge speedup
+                enable_ht_smt_optimization=True,  # Zero overhead
+                enable_cpu_affinity=False,  # Disabled (restrictive)
+                enable_multi_gpu=True,  # Zero overhead if single GPU
             )
 
         elif profile == OptimizationProfile.BALANCED:
@@ -134,22 +138,22 @@ class OptimizationManager:
                 detect_gpu_capabilities=True,
                 detect_cpu_topology=True,
                 detect_multi_gpu=True,
-                enable_thermal_monitoring=True,      # 30s interval = 0.001% overhead
+                enable_thermal_monitoring=True,  # 30s interval = 0.001% overhead
                 thermal_check_interval=30.0,
-                enable_resource_monitoring=True,     # 0.5s interval = 0.02% overhead
+                enable_resource_monitoring=True,  # 0.5s interval = 0.02% overhead
                 resource_check_interval=0.5,
-                enable_smart_cache=True,             # Memory overhead, but fast
+                enable_smart_cache=True,  # Memory overhead, but fast
                 cache_size_mb=1000,
-                enable_compression=True,             # LZ4 is faster than disk!
-                enable_compilation=True,             # One-time cost, 30-50% speedup
+                enable_compression=True,  # LZ4 is faster than disk!
+                enable_compilation=True,  # One-time cost, 30-50% speedup
                 compilation_mode="default",
-                enable_quantization=False,           # User can enable if needed
+                enable_quantization=False,  # User can enable if needed
                 enable_gpu_optimizations=True,
                 enable_mixed_precision=True,
                 enable_tensor_cores=True,
                 enable_ht_smt_optimization=True,
                 enable_cpu_affinity=False,
-                enable_multi_gpu=True
+                enable_multi_gpu=True,
             )
 
         elif profile == OptimizationProfile.MAXIMUM_PERFORMANCE:
@@ -159,22 +163,22 @@ class OptimizationManager:
                 detect_cpu_topology=True,
                 detect_multi_gpu=True,
                 enable_thermal_monitoring=True,
-                thermal_check_interval=60.0,          # Longer interval for max perf
+                thermal_check_interval=60.0,  # Longer interval for max perf
                 enable_resource_monitoring=True,
-                resource_check_interval=1.0,          # Longer interval
+                resource_check_interval=1.0,  # Longer interval
                 enable_smart_cache=True,
-                cache_size_mb=2000,                   # Larger cache
+                cache_size_mb=2000,  # Larger cache
                 enable_compression=True,
                 enable_compilation=True,
-                compilation_mode="max-autotune",      # Best performance
-                enable_quantization=True,             # 4x memory + 2-4x speed
+                compilation_mode="max-autotune",  # Best performance
+                enable_quantization=True,  # 4x memory + 2-4x speed
                 quantization_method="dynamic",
                 enable_gpu_optimizations=True,
                 enable_mixed_precision=True,
                 enable_tensor_cores=True,
                 enable_ht_smt_optimization=True,
-                enable_cpu_affinity=True,             # Use CPU affinity
-                enable_multi_gpu=True
+                enable_cpu_affinity=True,  # Use CPU affinity
+                enable_multi_gpu=True,
             )
 
         elif profile == OptimizationProfile.INFERENCE_ONLY:
@@ -182,22 +186,22 @@ class OptimizationManager:
             return OptimizationConfig(
                 detect_gpu_capabilities=True,
                 detect_cpu_topology=True,
-                detect_multi_gpu=False,               # Not needed for inference
-                enable_thermal_monitoring=False,      # Not critical for inference
+                detect_multi_gpu=False,  # Not needed for inference
+                enable_thermal_monitoring=False,  # Not critical for inference
                 enable_resource_monitoring=False,
-                enable_smart_cache=True,              # Good for inference
+                enable_smart_cache=True,  # Good for inference
                 cache_size_mb=500,
                 enable_compression=True,
-                enable_compilation=True,              # Critical for inference
+                enable_compilation=True,  # Critical for inference
                 compilation_mode="default",
-                enable_quantization=True,             # Critical for inference
+                enable_quantization=True,  # Critical for inference
                 quantization_method="dynamic",
                 enable_gpu_optimizations=True,
                 enable_mixed_precision=True,
                 enable_tensor_cores=True,
                 enable_ht_smt_optimization=True,
                 enable_cpu_affinity=False,
-                enable_multi_gpu=False
+                enable_multi_gpu=False,
             )
 
         else:
@@ -217,7 +221,7 @@ class OptimizationManager:
         logger.info(f"Memory Overhead: {overhead_analysis['memory_overhead_mb']} MB")
 
         logger.info(f"\nEnabled Optimizations:")
-        for opt, enabled in overhead_analysis['enabled_optimizations'].items():
+        for opt, enabled in overhead_analysis["enabled_optimizations"].items():
             symbol = "✓" if enabled else "✗"
             logger.info(f"  {symbol} {opt}")
 
@@ -257,26 +261,26 @@ class OptimizationManager:
 
         # List enabled optimizations
         enabled = {
-            'GPU Capabilities Detection': self.config.detect_gpu_capabilities,
-            'CPU Topology Detection (HT/SMT)': self.config.detect_cpu_topology,
-            'Multi-GPU Support': self.config.detect_multi_gpu,
-            'Thermal Monitoring': self.config.enable_thermal_monitoring,
-            'Resource Monitoring': self.config.enable_resource_monitoring,
-            'Smart Cache + Compression': self.config.enable_smart_cache,
-            'Model Compilation': self.config.enable_compilation,
-            'Quantization (INT8/FP16)': self.config.enable_quantization,
-            'GPU Optimizations': self.config.enable_gpu_optimizations,
-            'Mixed Precision (FP16/BF16/TF32)': self.config.enable_mixed_precision,
-            'Tensor Cores': self.config.enable_tensor_cores,
-            'HT/SMT Optimization': self.config.enable_ht_smt_optimization,
-            'CPU Affinity': self.config.enable_cpu_affinity
+            "GPU Capabilities Detection": self.config.detect_gpu_capabilities,
+            "CPU Topology Detection (HT/SMT)": self.config.detect_cpu_topology,
+            "Multi-GPU Support": self.config.detect_multi_gpu,
+            "Thermal Monitoring": self.config.enable_thermal_monitoring,
+            "Resource Monitoring": self.config.enable_resource_monitoring,
+            "Smart Cache + Compression": self.config.enable_smart_cache,
+            "Model Compilation": self.config.enable_compilation,
+            "Quantization (INT8/FP16)": self.config.enable_quantization,
+            "GPU Optimizations": self.config.enable_gpu_optimizations,
+            "Mixed Precision (FP16/BF16/TF32)": self.config.enable_mixed_precision,
+            "Tensor Cores": self.config.enable_tensor_cores,
+            "HT/SMT Optimization": self.config.enable_ht_smt_optimization,
+            "CPU Affinity": self.config.enable_cpu_affinity,
         }
 
         return {
-            'total_overhead': overhead / 100,  # Convert to fraction
-            'memory_overhead_mb': memory_overhead,
-            'expected_speedup': speedup,
-            'enabled_optimizations': enabled
+            "total_overhead": overhead / 100,  # Convert to fraction
+            "memory_overhead_mb": memory_overhead,
+            "expected_speedup": speedup,
+            "enabled_optimizations": enabled,
         }
 
     def initialize(self, lazy: bool = True):
@@ -311,6 +315,7 @@ class OptimizationManager:
         """Get GPU optimizer (lazy)"""
         if self.gpu_optimizer is None and self.config.enable_gpu_optimizations:
             from nexlify.ml.nexlify_gpu_optimizations import GPUOptimizer
+
             self.gpu_optimizer = GPUOptimizer()
             if self.gpu_optimizer.config:
                 self.gpu_optimizer.apply_optimizations()
@@ -319,7 +324,10 @@ class OptimizationManager:
     def _get_resource_monitor(self):
         """Get resource monitor (lazy)"""
         if self.resource_monitor is None:
-            from nexlify.ml.nexlify_dynamic_architecture_enhanced import EnhancedDynamicResourceMonitor
+            from nexlify.ml.nexlify_dynamic_architecture_enhanced import (
+                EnhancedDynamicResourceMonitor,
+            )
+
             self.resource_monitor = EnhancedDynamicResourceMonitor(
                 sample_interval=self.config.resource_check_interval
             )
@@ -331,6 +339,7 @@ class OptimizationManager:
         """Get thermal monitor (lazy)"""
         if self.thermal_monitor is None and self.config.enable_thermal_monitoring:
             from nexlify.ml.nexlify_thermal_monitor import ThermalMonitor
+
             self.thermal_monitor = ThermalMonitor(
                 check_interval=self.config.thermal_check_interval
             )
@@ -341,11 +350,12 @@ class OptimizationManager:
         """Get smart cache (lazy)"""
         if self.smart_cache is None and self.config.enable_smart_cache:
             from nexlify.ml.nexlify_smart_cache import SmartCache
+
             self.smart_cache = SmartCache(
                 cache_dir=cache_dir,
                 memory_cache_mb=self.config.cache_size_mb,
                 enable_compression=self.config.enable_compression,
-                enable_prefetch=True
+                enable_prefetch=True,
             )
         return self.smart_cache
 
@@ -353,6 +363,7 @@ class OptimizationManager:
         """Get multi-GPU manager (lazy)"""
         if self.multi_gpu_manager is None and self.config.enable_multi_gpu:
             from nexlify.ml.nexlify_multi_gpu import MultiGPUManager
+
             self.multi_gpu_manager = MultiGPUManager()
         return self.multi_gpu_manager
 
@@ -360,6 +371,7 @@ class OptimizationManager:
         """Get model compiler (lazy)"""
         if self.model_compiler is None and self.config.enable_compilation:
             from nexlify.ml.nexlify_model_compilation import ModelCompiler
+
             self.model_compiler = ModelCompiler()
         return self.model_compiler
 
@@ -367,6 +379,7 @@ class OptimizationManager:
         """Get quantizer (lazy)"""
         if self.quantizer is None and self.config.enable_quantization:
             from nexlify.ml.nexlify_quantization import AutoQuantizer
+
             self.quantizer = AutoQuantizer()
         return self.quantizer
 
@@ -386,7 +399,9 @@ class OptimizationManager:
         logger.info("🚀 Optimizing model...")
 
         # Auto-benchmark if AUTO profile or explicitly requested
-        if auto_benchmark or (auto_benchmark is None and self.profile == OptimizationProfile.AUTO):
+        if auto_benchmark or (
+            auto_benchmark is None and self.profile == OptimizationProfile.AUTO
+        ):
             if example_input is not None:
                 logger.info("📊 AUTO mode: Benchmarking optimizations...")
                 return self._optimize_with_benchmarking(model, example_input)
@@ -401,8 +416,10 @@ class OptimizationManager:
             if compiler:
                 model = compiler.compile(
                     model,
-                    mode=CompilationMode[self.config.compilation_mode.upper().replace('-', '_')],
-                    example_inputs=example_input
+                    mode=CompilationMode[
+                        self.config.compilation_mode.upper().replace("-", "_")
+                    ],
+                    example_inputs=example_input,
                 )
 
         # Quantization
@@ -410,6 +427,7 @@ class OptimizationManager:
             quantizer = self._get_quantizer()
             if quantizer:
                 from nexlify.ml.nexlify_quantization import QuantizationMethod
+
                 method = QuantizationMethod[self.config.quantization_method.upper()]
                 model = quantizer.quantize(model, method)
 
@@ -431,7 +449,9 @@ class OptimizationManager:
 
         # Baseline: original model
         logger.info("\n   [1/4] Benchmarking original model...")
-        baseline_time = self._benchmark_model_inference(model, example_input, num_runs=50)
+        baseline_time = self._benchmark_model_inference(
+            model, example_input, num_runs=50
+        )
         logger.info(f"         Baseline: {baseline_time*1000:.2f}ms per inference")
 
         best_model = model
@@ -444,22 +464,29 @@ class OptimizationManager:
             compiler = self._get_model_compiler()
             if compiler:
                 compiled_model = compiler.compile(
-                    copy.deepcopy(model),
-                    example_inputs=example_input
+                    copy.deepcopy(model), example_inputs=example_input
                 )
 
-                compiled_time = self._benchmark_model_inference(compiled_model, example_input, num_runs=50)
+                compiled_time = self._benchmark_model_inference(
+                    compiled_model, example_input, num_runs=50
+                )
                 speedup = baseline_time / compiled_time
 
-                logger.info(f"         Compiled: {compiled_time*1000:.2f}ms ({speedup:.2f}x speedup)")
+                logger.info(
+                    f"         Compiled: {compiled_time*1000:.2f}ms ({speedup:.2f}x speedup)"
+                )
 
                 if compiled_time < best_time * 0.95:  # At least 5% improvement
                     best_model = compiled_model
                     best_time = compiled_time
                     best_config = "compiled"
-                    logger.info(f"         ✓ Compilation improves performance - ENABLED")
+                    logger.info(
+                        f"         ✓ Compilation improves performance - ENABLED"
+                    )
                 else:
-                    logger.info(f"         ✗ Compilation doesn't help enough - DISABLED")
+                    logger.info(
+                        f"         ✗ Compilation doesn't help enough - DISABLED"
+                    )
 
         except Exception as e:
             logger.warning(f"         Compilation failed: {e}")
@@ -471,25 +498,38 @@ class OptimizationManager:
             if quantizer:
                 from nexlify.ml.nexlify_quantization import QuantizationMethod
 
-                test_model = copy.deepcopy(model) if best_config == "original" else best_model
-
-                quantized_model = quantizer.quantize(
-                    test_model,
-                    method=QuantizationMethod.DYNAMIC
+                test_model = (
+                    copy.deepcopy(model) if best_config == "original" else best_model
                 )
 
-                quantized_time = self._benchmark_model_inference(quantized_model, example_input, num_runs=50)
+                quantized_model = quantizer.quantize(
+                    test_model, method=QuantizationMethod.DYNAMIC
+                )
+
+                quantized_time = self._benchmark_model_inference(
+                    quantized_model, example_input, num_runs=50
+                )
                 speedup = baseline_time / quantized_time
 
-                logger.info(f"         Quantized: {quantized_time*1000:.2f}ms ({speedup:.2f}x speedup)")
+                logger.info(
+                    f"         Quantized: {quantized_time*1000:.2f}ms ({speedup:.2f}x speedup)"
+                )
 
                 if quantized_time < best_time * 0.95:  # At least 5% improvement
                     best_model = quantized_model
                     best_time = quantized_time
-                    best_config = "quantized" if best_config == "original" else "compiled+quantized"
-                    logger.info(f"         ✓ Quantization improves performance - ENABLED")
+                    best_config = (
+                        "quantized"
+                        if best_config == "original"
+                        else "compiled+quantized"
+                    )
+                    logger.info(
+                        f"         ✓ Quantization improves performance - ENABLED"
+                    )
                 else:
-                    logger.info(f"         ✗ Quantization doesn't help enough - DISABLED")
+                    logger.info(
+                        f"         ✗ Quantization doesn't help enough - DISABLED"
+                    )
 
         except Exception as e:
             logger.warning(f"         Quantization failed: {e}")
@@ -519,7 +559,9 @@ class OptimizationManager:
 
         return best_model
 
-    def _benchmark_model_inference(self, model, example_input, num_runs: int = 50) -> float:
+    def _benchmark_model_inference(
+        self, model, example_input, num_runs: int = 50
+    ) -> float:
         """Benchmark model inference time"""
         import torch
         import time
@@ -576,7 +618,9 @@ class OptimizationManager:
 
 
 # Convenience functions
-def create_optimizer(profile: OptimizationProfile = OptimizationProfile.BALANCED) -> OptimizationManager:
+def create_optimizer(
+    profile: OptimizationProfile = OptimizationProfile.BALANCED,
+) -> OptimizationManager:
     """Create optimization manager with profile"""
     return OptimizationManager(profile=profile)
 
@@ -587,8 +631,8 @@ from nexlify.ml.nexlify_model_compilation import CompilationMode
 
 # Export
 __all__ = [
-    'OptimizationProfile',
-    'OptimizationConfig',
-    'OptimizationManager',
-    'create_optimizer'
+    "OptimizationProfile",
+    "OptimizationConfig",
+    "OptimizationManager",
+    "create_optimizer",
 ]

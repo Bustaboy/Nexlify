@@ -24,9 +24,13 @@ class TelegramBot:
 
     def __init__(self, config: Dict = None):
         self.config = config or {}
-        self.bot_token = self.config.get('telegram_bot_token', '')
-        self.chat_id = self.config.get('telegram_chat_id', '')
-        self.enabled = self.config.get('telegram_enabled', False) and self.bot_token and self.chat_id
+        self.bot_token = self.config.get("telegram_bot_token", "")
+        self.chat_id = self.config.get("telegram_chat_id", "")
+        self.enabled = (
+            self.config.get("telegram_enabled", False)
+            and self.bot_token
+            and self.chat_id
+        )
 
         # Command handlers
         self.command_handlers: Dict[str, Callable] = {}
@@ -44,7 +48,7 @@ class TelegramBot:
         self,
         message: str,
         parse_mode: str = "Markdown",
-        disable_notification: bool = False
+        disable_notification: bool = False,
     ) -> bool:
         """
         Send a message to Telegram
@@ -64,10 +68,10 @@ class TelegramBot:
             url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
 
             data = {
-                'chat_id': self.chat_id,
-                'text': message,
-                'parse_mode': parse_mode,
-                'disable_notification': disable_notification
+                "chat_id": self.chat_id,
+                "text": message,
+                "parse_mode": parse_mode,
+                "disable_notification": disable_notification,
             }
 
             async with aiohttp.ClientSession() as session:
@@ -91,7 +95,7 @@ class TelegramBot:
         symbol: str,
         amount: float,
         price: float,
-        pnl: Optional[float] = None
+        pnl: Optional[float] = None,
     ):
         """Send trade execution notification"""
         emoji = "🟢" if action == "BUY" else "🔴"
@@ -115,8 +119,8 @@ class TelegramBot:
 
     async def send_performance_update(self, stats: Dict):
         """Send performance statistics update"""
-        win_rate_emoji = "🎯" if stats.get('win_rate', 0) > 60 else "📊"
-        profit_emoji = "💚" if stats.get('total_profit', 0) > 0 else "❌"
+        win_rate_emoji = "🎯" if stats.get("win_rate", 0) > 60 else "📊"
+        profit_emoji = "💚" if stats.get("total_profit", 0) > 0 else "❌"
 
         message = f"""
 📊 *Performance Update*
@@ -131,12 +135,7 @@ _Last updated: {datetime.now().strftime('%H:%M:%S')}_
 
         await self.send_message(message)
 
-    async def send_alert(
-        self,
-        alert_type: str,
-        message: str,
-        priority: str = "normal"
-    ):
+    async def send_alert(self, alert_type: str, message: str, priority: str = "normal"):
         """
         Send alert notification
 
@@ -145,14 +144,9 @@ _Last updated: {datetime.now().strftime('%H:%M:%S')}_
             message: Alert message
             priority: 'normal' or 'high'
         """
-        emoji_map = {
-            'warning': '⚠️',
-            'error': '❌',
-            'info': 'ℹ️',
-            'success': '✅'
-        }
+        emoji_map = {"warning": "⚠️", "error": "❌", "info": "ℹ️", "success": "✅"}
 
-        emoji = emoji_map.get(alert_type, '📢')
+        emoji = emoji_map.get(alert_type, "📢")
 
         formatted_message = f"""
 {emoji} *{alert_type.upper()}*
@@ -163,9 +157,11 @@ _Last updated: {datetime.now().strftime('%H:%M:%S')}_
 """
 
         # High priority alerts are not silent
-        disable_notification = (priority != "high")
+        disable_notification = priority != "high"
 
-        await self.send_message(formatted_message, disable_notification=disable_notification)
+        await self.send_message(
+            formatted_message, disable_notification=disable_notification
+        )
 
     async def send_opportunity_alert(self, opportunity: Dict):
         """Send trading opportunity alert"""
@@ -209,7 +205,7 @@ _Detected at {datetime.now().strftime('%H:%M:%S')}_
 
     async def send_daily_summary(self, summary: Dict):
         """Send end-of-day summary"""
-        profit = summary.get('daily_profit', 0)
+        profit = summary.get("daily_profit", 0)
         profit_emoji = "🟢" if profit > 0 else "🔴"
 
         message = f"""
@@ -246,21 +242,27 @@ _Detected at {datetime.now().strftime('%H:%M:%S')}_
             return
 
         # Register default commands
-        self.register_command('status', lambda: self._handle_status(neural_net))
-        self.register_command('profit', lambda: self._handle_profit(neural_net))
-        self.register_command('positions', lambda: self._handle_positions(neural_net))
-        self.register_command('stop', lambda: self._handle_stop(neural_net))
-        self.register_command('start', lambda: self._handle_start(neural_net))
+        self.register_command("status", lambda: self._handle_status(neural_net))
+        self.register_command("profit", lambda: self._handle_profit(neural_net))
+        self.register_command("positions", lambda: self._handle_positions(neural_net))
+        self.register_command("stop", lambda: self._handle_stop(neural_net))
+        self.register_command("start", lambda: self._handle_start(neural_net))
 
         logger.info("📱 Telegram bot started polling for commands")
 
         # Send startup message
-        await self.send_message("🤖 *Nexlify Bot Started*\n\nBot is now online and monitoring trades.")
+        await self.send_message(
+            "🤖 *Nexlify Bot Started*\n\nBot is now online and monitoring trades."
+        )
 
     async def _handle_status(self, neural_net):
         """Handle /status command"""
         try:
-            stats = neural_net.get_auto_trader_stats() if hasattr(neural_net, 'get_auto_trader_stats') else {}
+            stats = (
+                neural_net.get_auto_trader_stats()
+                if hasattr(neural_net, "get_auto_trader_stats")
+                else {}
+            )
 
             message = f"""
 📊 *Bot Status*
@@ -281,9 +283,13 @@ _Detected at {datetime.now().strftime('%H:%M:%S')}_
     async def _handle_profit(self, neural_net):
         """Handle /profit command"""
         try:
-            stats = neural_net.get_auto_trader_stats() if hasattr(neural_net, 'get_auto_trader_stats') else {}
+            stats = (
+                neural_net.get_auto_trader_stats()
+                if hasattr(neural_net, "get_auto_trader_stats")
+                else {}
+            )
 
-            profit = stats.get('total_profit', 0)
+            profit = stats.get("total_profit", 0)
             emoji = "💚" if profit > 0 else "❌"
 
             message = f"""
@@ -306,7 +312,7 @@ _Detected at {datetime.now().strftime('%H:%M:%S')}_
     async def _handle_positions(self, neural_net):
         """Handle /positions command"""
         try:
-            if hasattr(neural_net, 'get_open_positions'):
+            if hasattr(neural_net, "get_open_positions"):
                 positions = await neural_net.get_open_positions()
             else:
                 positions = []
@@ -318,9 +324,9 @@ _Detected at {datetime.now().strftime('%H:%M:%S')}_
             message = "📊 *Open Positions*\n\n"
 
             for pos in positions[:5]:  # Limit to 5
-                symbol = pos.get('symbol', 'N/A')
-                amount = pos.get('amount', 0)
-                pnl = pos.get('pnl', 0)
+                symbol = pos.get("symbol", "N/A")
+                amount = pos.get("amount", 0)
+                pnl = pos.get("pnl", 0)
                 pnl_emoji = "🟢" if pnl >= 0 else "🔴"
 
                 message += f"{pnl_emoji} *{symbol}*\n"
@@ -334,9 +340,11 @@ _Detected at {datetime.now().strftime('%H:%M:%S')}_
     async def _handle_stop(self, neural_net):
         """Handle /stop command"""
         try:
-            if hasattr(neural_net, 'toggle_auto_trading'):
+            if hasattr(neural_net, "toggle_auto_trading"):
                 neural_net.toggle_auto_trading(False)
-                await self.send_message("🛑 *Auto-trading STOPPED*\n\nAll automated trading has been disabled.")
+                await self.send_message(
+                    "🛑 *Auto-trading STOPPED*\n\nAll automated trading has been disabled."
+                )
             else:
                 await self.send_message("❌ Auto-trading control not available")
 
@@ -346,9 +354,11 @@ _Detected at {datetime.now().strftime('%H:%M:%S')}_
     async def _handle_start(self, neural_net):
         """Handle /start command"""
         try:
-            if hasattr(neural_net, 'toggle_auto_trading'):
+            if hasattr(neural_net, "toggle_auto_trading"):
                 neural_net.toggle_auto_trading(True)
-                await self.send_message("✅ *Auto-trading STARTED*\n\nAutomated trading is now enabled.")
+                await self.send_message(
+                    "✅ *Auto-trading STARTED*\n\nAutomated trading is now enabled."
+                )
             else:
                 await self.send_message("❌ Auto-trading control not available")
 
@@ -358,47 +368,51 @@ _Detected at {datetime.now().strftime('%H:%M:%S')}_
     def get_statistics(self) -> Dict:
         """Get bot statistics"""
         return {
-            'enabled': self.enabled,
-            'messages_sent': self.messages_sent,
-            'commands_received': self.commands_received,
-            'registered_commands': list(self.command_handlers.keys())
+            "enabled": self.enabled,
+            "messages_sent": self.messages_sent,
+            "commands_received": self.commands_received,
+            "registered_commands": list(self.command_handlers.keys()),
         }
 
 
 if __name__ == "__main__":
+
     async def main():
         print("=" * 70)
         print("NEXLIFY TELEGRAM BOT DEMO")
         print("=" * 70)
 
         # Initialize (needs real token/chat_id from config)
-        bot = TelegramBot({
-            'telegram_bot_token': 'YOUR_BOT_TOKEN',
-            'telegram_chat_id': 'YOUR_CHAT_ID',
-            'telegram_enabled': False  # Set to True when configured
-        })
+        bot = TelegramBot(
+            {
+                "telegram_bot_token": "YOUR_BOT_TOKEN",
+                "telegram_chat_id": "YOUR_CHAT_ID",
+                "telegram_enabled": False,  # Set to True when configured
+            }
+        )
 
         if bot.enabled:
             # Send test messages
             await bot.send_message("🤖 *Test Message*\n\nTelegram bot is working!")
 
             await bot.send_trade_notification(
-                action="BUY",
-                symbol="BTC/USDT",
-                amount=0.001,
-                price=45000
+                action="BUY", symbol="BTC/USDT", amount=0.001, price=45000
             )
 
-            await bot.send_performance_update({
-                'total_profit': 1234.56,
-                'win_rate': 67.5,
-                'total_trades': 42,
-                'active_positions': 3
-            })
+            await bot.send_performance_update(
+                {
+                    "total_profit": 1234.56,
+                    "win_rate": 67.5,
+                    "total_trades": 42,
+                    "active_positions": 3,
+                }
+            )
 
             print("\n✅ Test messages sent!")
         else:
-            print("\n⚠️ Bot not configured. Set telegram_bot_token and telegram_chat_id in config.")
+            print(
+                "\n⚠️ Bot not configured. Set telegram_bot_token and telegram_chat_id in config."
+            )
 
         print("\n" + "=" * 70)
 

@@ -22,6 +22,7 @@ error_handler = get_error_handler()
 @dataclass
 class PaperPosition:
     """Paper trading position"""
+
     id: str
     symbol: str
     side: str
@@ -36,6 +37,7 @@ class PaperPosition:
 @dataclass
 class PaperTrade:
     """Completed paper trade"""
+
     id: str
     symbol: str
     side: str
@@ -60,12 +62,12 @@ class PaperTradingEngine:
         self.config = config or {}
 
         # Initial paper balance
-        self.initial_balance = self.config.get('paper_balance', 10000.0)
+        self.initial_balance = self.config.get("paper_balance", 10000.0)
         self.current_balance = self.initial_balance
 
         # Trading parameters
-        self.fee_rate = self.config.get('fee_rate', 0.001)  # 0.1%
-        self.slippage = self.config.get('slippage', 0.0005)  # 0.05%
+        self.fee_rate = self.config.get("fee_rate", 0.001)  # 0.1%
+        self.slippage = self.config.get("slippage", 0.0005)  # 0.05%
 
         # State
         self.positions: Dict[str, PaperPosition] = {}
@@ -79,7 +81,9 @@ class PaperTradingEngine:
         self.losing_trades = 0
         self.total_fees_paid = 0.0
 
-        logger.info(f"📄 Paper Trading Engine initialized with ${self.initial_balance:,.2f}")
+        logger.info(
+            f"📄 Paper Trading Engine initialized with ${self.initial_balance:,.2f}"
+        )
 
     @handle_errors("Paper Trading", reraise=False)
     async def place_order(
@@ -89,7 +93,7 @@ class PaperTradingEngine:
         amount: float,
         price: float,
         order_type: str = "market",
-        strategy: str = ""
+        strategy: str = "",
     ) -> Dict:
         """
         Place a paper trading order
@@ -106,22 +110,18 @@ class PaperTradingEngine:
             Order result dict
         """
         # Apply slippage
-        if side == 'buy':
+        if side == "buy":
             execution_price = price * (1 + self.slippage)
         else:
             execution_price = price * (1 - self.slippage)
 
-        if side == 'buy':
+        if side == "buy":
             return await self._execute_buy(symbol, amount, execution_price, strategy)
         else:
             return await self._execute_sell(symbol, amount, execution_price, strategy)
 
     async def _execute_buy(
-        self,
-        symbol: str,
-        amount: float,
-        price: float,
-        strategy: str
+        self, symbol: str, amount: float, price: float, strategy: str
     ) -> Dict:
         """Execute paper buy order"""
         # Calculate cost
@@ -131,12 +131,14 @@ class PaperTradingEngine:
 
         # Check balance
         if total_cost > self.current_balance:
-            logger.warning(f"❌ Insufficient paper balance: ${self.current_balance:.2f} < ${total_cost:.2f}")
+            logger.warning(
+                f"❌ Insufficient paper balance: ${self.current_balance:.2f} < ${total_cost:.2f}"
+            )
             return {
-                'success': False,
-                'error': 'Insufficient balance',
-                'required': total_cost,
-                'available': self.current_balance
+                "success": False,
+                "error": "Insufficient balance",
+                "required": total_cost,
+                "available": self.current_balance,
             }
 
         # Create position
@@ -144,12 +146,12 @@ class PaperTradingEngine:
         position = PaperPosition(
             id=position_id,
             symbol=symbol,
-            side='long',
+            side="long",
             amount=amount,
             entry_price=price,
             entry_time=datetime.now(),
             current_price=price,
-            fees_paid=fees
+            fees_paid=fees,
         )
 
         # Update balances
@@ -157,42 +159,37 @@ class PaperTradingEngine:
         self.total_fees_paid += fees
         self.positions[position_id] = position
 
-        logger.info(f"📝 Paper BUY: {amount:.4f} {symbol} @ ${price:.2f} (Cost: ${total_cost:.2f})")
+        logger.info(
+            f"📝 Paper BUY: {amount:.4f} {symbol} @ ${price:.2f} (Cost: ${total_cost:.2f})"
+        )
 
         return {
-            'success': True,
-            'position_id': position_id,
-            'symbol': symbol,
-            'side': 'buy',
-            'amount': amount,
-            'price': price,
-            'cost': cost,
-            'fees': fees,
-            'total_cost': total_cost,
-            'remaining_balance': self.current_balance
+            "success": True,
+            "position_id": position_id,
+            "symbol": symbol,
+            "side": "buy",
+            "amount": amount,
+            "price": price,
+            "cost": cost,
+            "fees": fees,
+            "total_cost": total_cost,
+            "remaining_balance": self.current_balance,
         }
 
     async def _execute_sell(
-        self,
-        symbol: str,
-        amount: float,
-        price: float,
-        strategy: str
+        self, symbol: str, amount: float, price: float, strategy: str
     ) -> Dict:
         """Execute paper sell order"""
         # Find matching position
         position = None
         for pos_id, pos in self.positions.items():
-            if pos.symbol == symbol and pos.side == 'long':
+            if pos.symbol == symbol and pos.side == "long":
                 position = pos
                 break
 
         if not position:
             logger.warning(f"❌ No open position found for {symbol}")
-            return {
-                'success': False,
-                'error': f'No open position for {symbol}'
-            }
+            return {"success": False, "error": f"No open position for {symbol}"}
 
         # Calculate proceeds
         proceeds = amount * price
@@ -213,7 +210,7 @@ class PaperTradingEngine:
         trade = PaperTrade(
             id=position.id,
             symbol=symbol,
-            side='long',
+            side="long",
             amount=amount,
             entry_price=position.entry_price,
             exit_price=price,
@@ -222,7 +219,7 @@ class PaperTradingEngine:
             pnl=net_pnl,
             pnl_percent=pnl_percent,
             fees=position.fees_paid + fees,
-            strategy=strategy
+            strategy=strategy,
         )
 
         self.completed_trades.append(trade)
@@ -236,22 +233,24 @@ class PaperTradingEngine:
         # Remove position
         del self.positions[position.id]
 
-        logger.info(f"📝 Paper SELL: {amount:.4f} {symbol} @ ${price:.2f} "
-                   f"(PnL: ${net_pnl:.2f} / {pnl_percent:.2f}%)")
+        logger.info(
+            f"📝 Paper SELL: {amount:.4f} {symbol} @ ${price:.2f} "
+            f"(PnL: ${net_pnl:.2f} / {pnl_percent:.2f}%)"
+        )
 
         return {
-            'success': True,
-            'trade_id': trade.id,
-            'symbol': symbol,
-            'side': 'sell',
-            'amount': amount,
-            'price': price,
-            'proceeds': proceeds,
-            'fees': fees,
-            'net_proceeds': net_proceeds,
-            'pnl': net_pnl,
-            'pnl_percent': pnl_percent,
-            'remaining_balance': self.current_balance
+            "success": True,
+            "trade_id": trade.id,
+            "symbol": symbol,
+            "side": "sell",
+            "amount": amount,
+            "price": price,
+            "proceeds": proceeds,
+            "fees": fees,
+            "net_proceeds": net_proceeds,
+            "pnl": net_pnl,
+            "pnl_percent": pnl_percent,
+            "remaining_balance": self.current_balance,
         }
 
     async def update_positions(self, market_prices: Dict[str, float]):
@@ -263,7 +262,9 @@ class PaperTradingEngine:
                 # Calculate unrealized PnL
                 entry_cost = position.amount * position.entry_price
                 current_value = position.amount * position.current_price
-                position.unrealized_pnl = current_value - entry_cost - position.fees_paid
+                position.unrealized_pnl = (
+                    current_value - entry_cost - position.fees_paid
+                )
 
         # Update equity curve
         total_equity = self.get_total_equity(market_prices)
@@ -290,7 +291,11 @@ class PaperTradingEngine:
         total_return = total_equity - self.initial_balance
         total_return_percent = (total_return / self.initial_balance) * 100
 
-        win_rate = (self.winning_trades / self.total_trades * 100) if self.total_trades > 0 else 0
+        win_rate = (
+            (self.winning_trades / self.total_trades * 100)
+            if self.total_trades > 0
+            else 0
+        )
 
         # Average win/loss
         wins = [t.pnl for t in self.completed_trades if t.pnl > 0]
@@ -305,35 +310,35 @@ class PaperTradingEngine:
         profit_factor = (total_wins / total_losses) if total_losses > 0 else 0
 
         return {
-            'initial_balance': self.initial_balance,
-            'current_balance': self.current_balance,
-            'total_equity': total_equity,
-            'total_return': total_return,
-            'total_return_percent': total_return_percent,
-            'total_trades': self.total_trades,
-            'winning_trades': self.winning_trades,
-            'losing_trades': self.losing_trades,
-            'win_rate': win_rate,
-            'avg_win': avg_win,
-            'avg_loss': avg_loss,
-            'profit_factor': profit_factor,
-            'total_fees_paid': self.total_fees_paid,
-            'open_positions': len(self.positions),
-            'unrealized_pnl': sum(p.unrealized_pnl for p in self.positions.values())
+            "initial_balance": self.initial_balance,
+            "current_balance": self.current_balance,
+            "total_equity": total_equity,
+            "total_return": total_return,
+            "total_return_percent": total_return_percent,
+            "total_trades": self.total_trades,
+            "winning_trades": self.winning_trades,
+            "losing_trades": self.losing_trades,
+            "win_rate": win_rate,
+            "avg_win": avg_win,
+            "avg_loss": avg_loss,
+            "profit_factor": profit_factor,
+            "total_fees_paid": self.total_fees_paid,
+            "open_positions": len(self.positions),
+            "unrealized_pnl": sum(p.unrealized_pnl for p in self.positions.values()),
         }
 
     def get_open_positions(self) -> List[Dict]:
         """Get all open positions"""
         return [
             {
-                'id': pos.id,
-                'symbol': pos.symbol,
-                'side': pos.side,
-                'amount': pos.amount,
-                'entry_price': pos.entry_price,
-                'current_price': pos.current_price,
-                'unrealized_pnl': pos.unrealized_pnl,
-                'entry_time': pos.entry_time.isoformat()
+                "id": pos.id,
+                "symbol": pos.symbol,
+                "side": pos.side,
+                "amount": pos.amount,
+                "entry_price": pos.entry_price,
+                "current_price": pos.current_price,
+                "unrealized_pnl": pos.unrealized_pnl,
+                "entry_time": pos.entry_time.isoformat(),
             }
             for pos in self.positions.values()
         ]
@@ -344,16 +349,16 @@ class PaperTradingEngine:
 
         return [
             {
-                'id': t.id,
-                'symbol': t.symbol,
-                'amount': t.amount,
-                'entry_price': t.entry_price,
-                'exit_price': t.exit_price,
-                'pnl': t.pnl,
-                'pnl_percent': t.pnl_percent,
-                'entry_time': t.entry_time.isoformat(),
-                'exit_time': t.exit_time.isoformat(),
-                'duration': str(t.exit_time - t.entry_time)
+                "id": t.id,
+                "symbol": t.symbol,
+                "amount": t.amount,
+                "entry_price": t.entry_price,
+                "exit_price": t.exit_price,
+                "pnl": t.pnl,
+                "pnl_percent": t.pnl_percent,
+                "entry_time": t.entry_time.isoformat(),
+                "exit_time": t.exit_time.isoformat(),
+                "duration": str(t.exit_time - t.entry_time),
             }
             for t in trades
         ]
@@ -369,15 +374,15 @@ class PaperTradingEngine:
             history = self.get_trade_history()
 
             data = {
-                'timestamp': datetime.now().isoformat(),
-                'statistics': stats,
-                'open_positions': positions,
-                'trade_history': history,
-                'equity_curve': self.equity_curve,
-                'equity_timestamps': [ts.isoformat() for ts in self.equity_timestamps]
+                "timestamp": datetime.now().isoformat(),
+                "statistics": stats,
+                "open_positions": positions,
+                "trade_history": history,
+                "equity_curve": self.equity_curve,
+                "equity_timestamps": [ts.isoformat() for ts in self.equity_timestamps],
             }
 
-            with open(output_path, 'w') as f:
+            with open(output_path, "w") as f:
                 json.dump(data, f, indent=2)
 
             logger.info(f"💾 Paper trading session saved: {filepath}")
@@ -424,29 +429,28 @@ CURRENT POSITIONS
 
 
 if __name__ == "__main__":
+
     async def main():
         print("=" * 70)
         print("NEXLIFY PAPER TRADING DEMO")
         print("=" * 70)
 
         # Initialize
-        engine = PaperTradingEngine({
-            'paper_balance': 10000,
-            'fee_rate': 0.001,
-            'slippage': 0.0005
-        })
+        engine = PaperTradingEngine(
+            {"paper_balance": 10000, "fee_rate": 0.001, "slippage": 0.0005}
+        )
 
         # Simulate some trades
         print("\n📝 Executing paper trades...\n")
 
         # Buy
-        result1 = await engine.place_order('BTC/USDT', 'buy', 0.1, 45000)
+        result1 = await engine.place_order("BTC/USDT", "buy", 0.1, 45000)
         print(f"Trade 1: {result1}")
 
         # Update price and sell
-        await engine.update_positions({'BTC/USDT': 47000})
+        await engine.update_positions({"BTC/USDT": 47000})
 
-        result2 = await engine.place_order('BTC/USDT', 'sell', 0.1, 47000)
+        result2 = await engine.place_order("BTC/USDT", "sell", 0.1, 47000)
         print(f"Trade 2: {result2}")
 
         # Generate report

@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from nexlify.strategies.nexlify_rl_agent import (
     TradingEnvironment,
     DQNAgent,
-    ReplayBuffer
+    ReplayBuffer,
 )
 
 
@@ -35,10 +35,7 @@ def sample_price_data():
 @pytest.fixture
 def trading_env(sample_price_data):
     """Create trading environment"""
-    return TradingEnvironment(
-        price_data=sample_price_data,
-        initial_balance=10000.0
-    )
+    return TradingEnvironment(price_data=sample_price_data, initial_balance=10000.0)
 
 
 @pytest.fixture
@@ -51,7 +48,7 @@ def dqn_agent():
         gamma=0.95,
         epsilon=1.0,
         epsilon_decay=0.995,
-        epsilon_min=0.01
+        epsilon_min=0.01,
     )
 
 

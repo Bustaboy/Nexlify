@@ -3,11 +3,17 @@ Nexlify Machine Learning Module
 Comprehensive ML system for cryptocurrency trading
 """
 
-from nexlify.ml.nexlify_feature_engineering import FeatureEngineer, quick_engineer_features
+from nexlify.ml.nexlify_feature_engineering import (
+    FeatureEngineer,
+    quick_engineer_features,
+)
 
 # Ultra-Optimized System Components (optional imports - graceful if dependencies missing)
 try:
-    from nexlify.ml.nexlify_optimization_manager import OptimizationManager, OptimizationProfile
+    from nexlify.ml.nexlify_optimization_manager import (
+        OptimizationManager,
+        OptimizationProfile,
+    )
     from nexlify.ml.nexlify_multi_gpu import MultiGPUManager
     from nexlify.ml.nexlify_thermal_monitor import ThermalMonitor
     from nexlify.ml.nexlify_smart_cache import SmartCache
@@ -17,24 +23,21 @@ try:
     from nexlify.ml.nexlify_gpu_optimizations import GPUOptimizer
 
     __all__ = [
-        'FeatureEngineer',
-        'quick_engineer_features',
+        "FeatureEngineer",
+        "quick_engineer_features",
         # Ultra-Optimized System
-        'OptimizationManager',
-        'OptimizationProfile',
-        'MultiGPUManager',
-        'ThermalMonitor',
-        'SmartCache',
-        'ModelCompiler',
-        'compile_model',
-        'AutoQuantizer',
-        'quantize_model',
-        'SentimentAnalyzer',
-        'GPUOptimizer',
+        "OptimizationManager",
+        "OptimizationProfile",
+        "MultiGPUManager",
+        "ThermalMonitor",
+        "SmartCache",
+        "ModelCompiler",
+        "compile_model",
+        "AutoQuantizer",
+        "quantize_model",
+        "SentimentAnalyzer",
+        "GPUOptimizer",
     ]
 except ImportError as e:
     # Ultra-optimized components not available (missing dependencies)
-    __all__ = [
-        'FeatureEngineer',
-        'quick_engineer_features'
-    ]
+    __all__ = ["FeatureEngineer", "quick_engineer_features"]

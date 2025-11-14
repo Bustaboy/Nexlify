@@ -26,22 +26,27 @@ class PortfolioRebalancer:
         self.config = config or {}
 
         # Target allocations (symbol: percentage)
-        self.target_allocations = self.config.get('target_allocations', {
-            'BTC/USDT': 0.50,  # 50% BTC
-            'ETH/USDT': 0.30,  # 30% ETH
-            'USDT': 0.20       # 20% cash
-        })
+        self.target_allocations = self.config.get(
+            "target_allocations",
+            {
+                "BTC/USDT": 0.50,  # 50% BTC
+                "ETH/USDT": 0.30,  # 30% ETH
+                "USDT": 0.20,  # 20% cash
+            },
+        )
 
         # Rebalancing parameters
-        self.rebalance_threshold = self.config.get('rebalance_threshold', 0.05)  # 5%
-        self.rebalance_interval = self.config.get('rebalance_interval_hours', 24)
-        self.min_trade_size = self.config.get('min_trade_size', 10)  # $10 minimum
+        self.rebalance_threshold = self.config.get("rebalance_threshold", 0.05)  # 5%
+        self.rebalance_interval = self.config.get("rebalance_interval_hours", 24)
+        self.min_trade_size = self.config.get("min_trade_size", 10)  # $10 minimum
 
         # State
         self.last_rebalance = None
         self.rebalance_count = 0
 
-        logger.info(f"⚖️ Portfolio Rebalancer initialized (threshold: {self.rebalance_threshold:.1%})")
+        logger.info(
+            f"⚖️ Portfolio Rebalancer initialized (threshold: {self.rebalance_threshold:.1%})"
+        )
 
     @handle_errors("Portfolio Rebalancing", reraise=False)
     async def check_and_rebalance(
@@ -49,7 +54,7 @@ class PortfolioRebalancer:
         neural_net,
         current_holdings: Dict[str, float],
         current_prices: Dict[str, float],
-        total_value: float
+        total_value: float,
     ) -> Dict:
         """
         Check if rebalancing is needed and execute if necessary
@@ -68,15 +73,13 @@ class PortfolioRebalancer:
             time_since = datetime.now() - self.last_rebalance
             if time_since < timedelta(hours=self.rebalance_interval):
                 return {
-                    'rebalanced': False,
-                    'reason': f'Too soon (last: {time_since.total_seconds()/3600:.1f}h ago)'
+                    "rebalanced": False,
+                    "reason": f"Too soon (last: {time_since.total_seconds()/3600:.1f}h ago)",
                 }
 
         # Calculate current allocations
         current_allocations = self._calculate_allocations(
-            current_holdings,
-            current_prices,
-            total_value
+            current_holdings, current_prices, total_value
         )
 
         # Check if rebalancing needed
@@ -84,10 +87,10 @@ class PortfolioRebalancer:
 
         if not needs_rebalance:
             return {
-                'rebalanced': False,
-                'reason': 'Within threshold',
-                'current_allocations': current_allocations,
-                'deviations': deviations
+                "rebalanced": False,
+                "reason": "Within threshold",
+                "current_allocations": current_allocations,
+                "deviations": deviations,
             }
 
         logger.info("⚖️ Portfolio rebalancing required")
@@ -95,30 +98,30 @@ class PortfolioRebalancer:
 
         # Calculate trades needed
         trades = self._calculate_rebalance_trades(
-            current_allocations,
-            current_prices,
-            total_value
+            current_allocations, current_prices, total_value
         )
 
         # Execute trades
         executed_trades = []
         for trade in trades:
-            if abs(trade['usd_value']) < self.min_trade_size:
+            if abs(trade["usd_value"]) < self.min_trade_size:
                 logger.debug(f"Skipping small trade: {trade}")
                 continue
 
             try:
                 result = await neural_net.execute_manual_trade(
-                    exchange_id='binance',
-                    symbol=trade['symbol'],
-                    side=trade['side'],
-                    order_type='market',
-                    amount=trade['amount']
+                    exchange_id="binance",
+                    symbol=trade["symbol"],
+                    side=trade["side"],
+                    order_type="market",
+                    amount=trade["amount"],
                 )
 
-                if result.get('success'):
+                if result.get("success"):
                     executed_trades.append(trade)
-                    logger.info(f"✅ Executed rebalance trade: {trade['symbol']} {trade['side']} {trade['amount']:.4f}")
+                    logger.info(
+                        f"✅ Executed rebalance trade: {trade['symbol']} {trade['side']} {trade['amount']:.4f}"
+                    )
 
             except Exception as e:
                 logger.error(f"Failed to execute rebalance trade: {e}")
@@ -128,28 +131,25 @@ class PortfolioRebalancer:
         self.rebalance_count += 1
 
         return {
-            'rebalanced': True,
-            'trades_executed': len(executed_trades),
-            'trades': executed_trades,
-            'previous_allocations': current_allocations,
-            'target_allocations': self.target_allocations,
-            'deviations': deviations,
-            'timestamp': self.last_rebalance.isoformat()
+            "rebalanced": True,
+            "trades_executed": len(executed_trades),
+            "trades": executed_trades,
+            "previous_allocations": current_allocations,
+            "target_allocations": self.target_allocations,
+            "deviations": deviations,
+            "timestamp": self.last_rebalance.isoformat(),
         }
 
     def _calculate_allocations(
-        self,
-        holdings: Dict[str, float],
-        prices: Dict[str, float],
-        total_value: float
+        self, holdings: Dict[str, float], prices: Dict[str, float], total_value: float
     ) -> Dict[str, float]:
         """Calculate current allocation percentages"""
         allocations = {}
 
         for symbol in self.target_allocations.keys():
-            if symbol == 'USDT':
+            if symbol == "USDT":
                 # Cash allocation
-                value = holdings.get('USDT', 0)
+                value = holdings.get("USDT", 0)
             else:
                 # Asset allocation
                 amount = holdings.get(symbol, 0)
@@ -162,8 +162,7 @@ class PortfolioRebalancer:
         return allocations
 
     def _check_deviation(
-        self,
-        current_allocations: Dict[str, float]
+        self, current_allocations: Dict[str, float]
     ) -> tuple[bool, Dict[str, float]]:
         """Check if allocations deviate beyond threshold"""
         deviations = {}
@@ -183,13 +182,13 @@ class PortfolioRebalancer:
         self,
         current_allocations: Dict[str, float],
         prices: Dict[str, float],
-        total_value: float
+        total_value: float,
     ) -> List[Dict]:
         """Calculate trades needed to rebalance"""
         trades = []
 
         for symbol, target_allocation in self.target_allocations.items():
-            if symbol == 'USDT':
+            if symbol == "USDT":
                 continue  # Handle cash separately
 
             current_allocation = current_allocations.get(symbol, 0)
@@ -206,17 +205,19 @@ class PortfolioRebalancer:
             amount = abs(usd_value) / price
 
             # Determine side
-            side = 'buy' if deviation > 0 else 'sell'
+            side = "buy" if deviation > 0 else "sell"
 
-            trades.append({
-                'symbol': symbol,
-                'side': side,
-                'amount': amount,
-                'usd_value': usd_value,
-                'current_allocation': current_allocation,
-                'target_allocation': target_allocation,
-                'deviation': deviation
-            })
+            trades.append(
+                {
+                    "symbol": symbol,
+                    "side": side,
+                    "amount": amount,
+                    "usd_value": usd_value,
+                    "current_allocation": current_allocation,
+                    "target_allocation": target_allocation,
+                    "deviation": deviation,
+                }
+            )
 
         return trades
 
@@ -231,11 +232,13 @@ class PortfolioRebalancer:
     def get_status(self) -> Dict:
         """Get rebalancer status"""
         return {
-            'target_allocations': self.target_allocations,
-            'rebalance_threshold': self.rebalance_threshold,
-            'rebalance_interval_hours': self.rebalance_interval,
-            'last_rebalance': self.last_rebalance.isoformat() if self.last_rebalance else None,
-            'rebalance_count': self.rebalance_count
+            "target_allocations": self.target_allocations,
+            "rebalance_threshold": self.rebalance_threshold,
+            "rebalance_interval_hours": self.rebalance_interval,
+            "last_rebalance": (
+                self.last_rebalance.isoformat() if self.last_rebalance else None
+            ),
+            "rebalance_count": self.rebalance_count,
         }
 
 

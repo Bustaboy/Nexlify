@@ -14,17 +14,13 @@ import logging
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from nexlify.utils.error_handler import (
-    ErrorHandler,
-    get_error_handler,
-    handle_errors
-)
+from nexlify.utils.error_handler import ErrorHandler, get_error_handler, handle_errors
 from nexlify.utils.utils_module import (
     format_currency,
     format_percentage,
     calculate_returns,
     validate_config,
-    safe_divide
+    safe_divide,
 )
 
 
@@ -39,15 +35,13 @@ class TestErrorHandler:
     def test_initialization(self, error_handler):
         """Test error handler initialization"""
         assert error_handler is not None
-        assert hasattr(error_handler, 'log_error')
+        assert hasattr(error_handler, "log_error")
 
     def test_log_error_info(self, error_handler, caplog):
         """Test logging info level errors"""
         with caplog.at_level(logging.INFO):
             error_handler.log_error(
-                Exception("Test error"),
-                context="Test context",
-                severity="info"
+                Exception("Test error"), context="Test context", severity="info"
             )
 
         assert "Test error" in caplog.text or "Test context" in caplog.text
@@ -56,9 +50,7 @@ class TestErrorHandler:
         """Test logging warning level errors"""
         with caplog.at_level(logging.WARNING):
             error_handler.log_error(
-                Exception("Test warning"),
-                context="Warning context",
-                severity="warning"
+                Exception("Test warning"), context="Warning context", severity="warning"
             )
 
         assert len(caplog.records) > 0
@@ -69,7 +61,7 @@ class TestErrorHandler:
             error_handler.log_error(
                 Exception("Critical error"),
                 context="Critical context",
-                severity="critical"
+                severity="critical",
             )
 
         assert len(caplog.records) > 0
@@ -83,6 +75,7 @@ class TestErrorHandler:
 
     def test_handle_errors_decorator_success(self):
         """Test handle_errors decorator with successful function"""
+
         @handle_errors("Test function")
         def successful_function():
             return "success"
@@ -92,6 +85,7 @@ class TestErrorHandler:
 
     def test_handle_errors_decorator_exception(self):
         """Test handle_errors decorator with exception"""
+
         @handle_errors("Test function", reraise=False)
         def failing_function():
             raise ValueError("Test error")
@@ -102,6 +96,7 @@ class TestErrorHandler:
 
     def test_handle_errors_decorator_reraise(self):
         """Test handle_errors decorator with reraise"""
+
         @handle_errors("Test function", reraise=True)
         def failing_function():
             raise ValueError("Test error")
@@ -210,13 +205,8 @@ class TestConfigValidation:
     def test_validate_config_valid(self):
         """Test validating valid configuration"""
         config = {
-            'risk_management': {
-                'enabled': True,
-                'max_position_size': 100
-            },
-            'trading': {
-                'enabled': True
-            }
+            "risk_management": {"enabled": True, "max_position_size": 100},
+            "trading": {"enabled": True},
         }
 
         result = validate_config(config)
@@ -226,14 +216,12 @@ class TestConfigValidation:
         """Test validating config with missing required fields"""
         config = {}
 
-        result = validate_config(config, required_keys=['risk_management'])
+        result = validate_config(config, required_keys=["risk_management"])
         assert result is False
 
     def test_validate_config_invalid_types(self):
         """Test validating config with invalid types"""
-        config = {
-            'risk_management': "invalid"  # Should be dict
-        }
+        config = {"risk_management": "invalid"}  # Should be dict
 
         result = validate_config(config)
         # Depending on implementation, may return False or raise error
@@ -241,14 +229,7 @@ class TestConfigValidation:
 
     def test_validate_config_nested(self):
         """Test validating nested configuration"""
-        config = {
-            'risk_management': {
-                'enabled': True,
-                'limits': {
-                    'max_loss': 100
-                }
-            }
-        }
+        config = {"risk_management": {"enabled": True, "limits": {"max_loss": 100}}}
 
         result = validate_config(config)
         assert isinstance(result, bool)

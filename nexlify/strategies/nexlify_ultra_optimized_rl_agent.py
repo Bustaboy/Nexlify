@@ -28,8 +28,13 @@ from datetime import datetime
 import time
 
 # Import new optimization systems
-from nexlify.ml.nexlify_optimization_manager import OptimizationManager, OptimizationProfile
-from nexlify.ml.nexlify_dynamic_architecture_enhanced import EnhancedDynamicResourceMonitor
+from nexlify.ml.nexlify_optimization_manager import (
+    OptimizationManager,
+    OptimizationProfile,
+)
+from nexlify.ml.nexlify_dynamic_architecture_enhanced import (
+    EnhancedDynamicResourceMonitor,
+)
 from nexlify.ml.nexlify_feature_engineering import FeatureEngineer
 
 logger = logging.getLogger(__name__)
@@ -80,13 +85,15 @@ class UltraOptimizedDQNAgent:
     - Fully dynamic: Adapts architecture based on resource availability
     """
 
-    def __init__(self,
-                 state_size: int,
-                 action_size: int,
-                 optimization_profile: OptimizationProfile = OptimizationProfile.AUTO,
-                 enable_sentiment: bool = True,
-                 sentiment_config: Optional[Dict] = None,
-                 cache_dir: str = "./cache"):
+    def __init__(
+        self,
+        state_size: int,
+        action_size: int,
+        optimization_profile: OptimizationProfile = OptimizationProfile.AUTO,
+        enable_sentiment: bool = True,
+        sentiment_config: Optional[Dict] = None,
+        cache_dir: str = "./cache",
+    ):
         """
         Initialize ultra-optimized agent
 
@@ -123,15 +130,16 @@ class UltraOptimizedDQNAgent:
 
         # Initialize feature engineer with sentiment analysis
         self.feature_engineer = FeatureEngineer(
-            enable_sentiment=enable_sentiment,
-            sentiment_config=sentiment_config
+            enable_sentiment=enable_sentiment, sentiment_config=sentiment_config
         )
 
         # Multi-GPU support
         self.multi_gpu_manager = self.optimizer._get_multi_gpu_manager()
         if self.multi_gpu_manager and self.multi_gpu_manager.topology:
             if self.multi_gpu_manager.topology.num_gpus > 1:
-                logger.info(f"   Multi-GPU: {self.multi_gpu_manager.topology.num_gpus} GPUs detected")
+                logger.info(
+                    f"   Multi-GPU: {self.multi_gpu_manager.topology.num_gpus} GPUs detected"
+                )
 
         # Thermal monitoring
         if self.optimizer.config.enable_thermal_monitoring:
@@ -147,8 +155,12 @@ class UltraOptimizedDQNAgent:
         self.architecture = self._build_optimal_architecture()
 
         # Create models
-        self.model = UltraOptimizedDQN(state_size, action_size, self.architecture).to(self.device)
-        self.target_model = UltraOptimizedDQN(state_size, action_size, self.architecture).to(self.device)
+        self.model = UltraOptimizedDQN(state_size, action_size, self.architecture).to(
+            self.device
+        )
+        self.target_model = UltraOptimizedDQN(
+            state_size, action_size, self.architecture
+        ).to(self.device)
         self.update_target_model()
 
         # Apply model optimizations (compilation, quantization)
@@ -157,7 +169,10 @@ class UltraOptimizedDQNAgent:
             self.model_optimized = False
         else:
             # Apply optimizations now
-            if self.optimizer.config.enable_compilation or self.optimizer.config.enable_quantization:
+            if (
+                self.optimizer.config.enable_compilation
+                or self.optimizer.config.enable_quantization
+            ):
                 example_input = torch.randn(1, state_size).to(self.device)
                 self.model = self.optimizer.optimize_model(self.model, example_input)
                 self.model_optimized = True
@@ -168,7 +183,7 @@ class UltraOptimizedDQNAgent:
 
         # Mixed precision training (if enabled)
         self.scaler = None
-        if self.use_mixed_precision and 'cuda' in self.device:
+        if self.use_mixed_precision and "cuda" in self.device:
             self.scaler = torch.cuda.amp.GradScaler()
             logger.info("   ✓ Mixed precision training enabled")
 
@@ -199,11 +214,11 @@ class UltraOptimizedDQNAgent:
         """
         gpu_info = self.monitor.get_gpu_info_summary()
 
-        if not gpu_info['available']:
+        if not gpu_info["available"]:
             # CPU-only: small network
             return [64, 32]
 
-        vram_gb = gpu_info['vram_gb']
+        vram_gb = gpu_info["vram_gb"]
 
         # Determine architecture based on VRAM
         if vram_gb >= 24:
@@ -229,10 +244,12 @@ class UltraOptimizedDQNAgent:
             arch = [64, 32]
 
         # Adjust for Tensor Cores (can use larger batches efficiently)
-        if gpu_info.get('has_tensor_cores', False):
+        if gpu_info.get("has_tensor_cores", False):
             logger.info(f"   ✓ Tensor Cores detected - optimizing for mixed precision")
 
-        logger.info(f"   Architecture: {arch} ({sum([arch[i] * (arch[i-1] if i > 0 else self.state_size) for i in range(len(arch))])} parameters)")
+        logger.info(
+            f"   Architecture: {arch} ({sum([arch[i] * (arch[i-1] if i > 0 else self.state_size) for i in range(len(arch))])} parameters)"
+        )
 
         return arch
 
@@ -258,7 +275,7 @@ class UltraOptimizedDQNAgent:
             state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
 
             # Use mixed precision for inference if enabled
-            if self.use_mixed_precision and 'cuda' in self.device:
+            if self.use_mixed_precision and "cuda" in self.device:
                 with torch.cuda.amp.autocast():
                     q_values = self.model(state_tensor)
             else:
@@ -279,13 +296,15 @@ class UltraOptimizedDQNAgent:
             return 0.0
 
         # Thermal adaptation
-        if hasattr(self, 'thermal_monitor') and self.thermal_monitor:
+        if hasattr(self, "thermal_monitor") and self.thermal_monitor:
             if self.thermal_monitor.should_reduce_load():
                 scale = self.thermal_monitor.get_recommended_batch_scale()
                 adapted_batch_size = int(self.original_batch_size * scale)
                 if adapted_batch_size != self.batch_size:
                     self.batch_size = max(16, adapted_batch_size)
-                    logger.info(f"♨️  Thermal adaptation: batch size → {self.batch_size}")
+                    logger.info(
+                        f"♨️  Thermal adaptation: batch size → {self.batch_size}"
+                    )
             elif self.batch_size < self.original_batch_size:
                 # Cool down - restore original batch size
                 self.batch_size = self.original_batch_size
@@ -364,54 +383,57 @@ class UltraOptimizedDQNAgent:
     def get_statistics(self) -> Dict[str, Any]:
         """Get agent statistics"""
         stats = {
-            'training_steps': self.training_steps,
-            'episodes': self.episodes,
-            'epsilon': self.epsilon,
-            'memory_size': len(self.memory),
-            'batch_size': self.batch_size,
-            'architecture': self.architecture,
-            'device': self.device,
-            'mixed_precision': self.use_mixed_precision,
-            'precision': self.precision_dtype,
+            "training_steps": self.training_steps,
+            "episodes": self.episodes,
+            "epsilon": self.epsilon,
+            "memory_size": len(self.memory),
+            "batch_size": self.batch_size,
+            "architecture": self.architecture,
+            "device": self.device,
+            "mixed_precision": self.use_mixed_precision,
+            "precision": self.precision_dtype,
         }
 
         # Add GPU info
         gpu_info = self.monitor.get_gpu_info_summary()
-        if gpu_info['available']:
-            stats['gpu_name'] = gpu_info['name']
-            stats['gpu_vram'] = f"{gpu_info['vram_gb']:.1f} GB"
-            stats['tensor_cores'] = gpu_info['has_tensor_cores']
+        if gpu_info["available"]:
+            stats["gpu_name"] = gpu_info["name"]
+            stats["gpu_vram"] = f"{gpu_info['vram_gb']:.1f} GB"
+            stats["tensor_cores"] = gpu_info["has_tensor_cores"]
 
         # Add thermal info if available
-        if hasattr(self, 'thermal_monitor') and self.thermal_monitor:
+        if hasattr(self, "thermal_monitor") and self.thermal_monitor:
             thermal_stats = self.thermal_monitor.get_stats_summary()
-            if thermal_stats['available']:
-                stats['gpu_temp'] = thermal_stats.get('gpu_max_temp')
-                stats['thermal_state'] = thermal_stats.get('thermal_state')
-                stats['is_throttling'] = thermal_stats.get('is_throttling')
+            if thermal_stats["available"]:
+                stats["gpu_temp"] = thermal_stats.get("gpu_max_temp")
+                stats["thermal_state"] = thermal_stats.get("thermal_state")
+                stats["is_throttling"] = thermal_stats.get("is_throttling")
 
         return stats
 
     def save(self, filepath: str):
         """Save agent state"""
-        torch.save({
-            'model_state_dict': self.model.state_dict(),
-            'optimizer_state_dict': self.optimizer_nn.state_dict(),
-            'epsilon': self.epsilon,
-            'training_steps': self.training_steps,
-            'episodes': self.episodes,
-            'architecture': self.architecture
-        }, filepath)
+        torch.save(
+            {
+                "model_state_dict": self.model.state_dict(),
+                "optimizer_state_dict": self.optimizer_nn.state_dict(),
+                "epsilon": self.epsilon,
+                "training_steps": self.training_steps,
+                "episodes": self.episodes,
+                "architecture": self.architecture,
+            },
+            filepath,
+        )
         logger.info(f"💾 Agent saved to {filepath}")
 
     def load(self, filepath: str):
         """Load agent state"""
         checkpoint = torch.load(filepath, map_location=self.device)
-        self.model.load_state_dict(checkpoint['model_state_dict'])
-        self.optimizer_nn.load_state_dict(checkpoint['optimizer_state_dict'])
-        self.epsilon = checkpoint['epsilon']
-        self.training_steps = checkpoint['training_steps']
-        self.episodes = checkpoint['episodes']
+        self.model.load_state_dict(checkpoint["model_state_dict"])
+        self.optimizer_nn.load_state_dict(checkpoint["optimizer_state_dict"])
+        self.epsilon = checkpoint["epsilon"]
+        self.training_steps = checkpoint["training_steps"]
+        self.episodes = checkpoint["episodes"]
         self.update_target_model()
         logger.info(f"📂 Agent loaded from {filepath}")
 
@@ -420,9 +442,9 @@ class UltraOptimizedDQNAgent:
         logger.info("Shutting down agent...")
         if self.monitor:
             self.monitor.stop_monitoring()
-        if hasattr(self, 'thermal_monitor') and self.thermal_monitor:
+        if hasattr(self, "thermal_monitor") and self.thermal_monitor:
             self.thermal_monitor.stop_monitoring()
-        if hasattr(self, 'smart_cache') and self.smart_cache:
+        if hasattr(self, "smart_cache") and self.smart_cache:
             self.smart_cache.shutdown()
         self.optimizer.shutdown()
         logger.info("✅ Agent shutdown complete")
@@ -434,7 +456,7 @@ def create_ultra_optimized_agent(
     action_size: int,
     profile: OptimizationProfile = OptimizationProfile.AUTO,
     enable_sentiment: bool = True,
-    sentiment_config: Optional[Dict] = None
+    sentiment_config: Optional[Dict] = None,
 ) -> UltraOptimizedDQNAgent:
     """
     Create ultra-optimized agent with recommended settings
@@ -454,12 +476,12 @@ def create_ultra_optimized_agent(
         action_size=action_size,
         optimization_profile=profile,
         enable_sentiment=enable_sentiment,
-        sentiment_config=sentiment_config
+        sentiment_config=sentiment_config,
     )
 
 
 __all__ = [
-    'UltraOptimizedDQN',
-    'UltraOptimizedDQNAgent',
-    'create_ultra_optimized_agent'
+    "UltraOptimizedDQN",
+    "UltraOptimizedDQNAgent",
+    "create_ultra_optimized_agent",
 ]

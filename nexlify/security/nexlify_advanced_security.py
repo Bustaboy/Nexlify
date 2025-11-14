@@ -35,14 +35,14 @@ class EncryptionManager:
 
     def _generate_master_key(self) -> str:
         """Generate a secure master key"""
-        return Fernet.generate_key().decode('utf-8')
+        return Fernet.generate_key().decode("utf-8")
 
     def _init_cipher(self) -> Fernet:
         """Initialize the encryption cipher"""
         try:
             # Derive a key from master password
             if isinstance(self.master_password, str):
-                password = self.master_password.encode('utf-8')
+                password = self.master_password.encode("utf-8")
             else:
                 password = self.master_password
 
@@ -50,7 +50,7 @@ class EncryptionManager:
             kdf = PBKDF2HMAC(
                 algorithm=hashes.SHA256(),
                 length=32,
-                salt=b'nexlify_salt_v1',  # Should be random and stored
+                salt=b"nexlify_salt_v1",  # Should be random and stored
                 iterations=100000,
             )
             key = base64.urlsafe_b64encode(kdf.derive(password))
@@ -65,8 +65,8 @@ class EncryptionManager:
         try:
             if not data:
                 return ""
-            encrypted = self.cipher_suite.encrypt(data.encode('utf-8'))
-            return base64.urlsafe_b64encode(encrypted).decode('utf-8')
+            encrypted = self.cipher_suite.encrypt(data.encode("utf-8"))
+            return base64.urlsafe_b64encode(encrypted).decode("utf-8")
         except Exception as e:
             logger.error(f"Encryption error: {e}")
             return ""
@@ -76,9 +76,9 @@ class EncryptionManager:
         try:
             if not encrypted_data:
                 return ""
-            decoded = base64.urlsafe_b64decode(encrypted_data.encode('utf-8'))
+            decoded = base64.urlsafe_b64decode(encrypted_data.encode("utf-8"))
             decrypted = self.cipher_suite.decrypt(decoded)
-            return decrypted.decode('utf-8')
+            return decrypted.decode("utf-8")
         except Exception as e:
             logger.error(f"Decryption error: {e}")
             return ""
@@ -95,7 +95,7 @@ class TwoFactorAuth:
         """Load 2FA user data"""
         try:
             if self.users_file.exists():
-                with open(self.users_file, 'r') as f:
+                with open(self.users_file, "r") as f:
                     return json.load(f)
         except Exception as e:
             logger.warning(f"Could not load 2FA users: {e}")
@@ -105,7 +105,7 @@ class TwoFactorAuth:
         """Save 2FA user data"""
         try:
             self.users_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.users_file, 'w') as f:
+            with open(self.users_file, "w") as f:
                 json.dump(self.users, f, indent=2)
         except Exception as e:
             logger.error(f"Error saving 2FA users: {e}")
@@ -124,8 +124,7 @@ class TwoFactorAuth:
             # Generate provisioning URI for QR code
             totp = pyotp.TOTP(secret)
             provisioning_uri = totp.provisioning_uri(
-                name=username,
-                issuer_name="Nexlify Trading"
+                name=username, issuer_name="Nexlify Trading"
             )
 
             # Generate backup codes
@@ -133,21 +132,23 @@ class TwoFactorAuth:
 
             # Save user data
             self.users[username] = {
-                'secret': secret,
-                'enabled': True,
-                'backup_codes': backup_codes,
-                'setup_date': datetime.now().isoformat()
+                "secret": secret,
+                "enabled": True,
+                "backup_codes": backup_codes,
+                "setup_date": datetime.now().isoformat(),
             }
             self._save_users()
 
             return {
-                'secret': secret,
-                'provisioning_uri': provisioning_uri,
-                'backup_codes': backup_codes
+                "secret": secret,
+                "provisioning_uri": provisioning_uri,
+                "backup_codes": backup_codes,
             }
 
         except Exception as e:
-            error_handler.log_error(e, f"2FA setup failed for {username}", severity="error")
+            error_handler.log_error(
+                e, f"2FA setup failed for {username}", severity="error"
+            )
             return {}
 
     def verify_token(self, username: str, token: str) -> bool:
@@ -159,15 +160,15 @@ class TwoFactorAuth:
             user_data = self.users[username]
 
             # Check if it's a backup code
-            if token in user_data.get('backup_codes', []):
+            if token in user_data.get("backup_codes", []):
                 # Remove used backup code
-                user_data['backup_codes'].remove(token)
+                user_data["backup_codes"].remove(token)
                 self._save_users()
                 logger.info(f"Backup code used for {username}")
                 return True
 
             # Verify TOTP token
-            secret = user_data.get('secret')
+            secret = user_data.get("secret")
             if not secret:
                 return False
 
@@ -186,14 +187,13 @@ class TwoFactorAuth:
 
             if username not in self.users:
                 setup_data = self.setup_2fa(username)
-                provisioning_uri = setup_data['provisioning_uri']
+                provisioning_uri = setup_data["provisioning_uri"]
             else:
                 user_data = self.users[username]
-                secret = user_data['secret']
+                secret = user_data["secret"]
                 totp = pyotp.TOTP(secret)
                 provisioning_uri = totp.provisioning_uri(
-                    name=username,
-                    issuer_name="Nexlify Trading"
+                    name=username, issuer_name="Nexlify Trading"
                 )
 
             # Generate QR code
@@ -205,7 +205,7 @@ class TwoFactorAuth:
 
             # Convert to bytes
             buffer = BytesIO()
-            img.save(buffer, format='PNG')
+            img.save(buffer, format="PNG")
             return buffer.getvalue()
 
         except ImportError:
@@ -219,7 +219,7 @@ class TwoFactorAuth:
         """Disable 2FA for a user"""
         try:
             if username in self.users:
-                self.users[username]['enabled'] = False
+                self.users[username]["enabled"] = False
                 self._save_users()
                 return True
             return False
@@ -240,10 +240,10 @@ class SessionManager:
         session_token = secrets.token_urlsafe(32)
 
         self.sessions[session_token] = {
-            'username': username,
-            'ip_address': ip_address,
-            'created_at': datetime.now(),
-            'last_activity': datetime.now()
+            "username": username,
+            "ip_address": ip_address,
+            "created_at": datetime.now(),
+            "last_activity": datetime.now(),
         }
 
         logger.info(f"Session created for {username} from {ip_address}")
@@ -257,24 +257,26 @@ class SessionManager:
         session = self.sessions[session_token]
 
         # Check IP address match
-        if session['ip_address'] != ip_address:
-            logger.warning(f"IP mismatch for session: expected {session['ip_address']}, got {ip_address}")
+        if session["ip_address"] != ip_address:
+            logger.warning(
+                f"IP mismatch for session: expected {session['ip_address']}, got {ip_address}"
+            )
             return False
 
         # Check timeout
-        if datetime.now() - session['last_activity'] > self.session_timeout:
+        if datetime.now() - session["last_activity"] > self.session_timeout:
             logger.info(f"Session expired for {session['username']}")
             del self.sessions[session_token]
             return False
 
         # Update last activity
-        session['last_activity'] = datetime.now()
+        session["last_activity"] = datetime.now()
         return True
 
     def destroy_session(self, session_token: str):
         """Destroy a session"""
         if session_token in self.sessions:
-            username = self.sessions[session_token]['username']
+            username = self.sessions[session_token]["username"]
             del self.sessions[session_token]
             logger.info(f"Session destroyed for {username}")
 
@@ -291,7 +293,9 @@ class SecurityManager:
         self.max_attempts = 5
 
     @handle_errors("User Authentication", reraise=False)
-    def authenticate_user(self, username: str, password: str, ip_address: str) -> Optional[str]:
+    def authenticate_user(
+        self, username: str, password: str, ip_address: str
+    ) -> Optional[str]:
         """
         Authenticate a user and create session
 
@@ -329,9 +333,9 @@ class SecurityManager:
         # Load from config
         config_path = Path("config/neural_config.json")
         if config_path.exists():
-            with open(config_path, 'r') as f:
+            with open(config_path, "r") as f:
                 config = json.load(f)
-                stored_pin = config.get('security', {}).get('pin', '2077')
+                stored_pin = config.get("security", {}).get("pin", "2077")
                 return password == stored_pin
 
         return False

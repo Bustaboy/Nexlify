@@ -21,7 +21,12 @@ from nexlify.security.nexlify_security_suite import SecuritySuite
 from nexlify.risk.nexlify_emergency_kill_switch import KillSwitchTrigger
 from nexlify.financial.nexlify_tax_reporter import TaxReporter
 from nexlify.financial.nexlify_defi_integration import DeFiIntegration
-from nexlify.financial.nexlify_profit_manager import ProfitManager, WithdrawalStrategy, WithdrawalFrequency, WithdrawalDestination
+from nexlify.financial.nexlify_profit_manager import (
+    ProfitManager,
+    WithdrawalStrategy,
+    WithdrawalFrequency,
+    WithdrawalDestination,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +56,8 @@ class PINAuthDialog(QDialog):
         self.pin_input.setEchoMode(QLineEdit.Password)
         self.pin_input.setPlaceholderText("Enter PIN")
         self.pin_input.setAlignment(Qt.AlignCenter)
-        self.pin_input.setStyleSheet("""
+        self.pin_input.setStyleSheet(
+            """
             QLineEdit {
                 font-size: 24px;
                 padding: 10px;
@@ -60,7 +66,8 @@ class PINAuthDialog(QDialog):
                 background: #ffffff;
                 color: #1e293b;
             }
-        """)
+        """
+        )
         self.pin_input.returnPressed.connect(self.validate_pin)
         layout.addWidget(self.pin_input)
 
@@ -75,7 +82,8 @@ class PINAuthDialog(QDialog):
 
         self.login_btn = QPushButton("Login")
         self.login_btn.clicked.connect(self.validate_pin)
-        self.login_btn.setStyleSheet("""
+        self.login_btn.setStyleSheet(
+            """
             QPushButton {
                 background: #2563eb;
                 color: white;
@@ -86,12 +94,14 @@ class PINAuthDialog(QDialog):
             QPushButton:hover {
                 background: #3b82f6;
             }
-        """)
+        """
+        )
         btn_layout.addWidget(self.login_btn)
 
         cancel_btn = QPushButton("Cancel")
         cancel_btn.clicked.connect(self.reject)
-        cancel_btn.setStyleSheet("""
+        cancel_btn.setStyleSheet(
+            """
             QPushButton {
                 background: #e8ecf1;
                 color: #1e293b;
@@ -102,7 +112,8 @@ class PINAuthDialog(QDialog):
             QPushButton:hover {
                 background: #cbd5e1;
             }
-        """)
+        """
+        )
         btn_layout.addWidget(cancel_btn)
 
         layout.addLayout(btn_layout)
@@ -149,7 +160,8 @@ class EmergencyKillSwitchWidget(QWidget):
         self.kill_btn = QPushButton("🛑 EMERGENCY STOP")
         self.kill_btn.setMinimumHeight(100)
         self.kill_btn.clicked.connect(self.trigger_kill_switch)
-        self.kill_btn.setStyleSheet("""
+        self.kill_btn.setStyleSheet(
+            """
             QPushButton {
                 background: #ef4444;
                 color: white;
@@ -164,7 +176,8 @@ class EmergencyKillSwitchWidget(QWidget):
             QPushButton:pressed {
                 background: #b91c1c;
             }
-        """)
+        """
+        )
         layout.addWidget(self.kill_btn)
 
         # Reset button
@@ -192,11 +205,13 @@ class EmergencyKillSwitchWidget(QWidget):
 
         status = self.security_suite.kill_switch.get_status()
 
-        if status['is_active']:
+        if status["is_active"]:
             self.status_label.setText("⚠️ KILL SWITCH ACTIVE - Trading Stopped")
-            self.status_label.setStyleSheet("font-size: 14px; color: #ef4444; font-weight: 600;")
+            self.status_label.setStyleSheet(
+                "font-size: 14px; color: #ef4444; font-weight: 600;"
+            )
             self.kill_btn.setEnabled(False)
-            self.reset_btn.setEnabled(not status['is_locked'])
+            self.reset_btn.setEnabled(not status["is_locked"])
         else:
             self.status_label.setText("✅ System Operational")
             self.status_label.setStyleSheet("font-size: 14px; color: #10b981;")
@@ -215,7 +230,7 @@ class EmergencyKillSwitchWidget(QWidget):
             self,
             "Confirm Emergency Stop",
             "This will immediately:\n• Stop all trading\n• Close all positions\n• Cancel all orders\n• Lock the system\n\nContinue?",
-            QMessageBox.Yes | QMessageBox.No
+            QMessageBox.Yes | QMessageBox.No,
         )
 
         if reply == QMessageBox.Yes:
@@ -227,8 +242,10 @@ class EmergencyKillSwitchWidget(QWidget):
         )
         self.update_status()
 
-        if result['success']:
-            QMessageBox.information(self, "Success", "Emergency kill switch activated successfully")
+        if result["success"]:
+            QMessageBox.information(
+                self, "Success", "Emergency kill switch activated successfully"
+            )
         else:
             QMessageBox.warning(self, "Error", "Failed to activate kill switch")
 
@@ -238,7 +255,7 @@ class EmergencyKillSwitchWidget(QWidget):
                 self,
                 "Reset Kill Switch",
                 "Are you sure you want to reset and resume trading?",
-                QMessageBox.Yes | QMessageBox.No
+                QMessageBox.Yes | QMessageBox.No,
             )
 
             if reply == QMessageBox.Yes:
@@ -246,7 +263,9 @@ class EmergencyKillSwitchWidget(QWidget):
                 self.update_status()
 
                 if success:
-                    QMessageBox.information(self, "Success", "Kill switch reset - trading resumed")
+                    QMessageBox.information(
+                        self, "Success", "Kill switch reset - trading resumed"
+                    )
 
 
 class TaxReportingWidget(QWidget):
@@ -337,7 +356,7 @@ class TaxReportingWidget(QWidget):
         QMessageBox.information(
             self,
             "Form 8949 Generated",
-            f"Form 8949 for {year} has been generated:\n{file_path}"
+            f"Form 8949 for {year} has been generated:\n{file_path}",
         )
 
     def export_turbotax(self):
@@ -347,7 +366,7 @@ class TaxReportingWidget(QWidget):
         QMessageBox.information(
             self,
             "TurboTax Export Complete",
-            f"TurboTax file for {year} has been created:\n{file_path}"
+            f"TurboTax file for {year} has been created:\n{file_path}",
         )
 
 
@@ -379,9 +398,9 @@ class DeFiPositionsWidget(QWidget):
 
         self.positions_table = QTableWidget()
         self.positions_table.setColumnCount(6)
-        self.positions_table.setHorizontalHeaderLabels([
-            "Protocol", "Pair", "Value (USD)", "Rewards", "IL%", "Actions"
-        ])
+        self.positions_table.setHorizontalHeaderLabels(
+            ["Protocol", "Pair", "Value (USD)", "Rewards", "IL%", "Actions"]
+        )
         self.positions_table.horizontalHeader().setStretchLastSection(True)
         positions_layout.addWidget(self.positions_table)
 
@@ -420,14 +439,24 @@ class DeFiPositionsWidget(QWidget):
             self.positions_table.insertRow(row)
 
             self.positions_table.setItem(row, 0, QTableWidgetItem(position.protocol))
-            self.positions_table.setItem(row, 1, QTableWidgetItem(f"{position.token0}/{position.token1}"))
-            self.positions_table.setItem(row, 2, QTableWidgetItem(f"${float(position.value_usd):,.2f}"))
-            self.positions_table.setItem(row, 3, QTableWidgetItem(f"${float(position.rewards_earned):.2f}"))
-            self.positions_table.setItem(row, 4, QTableWidgetItem(f"{float(position.impermanent_loss):.2f}%"))
+            self.positions_table.setItem(
+                row, 1, QTableWidgetItem(f"{position.token0}/{position.token1}")
+            )
+            self.positions_table.setItem(
+                row, 2, QTableWidgetItem(f"${float(position.value_usd):,.2f}")
+            )
+            self.positions_table.setItem(
+                row, 3, QTableWidgetItem(f"${float(position.rewards_earned):.2f}")
+            )
+            self.positions_table.setItem(
+                row, 4, QTableWidgetItem(f"{float(position.impermanent_loss):.2f}%")
+            )
 
             # Actions button
             withdraw_btn = QPushButton("Withdraw")
-            withdraw_btn.clicked.connect(lambda checked, pid=position_id: self.withdraw_position(pid))
+            withdraw_btn.clicked.connect(
+                lambda checked, pid=position_id: self.withdraw_position(pid)
+            )
             self.positions_table.setCellWidget(row, 5, withdraw_btn)
 
     def harvest_rewards(self):
@@ -440,7 +469,7 @@ class DeFiPositionsWidget(QWidget):
         QMessageBox.information(
             self,
             "Rewards Harvested",
-            f"Successfully harvested ${results['total_harvested']:.2f}"
+            f"Successfully harvested ${results['total_harvested']:.2f}",
         )
 
     def withdraw_position(self, position_id: str):
@@ -448,7 +477,7 @@ class DeFiPositionsWidget(QWidget):
             self,
             "Withdraw Liquidity",
             "Withdraw 100% of this position?",
-            QMessageBox.Yes | QMessageBox.No
+            QMessageBox.Yes | QMessageBox.No,
         )
 
         if reply == QMessageBox.Yes:
@@ -517,9 +546,9 @@ class ProfitManagementWidget(QWidget):
 
         self.history_table = QTableWidget()
         self.history_table.setColumnCount(4)
-        self.history_table.setHorizontalHeaderLabels([
-            "Date", "Amount", "Destination", "Status"
-        ])
+        self.history_table.setHorizontalHeaderLabels(
+            ["Date", "Amount", "Destination", "Status"]
+        )
         self.history_table.horizontalHeader().setStretchLastSection(True)
         self.history_table.setMaximumHeight(200)
         history_layout.addWidget(self.history_table)
@@ -548,21 +577,27 @@ class ProfitManagementWidget(QWidget):
         status = self.profit_manager.get_status()
         self.history_table.setRowCount(0)
 
-        for withdrawal in status['recent_withdrawals'][:10]:
+        for withdrawal in status["recent_withdrawals"][:10]:
             row = self.history_table.rowCount()
             self.history_table.insertRow(row)
 
-            self.history_table.setItem(row, 0, QTableWidgetItem(withdrawal['timestamp'][:19]))
-            self.history_table.setItem(row, 1, QTableWidgetItem(f"${withdrawal['amount']:,.2f}"))
-            self.history_table.setItem(row, 2, QTableWidgetItem(withdrawal['destination']))
-            self.history_table.setItem(row, 3, QTableWidgetItem(withdrawal['status']))
+            self.history_table.setItem(
+                row, 0, QTableWidgetItem(withdrawal["timestamp"][:19])
+            )
+            self.history_table.setItem(
+                row, 1, QTableWidgetItem(f"${withdrawal['amount']:,.2f}")
+            )
+            self.history_table.setItem(
+                row, 2, QTableWidgetItem(withdrawal["destination"])
+            )
+            self.history_table.setItem(row, 3, QTableWidgetItem(withdrawal["status"]))
 
     def execute_withdrawal(self):
         amount = self.amount_input.value()
         dest_map = {
             "Cold Wallet": WithdrawalDestination.COLD_WALLET,
             "Bank Account": WithdrawalDestination.BANK_ACCOUNT,
-            "Reinvest": WithdrawalDestination.REINVEST
+            "Reinvest": WithdrawalDestination.REINVEST,
         }
         destination = dest_map[self.dest_combo.currentText()]
 
@@ -583,13 +618,11 @@ class ProfitManagementWidget(QWidget):
             QMessageBox.information(
                 self,
                 "Withdrawal Successful",
-                f"Withdrawal of ${amount:,.2f} executed successfully.\nID: {withdrawal_id}"
+                f"Withdrawal of ${amount:,.2f} executed successfully.\nID: {withdrawal_id}",
             )
         else:
             QMessageBox.warning(
-                self,
-                "Withdrawal Failed",
-                "Withdrawal failed. Check logs for details."
+                self, "Withdrawal Failed", "Withdrawal failed. Check logs for details."
             )
 
 
@@ -617,13 +650,15 @@ class GUIIntegration:
 
         logger.info("✅ GUIIntegration initialized")
 
-    def inject_dependencies(self, risk_manager=None, exchange_manager=None, telegram_bot=None):
+    def inject_dependencies(
+        self, risk_manager=None, exchange_manager=None, telegram_bot=None
+    ):
         """Inject external dependencies into security suite"""
         if self.security_suite:
             self.security_suite.inject_external_dependencies(
                 risk_manager=risk_manager,
                 exchange_manager=exchange_manager,
-                telegram_bot=telegram_bot
+                telegram_bot=telegram_bot,
             )
 
     def integrate_into_main_window(self, main_window: QMainWindow):
@@ -633,7 +668,7 @@ class GUIIntegration:
         Call this method from cyber_gui.py to add new tabs
         """
         # Get main tab widget (assuming it exists)
-        if hasattr(main_window, 'tab_widget'):
+        if hasattr(main_window, "tab_widget"):
             tabs = main_window.tab_widget
 
             # Add Phase 1 tabs
@@ -659,10 +694,10 @@ class GUIIntegration:
     def get_managers(self):
         """Get all initialized managers"""
         return {
-            'security_suite': self.security_suite,
-            'tax_reporter': self.tax_reporter,
-            'defi_integration': self.defi_integration,
-            'profit_manager': self.profit_manager
+            "security_suite": self.security_suite,
+            "tax_reporter": self.tax_reporter,
+            "defi_integration": self.defi_integration,
+            "profit_manager": self.profit_manager,
         }
 
 
@@ -686,11 +721,11 @@ def integrate_phase1_phase2_into_gui(main_window: QMainWindow, config: Dict):
     security_suite.inject_external_dependencies(
         risk_manager=None,  # Will be injected by main GUI
         exchange_manager=None,
-        telegram_bot=None
+        telegram_bot=None,
     )
 
     # Get main tab widget (assuming it exists)
-    if hasattr(main_window, 'tab_widget'):
+    if hasattr(main_window, "tab_widget"):
         tabs = main_window.tab_widget
 
         # Add Phase 1 tabs
@@ -710,8 +745,8 @@ def integrate_phase1_phase2_into_gui(main_window: QMainWindow, config: Dict):
         logger.info("✅ Phase 1 & 2 features integrated into GUI")
 
     return {
-        'security_suite': security_suite,
-        'tax_reporter': tax_reporter,
-        'defi_integration': defi_integration,
-        'profit_manager': profit_manager
+        "security_suite": security_suite,
+        "tax_reporter": tax_reporter,
+        "defi_integration": defi_integration,
+        "profit_manager": profit_manager,
     }

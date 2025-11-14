@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class EpisodeStats:
     """Statistics for a single training episode"""
+
     episode_num: int
     total_reward: float
     final_equity: float
@@ -50,18 +51,20 @@ class TradingEnvironment:
     with realistic trading conditions including fees, slippage, and risk management.
     """
 
-    def __init__(self,
-                 initial_balance: float = 10000.0,
-                 fee_rate: float = 0.001,
-                 slippage: float = 0.0005,
-                 state_size: int = 8,
-                 action_size: int = 3,
-                 max_steps: int = 1000,
-                 use_paper_trading: bool = True,
-                 market_data: Optional[pd.DataFrame] = None,
-                 engineer_features: bool = False,
-                 timeframe: str = '1h',
-                 use_improved_rewards: bool = True):
+    def __init__(
+        self,
+        initial_balance: float = 10000.0,
+        fee_rate: float = 0.001,
+        slippage: float = 0.0005,
+        state_size: int = 8,
+        action_size: int = 3,
+        max_steps: int = 1000,
+        use_paper_trading: bool = True,
+        market_data: Optional[pd.DataFrame] = None,
+        engineer_features: bool = False,
+        timeframe: str = "1h",
+        use_improved_rewards: bool = True,
+    ):
         """
         Initialize trading environment
 
@@ -90,23 +93,27 @@ class TradingEnvironment:
         # Calculate periods per year for Sharpe ratio annualization
         # Crypto markets trade 24/7/365
         timeframe_to_periods = {
-            '1m': 525600,   # 365 * 24 * 60
-            '5m': 105120,   # 365 * 24 * 12
-            '15m': 35040,   # 365 * 24 * 4
-            '1h': 8760,     # 365 * 24
-            '4h': 2190,     # 365 * 6
-            '1d': 365,      # 365
+            "1m": 525600,  # 365 * 24 * 60
+            "5m": 105120,  # 365 * 24 * 12
+            "15m": 35040,  # 365 * 24 * 4
+            "1h": 8760,  # 365 * 24
+            "4h": 2190,  # 365 * 6
+            "1d": 365,  # 365
         }
-        self.periods_per_year = timeframe_to_periods.get(timeframe, 8760)  # Default to hourly
+        self.periods_per_year = timeframe_to_periods.get(
+            timeframe, 8760
+        )  # Default to hourly
 
         # Paper trading integration
         self.use_paper_trading = use_paper_trading
         if use_paper_trading:
-            self.paper_engine = PaperTradingEngine({
-                'paper_balance': initial_balance,
-                'fee_rate': fee_rate,
-                'slippage': slippage
-            })
+            self.paper_engine = PaperTradingEngine(
+                {
+                    "paper_balance": initial_balance,
+                    "fee_rate": fee_rate,
+                    "slippage": slippage,
+                }
+            )
         else:
             self.paper_engine = None
 
@@ -148,8 +155,12 @@ class TradingEnvironment:
         logger.info(f"🎮 Trading Environment initialized")
         logger.info(f"   Balance: ${initial_balance:,.2f}")
         logger.info(f"   State size: {state_size}, Action size: {action_size}")
-        logger.info(f"   Paper trading: {'enabled' if use_paper_trading else 'disabled'}")
-        logger.info(f"   Reward function: {'Improved (risk-adjusted)' if use_improved_rewards else 'Legacy'}")
+        logger.info(
+            f"   Paper trading: {'enabled' if use_paper_trading else 'disabled'}"
+        )
+        logger.info(
+            f"   Reward function: {'Improved (risk-adjusted)' if use_improved_rewards else 'Legacy'}"
+        )
 
     def reset(self) -> np.ndarray:
         """
@@ -160,11 +171,13 @@ class TradingEnvironment:
         """
         # Reset paper trading engine
         if self.use_paper_trading:
-            self.paper_engine = PaperTradingEngine({
-                'paper_balance': self.initial_balance,
-                'fee_rate': self.fee_rate,
-                'slippage': self.slippage
-            })
+            self.paper_engine = PaperTradingEngine(
+                {
+                    "paper_balance": self.initial_balance,
+                    "fee_rate": self.fee_rate,
+                    "slippage": self.slippage,
+                }
+            )
 
         # Reset state
         self.current_step = 0
@@ -181,7 +194,7 @@ class TradingEnvironment:
 
         # Generate or load initial price
         if self.market_data is not None and len(self.market_data) > 0:
-            self.current_price = self.market_data.iloc[0]['close']
+            self.current_price = self.market_data.iloc[0]["close"]
         else:
             self.current_price = np.random.uniform(30000, 50000)  # Random BTC price
 
@@ -220,14 +233,17 @@ class TradingEnvironment:
 
         # Prepare info dict
         info = {
-            'step': self.current_step,
-            'price': self.current_price,
-            'balance': self.balance,
-            'position': self.position,
-            'equity': current_equity,
-            'total_return': current_equity - self.initial_balance,
-            'total_return_percent': ((current_equity - self.initial_balance) / self.initial_balance) * 100,
-            'trade_executed': trade_executed
+            "step": self.current_step,
+            "price": self.current_price,
+            "balance": self.balance,
+            "position": self.position,
+            "equity": current_equity,
+            "total_return": current_equity - self.initial_balance,
+            "total_return_percent": (
+                (current_equity - self.initial_balance) / self.initial_balance
+            )
+            * 100,
+            "trade_executed": trade_executed,
         }
 
         # If episode done, record stats
@@ -269,6 +285,7 @@ class TradingEnvironment:
         # Execute in paper trading engine if enabled
         if self.use_paper_trading:
             import asyncio
+
             try:
                 loop = asyncio.get_event_loop()
             except RuntimeError:
@@ -277,11 +294,15 @@ class TradingEnvironment:
 
             result = loop.run_until_complete(
                 self.paper_engine.place_order(
-                    'BTC/USDT', 'buy', amount, self.current_price, strategy='rl_training'
+                    "BTC/USDT",
+                    "buy",
+                    amount,
+                    self.current_price,
+                    strategy="rl_training",
                 )
             )
 
-            if not result.get('success'):
+            if not result.get("success"):
                 return False
 
             # Update local state from paper engine
@@ -316,6 +337,7 @@ class TradingEnvironment:
         # Execute in paper trading engine if enabled
         if self.use_paper_trading:
             import asyncio
+
             try:
                 loop = asyncio.get_event_loop()
             except RuntimeError:
@@ -324,15 +346,19 @@ class TradingEnvironment:
 
             result = loop.run_until_complete(
                 self.paper_engine.place_order(
-                    'BTC/USDT', 'sell', amount, self.current_price, strategy='rl_training'
+                    "BTC/USDT",
+                    "sell",
+                    amount,
+                    self.current_price,
+                    strategy="rl_training",
                 )
             )
 
-            if not result.get('success'):
+            if not result.get("success"):
                 return False
 
             # Check if profitable
-            pnl = result.get('pnl', 0)
+            pnl = result.get("pnl", 0)
             if pnl > 0:
                 self.winning_trades += 1
 
@@ -365,17 +391,18 @@ class TradingEnvironment:
 
         if self.market_data is not None and self.current_step < len(self.market_data):
             # Use historical data
-            self.current_price = self.market_data.iloc[self.current_step]['close']
+            self.current_price = self.market_data.iloc[self.current_step]["close"]
         else:
             # Simulate price movement (random walk with slight upward bias)
             change_percent = np.random.normal(0.0001, 0.02)  # 0.01% mean, 2% std
-            self.current_price *= (1 + change_percent)
+            self.current_price *= 1 + change_percent
 
         self.price_history.append(self.current_price)
 
         # Update paper trading positions if enabled
         if self.use_paper_trading and self.position > 0:
             import asyncio
+
             try:
                 loop = asyncio.get_event_loop()
             except RuntimeError:
@@ -383,7 +410,7 @@ class TradingEnvironment:
                 asyncio.set_event_loop(loop)
 
             loop.run_until_complete(
-                self.paper_engine.update_positions({'BTC/USDT': self.current_price})
+                self.paper_engine.update_positions({"BTC/USDT": self.current_price})
             )
 
     def _calculate_reward(self, action: int, trade_executed: bool) -> float:
@@ -427,7 +454,9 @@ class TradingEnvironment:
 
         # 1. PRIMARY REWARD: Equity percentage change (risk-adjusted)
         if len(self.equity_curve) > 1:
-            equity_return = (current_equity - self.equity_curve[-1]) / self.equity_curve[-1]
+            equity_return = (
+                current_equity - self.equity_curve[-1]
+            ) / self.equity_curve[-1]
 
             # Track returns for volatility calculation
             self.recent_returns.append(equity_return)
@@ -504,7 +533,9 @@ class TradingEnvironment:
         # Penalize holding losing positions
         if self.position > 0 and self.current_price < self.entry_price:
             unrealized_loss = (self.entry_price - self.current_price) / self.entry_price
-            reward -= unrealized_loss * 3  # Smaller penalty to encourage holding through dips
+            reward -= (
+                unrealized_loss * 3
+            )  # Smaller penalty to encourage holding through dips
 
         # Small penalty for doing nothing when not in position
         if action == self.ACTION_HOLD and self.position == 0:
@@ -515,7 +546,7 @@ class TradingEnvironment:
     def _get_current_equity(self) -> float:
         """Calculate current total equity"""
         if self.use_paper_trading:
-            return self.paper_engine.get_total_equity({'BTC/USDT': self.current_price})
+            return self.paper_engine.get_total_equity({"BTC/USDT": self.current_price})
         else:
             return self.balance + (self.position * self.current_price)
 
@@ -526,7 +557,10 @@ class TradingEnvironment:
             return True
 
         # Out of market data
-        if self.market_data is not None and self.current_step >= len(self.market_data) - 1:
+        if (
+            self.market_data is not None
+            and self.current_step >= len(self.market_data) - 1
+        ):
             return True
 
         # Catastrophic loss (lost 90% of capital)
@@ -552,21 +586,30 @@ class TradingEnvironment:
 
         # Calculate price change
         if len(self.price_history) > 1:
-            price_change = (self.current_price - self.price_history[-2]) / self.price_history[-2]
+            price_change = (
+                self.current_price - self.price_history[-2]
+            ) / self.price_history[-2]
         else:
             price_change = 0.0
 
         # Build state vector (8 features)
-        state = np.array([
-            self.balance / self.initial_balance,  # Normalized balance
-            self.position / (self.initial_balance / self.current_price),  # Normalized position
-            (self.entry_price / self.current_price) if self.entry_price > 0 else 1.0,  # Relative entry price
-            self.current_price / self.initial_balance,  # Normalized price
-            price_change,  # Price change
-            rsi / 100,  # Normalized RSI
-            macd,  # MACD (already normalized)
-            volume_ratio  # Volume ratio
-        ])
+        state = np.array(
+            [
+                self.balance / self.initial_balance,  # Normalized balance
+                self.position
+                / (self.initial_balance / self.current_price),  # Normalized position
+                (
+                    (self.entry_price / self.current_price)
+                    if self.entry_price > 0
+                    else 1.0
+                ),  # Relative entry price
+                self.current_price / self.initial_balance,  # Normalized price
+                price_change,  # Price change
+                rsi / 100,  # Normalized RSI
+                macd,  # MACD (already normalized)
+                volume_ratio,  # Volume ratio
+            ]
+        )
 
         return state.astype(np.float32)
 
@@ -575,7 +618,7 @@ class TradingEnvironment:
         if len(self.price_history) < period + 1:
             return 50.0  # Neutral RSI
 
-        prices = np.array(self.price_history[-(period + 1):])
+        prices = np.array(self.price_history[-(period + 1) :])
         deltas = np.diff(prices)
 
         gains = deltas.copy()
@@ -615,12 +658,20 @@ class TradingEnvironment:
         # Calculate metrics
         total_return = final_equity - self.initial_balance
         total_return_percent = (total_return / self.initial_balance) * 100
-        win_rate = (self.winning_trades / self.total_trades * 100) if self.total_trades > 0 else 0
+        win_rate = (
+            (self.winning_trades / self.total_trades * 100)
+            if self.total_trades > 0
+            else 0
+        )
 
         # Calculate Sharpe ratio (annualized based on timeframe)
         if len(self.equity_curve) > 1:
             returns = np.diff(self.equity_curve) / self.equity_curve[:-1]
-            sharpe = np.mean(returns) / np.std(returns) * np.sqrt(self.periods_per_year) if np.std(returns) > 0 else 0
+            sharpe = (
+                np.mean(returns) / np.std(returns) * np.sqrt(self.periods_per_year)
+                if np.std(returns) > 0
+                else 0
+            )
         else:
             sharpe = 0
 
@@ -640,42 +691,46 @@ class TradingEnvironment:
             win_rate=win_rate,
             sharpe_ratio=sharpe,
             max_drawdown=max_drawdown * 100,  # Convert to percentage
-            steps=self.current_step
+            steps=self.current_step,
         )
 
         self.episode_history.append(stats)
 
-        logger.info(f"Episode {self.episode} completed: "
-                   f"Return={total_return_percent:.2f}%, "
-                   f"Trades={self.total_trades}, "
-                   f"Win Rate={win_rate:.1f}%")
+        logger.info(
+            f"Episode {self.episode} completed: "
+            f"Return={total_return_percent:.2f}%, "
+            f"Trades={self.total_trades}, "
+            f"Win Rate={win_rate:.1f}%"
+        )
 
     def get_episode_stats(self) -> List[EpisodeStats]:
         """Get statistics for all episodes"""
         return self.episode_history
 
-    def render(self, mode: str = 'human'):
+    def render(self, mode: str = "human"):
         """
         Render environment state
 
         Args:
             mode: Render mode ('human' for console output)
         """
-        if mode == 'human':
+        if mode == "human":
             current_equity = self._get_current_equity()
             print(f"\nStep: {self.current_step}/{self.max_steps}")
             print(f"Price: ${self.current_price:,.2f}")
             print(f"Balance: ${self.balance:,.2f}")
             print(f"Position: {self.position:.4f}")
             print(f"Equity: ${current_equity:,.2f}")
-            print(f"Return: {((current_equity - self.initial_balance) / self.initial_balance * 100):.2f}%")
+            print(
+                f"Return: {((current_equity - self.initial_balance) / self.initial_balance * 100):.2f}%"
+            )
 
 
 # Convenience function
 def create_training_environment(
     initial_balance: float = 10000.0,
     use_paper_trading: bool = True,
-    market_data: Optional[pd.DataFrame] = None
+    market_data: Optional[pd.DataFrame] = None,
 ) -> TradingEnvironment:
     """
     Create trading environment with default settings
@@ -691,12 +746,8 @@ def create_training_environment(
     return TradingEnvironment(
         initial_balance=initial_balance,
         use_paper_trading=use_paper_trading,
-        market_data=market_data
+        market_data=market_data,
     )
 
 
-__all__ = [
-    'TradingEnvironment',
-    'EpisodeStats',
-    'create_training_environment'
-]
+__all__ = ["TradingEnvironment", "EpisodeStats", "create_training_environment"]

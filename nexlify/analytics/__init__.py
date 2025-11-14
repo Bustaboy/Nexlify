@@ -8,8 +8,8 @@ from nexlify.analytics.nexlify_ai_companion import AITradingCompanion
 AICompanion = AITradingCompanion
 
 __all__ = [
-    'PerformanceTracker',
-    'AdvancedAnalytics',
-    'AICompanion',
-    'AITradingCompanion',
+    "PerformanceTracker",
+    "AdvancedAnalytics",
+    "AICompanion",
+    "AITradingCompanion",
 ]

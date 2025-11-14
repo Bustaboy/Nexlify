@@ -31,15 +31,17 @@ error_handler = get_error_handler()
 
 class CrashSeverity(Enum):
     """Flash crash severity levels"""
+
     NONE = "none"
-    MINOR = "minor"      # Warning only
-    MAJOR = "major"      # Close risky positions
+    MINOR = "minor"  # Warning only
+    MAJOR = "major"  # Close risky positions
     CRITICAL = "critical"  # Close ALL positions
 
 
 @dataclass
 class PriceSnapshot:
     """Price snapshot at a point in time"""
+
     timestamp: datetime
     price: float
     volume: float = 0.0
@@ -49,6 +51,7 @@ class PriceSnapshot:
 @dataclass
 class CrashEvent:
     """Flash crash event record"""
+
     timestamp: datetime = field(default_factory=datetime.now)
     symbol: str = ""
     severity: CrashSeverity = CrashSeverity.NONE
@@ -64,17 +67,19 @@ class CrashEvent:
     def to_dict(self) -> Dict:
         """Convert to dictionary"""
         return {
-            'timestamp': self.timestamp.isoformat(),
-            'symbol': self.symbol,
-            'severity': self.severity.value,
-            'price_drop_percent': self.price_drop_percent,
-            'timeframe': self.timeframe,
-            'price_before': self.price_before,
-            'price_after': self.price_after,
-            'volume_spike': self.volume_spike,
-            'action_taken': self.action_taken,
-            'positions_closed': self.positions_closed,
-            'recovery_time': self.recovery_time.isoformat() if self.recovery_time else None
+            "timestamp": self.timestamp.isoformat(),
+            "symbol": self.symbol,
+            "severity": self.severity.value,
+            "price_drop_percent": self.price_drop_percent,
+            "timeframe": self.timeframe,
+            "price_before": self.price_before,
+            "price_after": self.price_after,
+            "volume_spike": self.volume_spike,
+            "action_taken": self.action_taken,
+            "positions_closed": self.positions_closed,
+            "recovery_time": (
+                self.recovery_time.isoformat() if self.recovery_time else None
+            ),
         }
 
 
@@ -104,36 +109,44 @@ class FlashCrashProtection:
 
     def __init__(self, config: Dict):
         """Initialize Flash Crash Protection"""
-        self.config = config.get('flash_crash_protection', {})
-        self.enabled = self.config.get('enabled', True)
+        self.config = config.get("flash_crash_protection", {})
+        self.enabled = self.config.get("enabled", True)
 
         # Crash thresholds (negative percentages)
         self.thresholds = {
-            CrashSeverity.MINOR: self.config.get('minor_threshold', -0.05),      # -5%
-            CrashSeverity.MAJOR: self.config.get('major_threshold', -0.10),      # -10%
-            CrashSeverity.CRITICAL: self.config.get('critical_threshold', -0.15) # -15%
+            CrashSeverity.MINOR: self.config.get("minor_threshold", -0.05),  # -5%
+            CrashSeverity.MAJOR: self.config.get("major_threshold", -0.10),  # -10%
+            CrashSeverity.CRITICAL: self.config.get(
+                "critical_threshold", -0.15
+            ),  # -15%
         }
 
         # Monitoring settings
-        self.check_interval = self.config.get('check_interval', 30)  # seconds
-        self.timeframes = self.config.get('timeframes', ['1m', '5m', '15m'])
-        self.recovery_threshold = self.config.get('recovery_threshold', 0.20)  # 20% recovery
+        self.check_interval = self.config.get("check_interval", 30)  # seconds
+        self.timeframes = self.config.get("timeframes", ["1m", "5m", "15m"])
+        self.recovery_threshold = self.config.get(
+            "recovery_threshold", 0.20
+        )  # 20% recovery
 
         # Volume spike detection
-        self.volume_spike_threshold = self.config.get('volume_spike_threshold', 3.0)  # 3x avg
+        self.volume_spike_threshold = self.config.get(
+            "volume_spike_threshold", 3.0
+        )  # 3x avg
 
         # State management
         self.is_protecting = False
         self.crash_detected_time: Optional[datetime] = None
         self.current_severity = CrashSeverity.NONE
-        self.price_history: Dict[str, Dict[str, deque]] = {}  # symbol -> timeframe -> prices
+        self.price_history: Dict[str, Dict[str, deque]] = (
+            {}
+        )  # symbol -> timeframe -> prices
         self.volume_history: Dict[str, deque] = {}  # symbol -> volumes
 
         # Maximum history to keep (in data points)
         self.max_history = {
-            '1m': 60,   # 1 hour of 1-minute data
-            '5m': 60,   # 5 hours of 5-minute data
-            '15m': 96   # 24 hours of 15-minute data
+            "1m": 60,  # 1 hour of 1-minute data
+            "5m": 60,  # 5 hours of 5-minute data
+            "15m": 96,  # 24 hours of 15-minute data
         }
 
         # Event logging
@@ -151,9 +164,11 @@ class FlashCrashProtection:
 
         logger.info("⚡ Flash Crash Protection initialized")
         logger.info(f"   Enabled: {self.enabled}")
-        logger.info(f"   Thresholds: Minor={self.thresholds[CrashSeverity.MINOR]*100:.0f}%, "
-                   f"Major={self.thresholds[CrashSeverity.MAJOR]*100:.0f}%, "
-                   f"Critical={self.thresholds[CrashSeverity.CRITICAL]*100:.0f}%")
+        logger.info(
+            f"   Thresholds: Minor={self.thresholds[CrashSeverity.MINOR]*100:.0f}%, "
+            f"Major={self.thresholds[CrashSeverity.MAJOR]*100:.0f}%, "
+            f"Critical={self.thresholds[CrashSeverity.CRITICAL]*100:.0f}%"
+        )
         logger.info(f"   Check interval: {self.check_interval}s")
         logger.info(f"   Timeframes: {', '.join(self.timeframes)}")
 
@@ -162,7 +177,7 @@ class FlashCrashProtection:
         kill_switch=None,
         risk_manager=None,
         exchange_manager=None,
-        telegram_bot=None
+        telegram_bot=None,
     ):
         """Inject external dependencies"""
         self.kill_switch = kill_switch
@@ -171,7 +186,13 @@ class FlashCrashProtection:
         self.telegram_bot = telegram_bot
         logger.info("✅ Flash Crash Protection dependencies injected")
 
-    def add_price_update(self, symbol: str, price: float, volume: float = 0.0, timestamp: Optional[datetime] = None):
+    def add_price_update(
+        self,
+        symbol: str,
+        price: float,
+        volume: float = 0.0,
+        timestamp: Optional[datetime] = None,
+    ):
         """
         Add a price update for monitoring
 
@@ -199,7 +220,9 @@ class FlashCrashProtection:
         # Add to all timeframes
         for tf in self.timeframes:
             self.price_history[symbol][tf].append(
-                PriceSnapshot(timestamp=timestamp, price=price, volume=volume, symbol=symbol)
+                PriceSnapshot(
+                    timestamp=timestamp, price=price, volume=volume, symbol=symbol
+                )
             )
 
         # Add to volume history
@@ -257,11 +280,7 @@ class FlashCrashProtection:
             return CrashSeverity.NONE, {}
 
         max_severity = CrashSeverity.NONE
-        details = {
-            'symbol': symbol,
-            'timeframe_analysis': {},
-            'volume_spike': False
-        }
+        details = {"symbol": symbol, "timeframe_analysis": {}, "volume_spike": False}
 
         # Check each timeframe
         for tf in self.timeframes:
@@ -270,25 +289,25 @@ class FlashCrashProtection:
             if price_change is None:
                 continue
 
-            details['timeframe_analysis'][tf] = {
-                'price_change': price_change,
-                'price_change_percent': price_change * 100
+            details["timeframe_analysis"][tf] = {
+                "price_change": price_change,
+                "price_change_percent": price_change * 100,
             }
 
             # Determine severity for this timeframe
             if price_change <= self.thresholds[CrashSeverity.CRITICAL]:
                 max_severity = CrashSeverity.CRITICAL
-                details['timeframe_analysis'][tf]['severity'] = 'critical'
+                details["timeframe_analysis"][tf]["severity"] = "critical"
             elif price_change <= self.thresholds[CrashSeverity.MAJOR]:
                 if max_severity.value == CrashSeverity.NONE.value:
                     max_severity = CrashSeverity.MAJOR
-                details['timeframe_analysis'][tf]['severity'] = 'major'
+                details["timeframe_analysis"][tf]["severity"] = "major"
             elif price_change <= self.thresholds[CrashSeverity.MINOR]:
                 if max_severity.value == CrashSeverity.NONE.value:
                     max_severity = CrashSeverity.MINOR
-                details['timeframe_analysis'][tf]['severity'] = 'minor'
+                details["timeframe_analysis"][tf]["severity"] = "minor"
             else:
-                details['timeframe_analysis'][tf]['severity'] = 'none'
+                details["timeframe_analysis"][tf]["severity"] = "none"
 
         # Check for volume spike
         if symbol in self.volume_history and len(self.volume_history[symbol]) > 0:
@@ -297,13 +316,18 @@ class FlashCrashProtection:
                 avg_volume = sum(volumes[:-1]) / len(volumes[:-1])
                 current_volume = volumes[-1]
 
-                if avg_volume > 0 and current_volume > avg_volume * self.volume_spike_threshold:
-                    details['volume_spike'] = True
-                    details['volume_spike_ratio'] = current_volume / avg_volume
+                if (
+                    avg_volume > 0
+                    and current_volume > avg_volume * self.volume_spike_threshold
+                ):
+                    details["volume_spike"] = True
+                    details["volume_spike_ratio"] = current_volume / avg_volume
 
         return max_severity, details
 
-    async def trigger_protection(self, symbol: str, severity: CrashSeverity, details: Dict) -> CrashEvent:
+    async def trigger_protection(
+        self, symbol: str, severity: CrashSeverity, details: Dict
+    ) -> CrashEvent:
         """
         Trigger crash protection actions
 
@@ -322,8 +346,8 @@ class FlashCrashProtection:
         logger.warning("=" * 80)
 
         # Get price information
-        price_before = details.get('price_before', 0.0)
-        price_after = details.get('price_after', 0.0)
+        price_before = details.get("price_before", 0.0)
+        price_after = details.get("price_after", 0.0)
         price_drop = 0.0
 
         if symbol in self.price_history and self.timeframes:
@@ -331,17 +355,21 @@ class FlashCrashProtection:
             if len(prices) >= 2:
                 price_before = prices[0].price
                 price_after = prices[-1].price
-                price_drop = (price_after - price_before) / price_before if price_before > 0 else 0.0
+                price_drop = (
+                    (price_after - price_before) / price_before
+                    if price_before > 0
+                    else 0.0
+                )
 
         # Create event record
         event = CrashEvent(
             symbol=symbol,
             severity=severity,
             price_drop_percent=price_drop * 100,
-            timeframe=', '.join(self.timeframes),
+            timeframe=", ".join(self.timeframes),
             price_before=price_before,
             price_after=price_after,
-            volume_spike=details.get('volume_spike_ratio', 0.0)
+            volume_spike=details.get("volume_spike_ratio", 0.0),
         )
 
         # Mark as protecting
@@ -383,10 +411,11 @@ class FlashCrashProtection:
 
             if self.kill_switch:
                 from nexlify.risk.nexlify_emergency_kill_switch import KillSwitchTrigger
+
                 await self.kill_switch.trigger(
                     trigger_type=KillSwitchTrigger.FLASH_CRASH,
                     reason=f"Critical flash crash detected: {symbol} dropped {price_drop*100:.2f}%",
-                    auto_trigger=True
+                    auto_trigger=True,
                 )
                 event.positions_closed = -1  # Kill switch handles all positions
             else:
@@ -406,8 +435,10 @@ class FlashCrashProtection:
         if self.exchange_manager:
             try:
                 # Close leveraged positions for this symbol
-                if hasattr(self.exchange_manager, 'close_leveraged_positions'):
-                    closed_count = await self.exchange_manager.close_leveraged_positions(symbol)
+                if hasattr(self.exchange_manager, "close_leveraged_positions"):
+                    closed_count = (
+                        await self.exchange_manager.close_leveraged_positions(symbol)
+                    )
                     logger.info(f"   ✅ Closed {closed_count} leveraged positions")
             except Exception as e:
                 logger.error(f"   ❌ Error closing positions: {e}")
@@ -418,16 +449,16 @@ class FlashCrashProtection:
         """Send notification via Telegram"""
         if self.telegram_bot:
             try:
-                if hasattr(self.telegram_bot, 'send_message'):
-                    await self.telegram_bot.send_message(message, parse_mode='Markdown')
+                if hasattr(self.telegram_bot, "send_message"):
+                    await self.telegram_bot.send_message(message, parse_mode="Markdown")
             except Exception as e:
                 logger.error(f"Failed to send notification: {e}")
 
     def _log_event(self, event: CrashEvent):
         """Log crash event to persistent storage"""
         try:
-            with open(self.event_log_file, 'a') as f:
-                f.write(json.dumps(event.to_dict()) + '\n')
+            with open(self.event_log_file, "a") as f:
+                f.write(json.dumps(event.to_dict()) + "\n")
         except Exception as e:
             logger.error(f"Failed to log crash event: {e}")
 
@@ -474,7 +505,9 @@ class FlashCrashProtection:
                 recovery = (current_price - crash_price) / crash_price
 
                 if recovery >= self.recovery_threshold:
-                    logger.info(f"✅ Recovery detected for {symbol}: {recovery*100:.2f}% rebound")
+                    logger.info(
+                        f"✅ Recovery detected for {symbol}: {recovery*100:.2f}% rebound"
+                    )
                     return True
 
         return False
@@ -552,18 +585,24 @@ class FlashCrashProtection:
     def get_status(self) -> Dict:
         """Get current protection status"""
         return {
-            'enabled': self.enabled,
-            'is_protecting': self.is_protecting,
-            'current_severity': self.current_severity.value if self.current_severity else 'none',
-            'crash_detected_time': self.crash_detected_time.isoformat() if self.crash_detected_time else None,
-            'thresholds': {
-                'minor': f"{self.thresholds[CrashSeverity.MINOR]*100:.0f}%",
-                'major': f"{self.thresholds[CrashSeverity.MAJOR]*100:.0f}%",
-                'critical': f"{self.thresholds[CrashSeverity.CRITICAL]*100:.0f}%"
+            "enabled": self.enabled,
+            "is_protecting": self.is_protecting,
+            "current_severity": (
+                self.current_severity.value if self.current_severity else "none"
+            ),
+            "crash_detected_time": (
+                self.crash_detected_time.isoformat()
+                if self.crash_detected_time
+                else None
+            ),
+            "thresholds": {
+                "minor": f"{self.thresholds[CrashSeverity.MINOR]*100:.0f}%",
+                "major": f"{self.thresholds[CrashSeverity.MAJOR]*100:.0f}%",
+                "critical": f"{self.thresholds[CrashSeverity.CRITICAL]*100:.0f}%",
             },
-            'monitoring_symbols': len(self.price_history),
-            'check_interval': self.check_interval,
-            'recovery_threshold': f"{self.recovery_threshold*100:.0f}%"
+            "monitoring_symbols": len(self.price_history),
+            "check_interval": self.check_interval,
+            "recovery_threshold": f"{self.recovery_threshold*100:.0f}%",
         }
 
     def get_event_history(self, limit: int = 10) -> List[Dict]:
@@ -574,7 +613,7 @@ class FlashCrashProtection:
             return events
 
         try:
-            with open(self.event_log_file, 'r') as f:
+            with open(self.event_log_file, "r") as f:
                 lines = f.readlines()
                 for line in lines[-limit:]:
                     events.append(json.loads(line))
@@ -586,18 +625,19 @@ class FlashCrashProtection:
 
 # Usage example
 if __name__ == "__main__":
+
     async def test_flash_crash_protection():
         """Test flash crash protection"""
 
         config = {
-            'flash_crash_protection': {
-                'enabled': True,
-                'minor_threshold': -0.05,
-                'major_threshold': -0.10,
-                'critical_threshold': -0.15,
-                'check_interval': 5,
-                'timeframes': ['1m', '5m'],
-                'recovery_threshold': 0.20
+            "flash_crash_protection": {
+                "enabled": True,
+                "minor_threshold": -0.05,
+                "major_threshold": -0.10,
+                "critical_threshold": -0.15,
+                "check_interval": 5,
+                "timeframes": ["1m", "5m"],
+                "recovery_threshold": 0.20,
             }
         }
 

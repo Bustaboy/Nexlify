@@ -23,25 +23,28 @@ logger = logging.getLogger(__name__)
 
 class CompilationBackend(Enum):
     """Compilation backends"""
-    NONE = "none"                     # No compilation
-    TORCH_COMPILE = "torch_compile"   # PyTorch 2.0+ compile (best for training)
-    TORCHSCRIPT = "torchscript"       # TorchScript JIT (good for inference)
-    TENSORRT = "tensorrt"             # NVIDIA TensorRT (fastest inference)
-    ONNX = "onnx"                     # ONNX Runtime (cross-platform)
-    OPENVINO = "openvino"             # Intel OpenVINO
+
+    NONE = "none"  # No compilation
+    TORCH_COMPILE = "torch_compile"  # PyTorch 2.0+ compile (best for training)
+    TORCHSCRIPT = "torchscript"  # TorchScript JIT (good for inference)
+    TENSORRT = "tensorrt"  # NVIDIA TensorRT (fastest inference)
+    ONNX = "onnx"  # ONNX Runtime (cross-platform)
+    OPENVINO = "openvino"  # Intel OpenVINO
 
 
 class CompilationMode(Enum):
     """Compilation modes"""
-    DEFAULT = "default"               # Balanced
+
+    DEFAULT = "default"  # Balanced
     REDUCE_OVERHEAD = "reduce-overhead"  # Optimize for many small ops
-    MAX_AUTOTUNE = "max-autotune"    # Find best kernels (slow compile, fast runtime)
-    INFERENCE = "inference"          # Optimize for inference only
+    MAX_AUTOTUNE = "max-autotune"  # Find best kernels (slow compile, fast runtime)
+    INFERENCE = "inference"  # Optimize for inference only
 
 
 @dataclass
 class CompilationConfig:
     """Model compilation configuration"""
+
     backend: CompilationBackend
     mode: CompilationMode
     dynamic_shapes: bool
@@ -85,12 +88,13 @@ class ModelCompiler:
             self.torch_version = torch.__version__
 
             # Check for torch.compile (PyTorch 2.0+)
-            if hasattr(torch, 'compile'):
+            if hasattr(torch, "compile"):
                 self.has_torch_compile = True
 
             # Check for TensorRT
             try:
                 import torch_tensorrt
+
                 self.has_tensorrt = True
             except ImportError:
                 pass
@@ -98,6 +102,7 @@ class ModelCompiler:
             # Check for ONNX Runtime
             try:
                 import onnxruntime
+
                 self.has_onnx = True
             except ImportError:
                 pass
@@ -105,12 +110,14 @@ class ModelCompiler:
         except ImportError:
             logger.warning("PyTorch not available")
 
-    def compile(self,
-                model,
-                backend: Optional[CompilationBackend] = None,
-                mode: CompilationMode = CompilationMode.DEFAULT,
-                dynamic_shapes: bool = False,
-                example_inputs: Optional[Any] = None) -> Any:
+    def compile(
+        self,
+        model,
+        backend: Optional[CompilationBackend] = None,
+        mode: CompilationMode = CompilationMode.DEFAULT,
+        dynamic_shapes: bool = False,
+        example_inputs: Optional[Any] = None,
+    ) -> Any:
         """
         Compile model for faster execution
 
@@ -168,10 +175,9 @@ class ModelCompiler:
         # Fallback to TorchScript
         return CompilationBackend.TORCHSCRIPT
 
-    def _compile_torch_compile(self,
-                               model,
-                               mode: CompilationMode,
-                               dynamic_shapes: bool) -> Any:
+    def _compile_torch_compile(
+        self, model, mode: CompilationMode, dynamic_shapes: bool
+    ) -> Any:
         """
         Compile with torch.compile (PyTorch 2.0+)
 
@@ -248,7 +254,7 @@ class ModelCompiler:
             model,
             inputs=[example_inputs],
             enabled_precisions={torch.float16},  # FP16 for speed
-            workspace_size=1 << 30  # 1GB
+            workspace_size=1 << 30,  # 1GB
         )
 
         return compiled
@@ -277,13 +283,13 @@ class ModelCompiler:
             model,
             example_inputs,
             onnx_path,
-            input_names=['input'],
-            output_names=['output'],
-            dynamic_axes={'input': {0: 'batch_size'}, 'output': {0: 'batch_size'}}
+            input_names=["input"],
+            output_names=["output"],
+            dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}},
         )
 
         # Create ONNX Runtime session
-        providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
+        providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
         session = ort.InferenceSession(onnx_path, providers=providers)
 
         logger.info(f"   ONNX Runtime provider: {session.get_providers()[0]}")
@@ -301,11 +307,9 @@ class CompilationOptimizer:
     def __init__(self):
         self.compiler = ModelCompiler()
 
-    def optimize_model(self,
-                      model,
-                      example_inputs,
-                      num_warmup: int = 10,
-                      num_profile: int = 100) -> Any:
+    def optimize_model(
+        self, model, example_inputs, num_warmup: int = 10, num_profile: int = 100
+    ) -> Any:
         """
         Optimize model by profiling different compilation backends
 
@@ -326,8 +330,10 @@ class CompilationOptimizer:
 
         # Benchmark eager mode
         logger.info("   Benchmarking eager mode...")
-        eager_time = self._benchmark_model(model, example_inputs, num_warmup, num_profile)
-        results['eager'] = eager_time
+        eager_time = self._benchmark_model(
+            model, example_inputs, num_warmup, num_profile
+        )
+        results["eager"] = eager_time
         logger.info(f"      Eager mode: {eager_time*1000:.2f}ms per iteration")
 
         # Try torch.compile
@@ -337,12 +343,16 @@ class CompilationOptimizer:
                 compiled = self.compiler.compile(
                     model,
                     backend=CompilationBackend.TORCH_COMPILE,
-                    example_inputs=example_inputs
+                    example_inputs=example_inputs,
                 )
-                compile_time = self._benchmark_model(compiled, example_inputs, num_warmup, num_profile)
-                results['torch_compile'] = compile_time
+                compile_time = self._benchmark_model(
+                    compiled, example_inputs, num_warmup, num_profile
+                )
+                results["torch_compile"] = compile_time
                 speedup = eager_time / compile_time
-                logger.info(f"      torch.compile: {compile_time*1000:.2f}ms ({speedup:.2f}x speedup)")
+                logger.info(
+                    f"      torch.compile: {compile_time*1000:.2f}ms ({speedup:.2f}x speedup)"
+                )
             except Exception as e:
                 logger.warning(f"      torch.compile failed: {e}")
 
@@ -352,12 +362,16 @@ class CompilationOptimizer:
             compiled = self.compiler.compile(
                 model,
                 backend=CompilationBackend.TORCHSCRIPT,
-                example_inputs=example_inputs
+                example_inputs=example_inputs,
             )
-            script_time = self._benchmark_model(compiled, example_inputs, num_warmup, num_profile)
-            results['torchscript'] = script_time
+            script_time = self._benchmark_model(
+                compiled, example_inputs, num_warmup, num_profile
+            )
+            results["torchscript"] = script_time
             speedup = eager_time / script_time
-            logger.info(f"      TorchScript: {script_time*1000:.2f}ms ({speedup:.2f}x speedup)")
+            logger.info(
+                f"      TorchScript: {script_time*1000:.2f}ms ({speedup:.2f}x speedup)"
+            )
         except Exception as e:
             logger.warning(f"      TorchScript failed: {e}")
 
@@ -369,14 +383,20 @@ class CompilationOptimizer:
         logger.info(f"\n✅ Best backend: {best_backend} ({speedup:.2f}x speedup)")
 
         # Return compiled model with best backend
-        if best_backend == 'torch_compile':
-            return self.compiler.compile(model, CompilationBackend.TORCH_COMPILE, example_inputs=example_inputs)
-        elif best_backend == 'torchscript':
-            return self.compiler.compile(model, CompilationBackend.TORCHSCRIPT, example_inputs=example_inputs)
+        if best_backend == "torch_compile":
+            return self.compiler.compile(
+                model, CompilationBackend.TORCH_COMPILE, example_inputs=example_inputs
+            )
+        elif best_backend == "torchscript":
+            return self.compiler.compile(
+                model, CompilationBackend.TORCHSCRIPT, example_inputs=example_inputs
+            )
         else:
             return model
 
-    def _benchmark_model(self, model, inputs, num_warmup: int, num_profile: int) -> float:
+    def _benchmark_model(
+        self, model, inputs, num_warmup: int, num_profile: int
+    ) -> float:
         """Benchmark model inference time"""
         import torch
 
@@ -405,10 +425,12 @@ class CompilationOptimizer:
 
 
 # Convenience functions
-def compile_model(model,
-                 backend: Optional[CompilationBackend] = None,
-                 mode: CompilationMode = CompilationMode.DEFAULT,
-                 example_inputs: Optional[Any] = None) -> Any:
+def compile_model(
+    model,
+    backend: Optional[CompilationBackend] = None,
+    mode: CompilationMode = CompilationMode.DEFAULT,
+    example_inputs: Optional[Any] = None,
+) -> Any:
     """
     Compile model for 20-50% speedup
 
@@ -442,11 +464,11 @@ def auto_optimize_model(model, example_inputs) -> Any:
 
 # Export
 __all__ = [
-    'CompilationBackend',
-    'CompilationMode',
-    'CompilationConfig',
-    'ModelCompiler',
-    'CompilationOptimizer',
-    'compile_model',
-    'auto_optimize_model'
+    "CompilationBackend",
+    "CompilationMode",
+    "CompilationConfig",
+    "ModelCompiler",
+    "CompilationOptimizer",
+    "compile_model",
+    "auto_optimize_model",
 ]

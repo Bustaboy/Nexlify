@@ -51,7 +51,9 @@ class NexlifyNeuralNet:
             logger.info("✅ Neural Net initialized successfully")
 
         except Exception as e:
-            error_handler.log_error(e, "Neural Net initialization failed", severity="critical")
+            error_handler.log_error(
+                e, "Neural Net initialization failed", severity="critical"
+            )
             raise
 
     async def _update_btc_price(self):
@@ -63,8 +65,8 @@ class NexlifyNeuralNet:
                     exchange_id = list(self.exchanges.keys())[0]
                     exchange = self.exchanges[exchange_id]
 
-                    ticker = await exchange.fetch_ticker('BTC/USDT')
-                    self.btc_price = ticker['last']
+                    ticker = await exchange.fetch_ticker("BTC/USDT")
+                    self.btc_price = ticker["last"]
 
                 await asyncio.sleep(10)  # Update every 10 seconds
             except Exception as e:
@@ -75,7 +77,7 @@ class NexlifyNeuralNet:
         """Background task to update active pairs list"""
         while self.is_initialized:
             try:
-                if self.engine and hasattr(self.engine, 'active_pairs'):
+                if self.engine and hasattr(self.engine, "active_pairs"):
                     self.active_pairs = list(self.engine.active_pairs.values())
                 await asyncio.sleep(5)  # Update every 5 seconds
             except Exception as e:
@@ -93,9 +95,15 @@ class NexlifyNeuralNet:
             logger.error(f"Error getting active pairs display: {e}")
             return []
 
-    async def execute_manual_trade(self, exchange_id: str, symbol: str,
-                                   side: str, order_type: str,
-                                   amount: float, price: Optional[float] = None) -> Dict:
+    async def execute_manual_trade(
+        self,
+        exchange_id: str,
+        symbol: str,
+        side: str,
+        order_type: str,
+        amount: float,
+        price: Optional[float] = None,
+    ) -> Dict:
         """
         Execute a manual trade
 
@@ -120,18 +128,20 @@ class NexlifyNeuralNet:
             params = {}
 
             # Execute order based on type
-            if order_type.lower() == 'market':
-                if side.lower() == 'buy':
+            if order_type.lower() == "market":
+                if side.lower() == "buy":
                     order = await exchange.create_market_buy_order(symbol, amount)
                 else:
                     order = await exchange.create_market_sell_order(symbol, amount)
-            elif order_type.lower() == 'limit':
+            elif order_type.lower() == "limit":
                 if not price:
                     raise ValueError("Price required for limit orders")
-                if side.lower() == 'buy':
+                if side.lower() == "buy":
                     order = await exchange.create_limit_buy_order(symbol, amount, price)
                 else:
-                    order = await exchange.create_limit_sell_order(symbol, amount, price)
+                    order = await exchange.create_limit_sell_order(
+                        symbol, amount, price
+                    )
             else:
                 raise ValueError(f"Unsupported order type: {order_type}")
 
@@ -139,8 +149,9 @@ class NexlifyNeuralNet:
             return order
 
         except Exception as e:
-            error_handler.log_error(e, f"Trade execution failed: {side} {amount} {symbol}",
-                                   severity="error")
+            error_handler.log_error(
+                e, f"Trade execution failed: {side} {amount} {symbol}", severity="error"
+            )
             raise
 
     async def get_account_balance(self, exchange_id: str = None) -> Dict:
@@ -170,15 +181,17 @@ class NexlifyNeuralNet:
                 try:
                     open_orders = await exchange.fetch_open_orders()
                     for order in open_orders:
-                        positions.append({
-                            'exchange': exchange_id,
-                            'symbol': order['symbol'],
-                            'side': order['side'],
-                            'amount': order['amount'],
-                            'price': order['price'],
-                            'status': order['status'],
-                            'timestamp': order['timestamp']
-                        })
+                        positions.append(
+                            {
+                                "exchange": exchange_id,
+                                "symbol": order["symbol"],
+                                "side": order["side"],
+                                "amount": order["amount"],
+                                "price": order["price"],
+                                "status": order["status"],
+                                "timestamp": order["timestamp"],
+                            }
+                        )
                 except Exception as e:
                     logger.debug(f"Error fetching orders from {exchange_id}: {e}")
 
@@ -200,7 +213,9 @@ class NexlifyNeuralNet:
             return True
 
         except Exception as e:
-            error_handler.log_error(e, f"Failed to cancel order {order_id}", severity="error")
+            error_handler.log_error(
+                e, f"Failed to cancel order {order_id}", severity="error"
+            )
             return False
 
     async def withdraw_profits_to_btc(self, amount_usd: float) -> bool:
@@ -219,7 +234,9 @@ class NexlifyNeuralNet:
             return success
 
         except Exception as e:
-            error_handler.log_error(e, f"Withdrawal failed: ${amount_usd}", severity="error")
+            error_handler.log_error(
+                e, f"Withdrawal failed: ${amount_usd}", severity="error"
+            )
             return False
 
     async def calculate_total_profits(self) -> float:

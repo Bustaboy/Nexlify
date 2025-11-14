@@ -34,6 +34,7 @@ error_handler = get_error_handler()
 @dataclass
 class FileIntegrity:
     """File integrity information"""
+
     path: str
     checksum: str
     size: int
@@ -44,6 +45,7 @@ class FileIntegrity:
 @dataclass
 class IntegrityViolation:
     """Integrity violation event"""
+
     timestamp: datetime = field(default_factory=datetime.now)
     violation_type: str = ""  # file_modified, file_deleted, unauthorized_process, etc.
     details: str = ""
@@ -55,13 +57,13 @@ class IntegrityViolation:
     def to_dict(self) -> Dict:
         """Convert to dictionary"""
         return {
-            'timestamp': self.timestamp.isoformat(),
-            'violation_type': self.violation_type,
-            'details': self.details,
-            'severity': self.severity,
-            'file_path': self.file_path,
-            'expected_checksum': self.expected_checksum,
-            'actual_checksum': self.actual_checksum
+            "timestamp": self.timestamp.isoformat(),
+            "violation_type": self.violation_type,
+            "details": self.details,
+            "severity": self.severity,
+            "file_path": self.file_path,
+            "expected_checksum": self.expected_checksum,
+            "actual_checksum": self.actual_checksum,
         }
 
 
@@ -83,19 +85,22 @@ class IntegrityMonitor:
 
     def __init__(self, config: Dict):
         """Initialize Integrity Monitor"""
-        self.config = config.get('integrity_monitor', {})
-        self.enabled = self.config.get('enabled', True)
+        self.config = config.get("integrity_monitor", {})
+        self.enabled = self.config.get("enabled", True)
 
         # Critical files to monitor
-        self.critical_files = self.config.get('critical_files', [
-            'config/neural_config.json',
-            'nexlify_risk_manager.py',
-            'nexlify_advanced_security.py',
-            'nexlify_emergency_kill_switch.py',
-            'nexlify_pin_manager.py',
-            'nexlify_neural_net.py',
-            'cyber_gui.py'
-        ])
+        self.critical_files = self.config.get(
+            "critical_files",
+            [
+                "config/neural_config.json",
+                "nexlify_risk_manager.py",
+                "nexlify_advanced_security.py",
+                "nexlify_emergency_kill_switch.py",
+                "nexlify_pin_manager.py",
+                "nexlify_neural_net.py",
+                "cyber_gui.py",
+            ],
+        )
 
         # Baseline file
         self.baseline_file = Path("data/integrity_baseline.json")
@@ -111,14 +116,16 @@ class IntegrityMonitor:
         self.violations: List[IntegrityViolation] = []
 
         # Monitoring settings
-        self.check_interval = self.config.get('check_interval', 300)  # 5 minutes
-        self.auto_baseline_update = self.config.get('auto_baseline_update', False)
-        self.trigger_killswitch_on_critical = self.config.get('trigger_killswitch_on_critical', True)
+        self.check_interval = self.config.get("check_interval", 300)  # 5 minutes
+        self.auto_baseline_update = self.config.get("auto_baseline_update", False)
+        self.trigger_killswitch_on_critical = self.config.get(
+            "trigger_killswitch_on_critical", True
+        )
 
         # Allowed process patterns (for process monitoring)
-        self.allowed_processes = self.config.get('allowed_processes', [
-            'python', 'python3', 'nexlify', 'ccxt'
-        ])
+        self.allowed_processes = self.config.get(
+            "allowed_processes", ["python", "python3", "nexlify", "ccxt"]
+        )
 
         # External dependencies
         self.kill_switch = None
@@ -150,7 +157,7 @@ class IntegrityMonitor:
         """Calculate SHA-256 checksum of a file"""
         try:
             sha256_hash = hashlib.sha256()
-            with open(file_path, 'rb') as f:
+            with open(file_path, "rb") as f:
                 # Read in chunks for memory efficiency
                 for byte_block in iter(lambda: f.read(4096), b""):
                     sha256_hash.update(byte_block)
@@ -179,7 +186,7 @@ class IntegrityMonitor:
                 path=file_path,
                 checksum=checksum,
                 size=stat.st_size,
-                modified_time=stat.st_mtime
+                modified_time=stat.st_mtime,
             )
 
         except Exception as e:
@@ -201,10 +208,10 @@ class IntegrityMonitor:
             file_info = self.get_file_info(file_path)
             if file_info:
                 baseline[file_path] = {
-                    'checksum': file_info.checksum,
-                    'size': file_info.size,
-                    'modified_time': file_info.modified_time,
-                    'created_at': datetime.now().isoformat()
+                    "checksum": file_info.checksum,
+                    "size": file_info.size,
+                    "modified_time": file_info.modified_time,
+                    "created_at": datetime.now().isoformat(),
                 }
                 logger.info(f"   ✅ {file_path}: {file_info.checksum[:16]}...")
             else:
@@ -212,15 +219,15 @@ class IntegrityMonitor:
 
         # Save baseline
         try:
-            with open(self.baseline_file, 'w') as f:
+            with open(self.baseline_file, "w") as f:
                 json.dump(baseline, f, indent=2)
 
             self.baseline = {
                 path: FileIntegrity(
                     path=path,
-                    checksum=data['checksum'],
-                    size=data['size'],
-                    modified_time=data['modified_time']
+                    checksum=data["checksum"],
+                    size=data["size"],
+                    modified_time=data["modified_time"],
                 )
                 for path, data in baseline.items()
             }
@@ -239,15 +246,15 @@ class IntegrityMonitor:
             return
 
         try:
-            with open(self.baseline_file, 'r') as f:
+            with open(self.baseline_file, "r") as f:
                 data = json.load(f)
 
             self.baseline = {
                 path: FileIntegrity(
                     path=path,
-                    checksum=file_data['checksum'],
-                    size=file_data['size'],
-                    modified_time=file_data['modified_time']
+                    checksum=file_data["checksum"],
+                    size=file_data["size"],
+                    modified_time=file_data["modified_time"],
                 )
                 for path, file_data in data.items()
             }
@@ -284,7 +291,7 @@ class IntegrityMonitor:
                 severity="critical",
                 file_path=file_path,
                 expected_checksum=baseline_info.checksum,
-                actual_checksum="DELETED"
+                actual_checksum="DELETED",
             )
             return False, violation
 
@@ -296,7 +303,7 @@ class IntegrityMonitor:
                 severity="high",
                 file_path=file_path,
                 expected_checksum=baseline_info.checksum,
-                actual_checksum=current_info.checksum
+                actual_checksum=current_info.checksum,
             )
             return False, violation
 
@@ -309,7 +316,7 @@ class IntegrityMonitor:
                 severity="medium",
                 file_path=file_path,
                 expected_checksum=baseline_info.checksum,
-                actual_checksum=current_info.checksum
+                actual_checksum=current_info.checksum,
             )
             # Note: This might be caught by checksum check above
             # But keeping it as additional verification
@@ -346,8 +353,8 @@ class IntegrityMonitor:
     def _log_violation(self, violation: IntegrityViolation):
         """Log integrity violation to persistent storage"""
         try:
-            with open(self.violation_log_file, 'a') as f:
-                f.write(json.dumps(violation.to_dict()) + '\n')
+            with open(self.violation_log_file, "a") as f:
+                f.write(json.dumps(violation.to_dict()) + "\n")
 
             self.violations.append(violation)
 
@@ -380,14 +387,17 @@ class IntegrityMonitor:
 
         # Trigger kill switch for critical violations
         if critical_violations and self.trigger_killswitch_on_critical:
-            logger.critical("🚨 Critical integrity violations detected - triggering kill switch")
+            logger.critical(
+                "🚨 Critical integrity violations detected - triggering kill switch"
+            )
 
             if self.kill_switch:
                 from nexlify.risk.nexlify_emergency_kill_switch import KillSwitchTrigger
+
                 await self.kill_switch.trigger(
                     trigger_type=KillSwitchTrigger.SYSTEM_TAMPER,
                     reason=f"Critical integrity violations: {len(critical_violations)} critical, {len(high_violations)} high",
-                    auto_trigger=True
+                    auto_trigger=True,
                 )
 
     async def _send_violation_alert(self, violations: List[IntegrityViolation]):
@@ -410,8 +420,8 @@ class IntegrityMonitor:
 
             message += f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
-            if hasattr(self.telegram_bot, 'send_message'):
-                await self.telegram_bot.send_message(message, parse_mode='Markdown')
+            if hasattr(self.telegram_bot, "send_message"):
+                await self.telegram_bot.send_message(message, parse_mode="Markdown")
 
         except Exception as e:
             logger.error(f"Failed to send violation alert: {e}")
@@ -439,8 +449,7 @@ class IntegrityMonitor:
 
                     # Check if process matches allowed patterns
                     is_allowed = any(
-                        allowed in proc_name
-                        for allowed in self.allowed_processes
+                        allowed in proc_name for allowed in self.allowed_processes
                     )
 
                     if not is_allowed:
@@ -448,7 +457,7 @@ class IntegrityMonitor:
                             violation_type="unexpected_process",
                             details=f"Unexpected child process detected: {proc_name} (PID: {proc.pid})",
                             severity="medium",
-                            file_path=proc.exe() if hasattr(proc, 'exe') else "unknown"
+                            file_path=proc.exe() if hasattr(proc, "exe") else "unknown",
                         )
                         violations.append(violation)
 
@@ -518,15 +527,15 @@ class IntegrityMonitor:
             # Save updated baseline
             baseline_data = {
                 path: {
-                    'checksum': info.checksum,
-                    'size': info.size,
-                    'modified_time': info.modified_time,
-                    'updated_at': datetime.now().isoformat()
+                    "checksum": info.checksum,
+                    "size": info.size,
+                    "modified_time": info.modified_time,
+                    "updated_at": datetime.now().isoformat(),
                 }
                 for path, info in self.baseline.items()
             }
 
-            with open(self.baseline_file, 'w') as f:
+            with open(self.baseline_file, "w") as f:
                 json.dump(baseline_data, f, indent=2)
 
             logger.info(f"✅ Updated baseline for {file_path}")
@@ -534,12 +543,14 @@ class IntegrityMonitor:
     def get_status(self) -> Dict:
         """Get current integrity monitor status"""
         return {
-            'enabled': self.enabled,
-            'files_monitored': len(self.baseline),
-            'last_check': self.last_check_time.isoformat() if self.last_check_time else None,
-            'total_violations': len(self.violations),
-            'check_interval': self.check_interval,
-            'monitoring_active': self.monitoring_task is not None
+            "enabled": self.enabled,
+            "files_monitored": len(self.baseline),
+            "last_check": (
+                self.last_check_time.isoformat() if self.last_check_time else None
+            ),
+            "total_violations": len(self.violations),
+            "check_interval": self.check_interval,
+            "monitoring_active": self.monitoring_task is not None,
         }
 
     def get_violation_history(self, limit: int = 50) -> List[Dict]:
@@ -550,7 +561,7 @@ class IntegrityMonitor:
             return violations
 
         try:
-            with open(self.violation_log_file, 'r') as f:
+            with open(self.violation_log_file, "r") as f:
                 lines = f.readlines()
                 for line in lines[-limit:]:
                     violations.append(json.loads(line))
@@ -562,18 +573,19 @@ class IntegrityMonitor:
 
 # Usage example
 if __name__ == "__main__":
+
     async def test_integrity_monitor():
         """Test integrity monitor"""
 
         config = {
-            'integrity_monitor': {
-                'enabled': True,
-                'critical_files': [
-                    'config/neural_config.json',
-                    'nexlify_risk_manager.py'
+            "integrity_monitor": {
+                "enabled": True,
+                "critical_files": [
+                    "config/neural_config.json",
+                    "nexlify_risk_manager.py",
                 ],
-                'check_interval': 10,
-                'trigger_killswitch_on_critical': False
+                "check_interval": 10,
+                "trigger_killswitch_on_critical": False,
             }
         }
 

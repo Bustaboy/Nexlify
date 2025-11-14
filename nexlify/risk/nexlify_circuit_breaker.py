@@ -21,6 +21,7 @@ error_handler = get_error_handler()
 
 class CircuitState(Enum):
     """Circuit breaker states"""
+
     CLOSED = "closed"  # Normal operation
     OPEN = "open"  # Blocking calls
     HALF_OPEN = "half_open"  # Testing recovery
@@ -29,6 +30,7 @@ class CircuitState(Enum):
 @dataclass
 class CircuitStats:
     """Circuit breaker statistics"""
+
     total_calls: int = 0
     successful_calls: int = 0
     failed_calls: int = 0
@@ -66,7 +68,7 @@ class ExchangeCircuitBreaker:
         name: str,
         failure_threshold: int = 3,
         timeout_seconds: int = 300,
-        half_open_max_calls: int = 1
+        half_open_max_calls: int = 1,
     ):
         """
         Initialize Circuit Breaker
@@ -244,41 +246,47 @@ class ExchangeCircuitBreaker:
             Dictionary with current status and statistics
         """
         status = {
-            'name': self.name,
-            'state': self.state.value,
-            'total_calls': self.stats.total_calls,
-            'successful_calls': self.stats.successful_calls,
-            'failed_calls': self.stats.failed_calls,
-            'consecutive_failures': self.stats.consecutive_failures,
-            'failure_threshold': self.failure_threshold,
-            'state_changes': self.stats.state_changes,
+            "name": self.name,
+            "state": self.state.value,
+            "total_calls": self.stats.total_calls,
+            "successful_calls": self.stats.successful_calls,
+            "failed_calls": self.stats.failed_calls,
+            "consecutive_failures": self.stats.consecutive_failures,
+            "failure_threshold": self.failure_threshold,
+            "state_changes": self.stats.state_changes,
         }
 
         # Success rate
         if self.stats.total_calls > 0:
-            status['success_rate'] = f"{(self.stats.successful_calls / self.stats.total_calls * 100):.1f}%"
+            status["success_rate"] = (
+                f"{(self.stats.successful_calls / self.stats.total_calls * 100):.1f}%"
+            )
         else:
-            status['success_rate'] = "N/A"
+            status["success_rate"] = "N/A"
 
         # Last failure time
         if self.stats.last_failure_time:
-            status['last_failure'] = self.stats.last_failure_time.strftime('%Y-%m-%d %H:%M:%S')
+            status["last_failure"] = self.stats.last_failure_time.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
         else:
-            status['last_failure'] = "Never"
+            status["last_failure"] = "Never"
 
         # Last success time
         if self.stats.last_success_time:
-            status['last_success'] = self.stats.last_success_time.strftime('%Y-%m-%d %H:%M:%S')
+            status["last_success"] = self.stats.last_success_time.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
         else:
-            status['last_success'] = "Never"
+            status["last_success"] = "Never"
 
         # Time until recovery (if OPEN)
         if self.state == CircuitState.OPEN and self.opened_at:
             elapsed = time.time() - self.opened_at
             remaining = max(0, self.timeout_seconds - elapsed)
-            status['recovery_in'] = f"{remaining:.0f}s"
+            status["recovery_in"] = f"{remaining:.0f}s"
         else:
-            status['recovery_in'] = "N/A"
+            status["recovery_in"] = "N/A"
 
         return status
 
@@ -300,11 +308,11 @@ class CircuitBreakerManager:
 
     def __init__(self, config: Dict):
         """Initialize Circuit Breaker Manager"""
-        self.config = config.get('circuit_breaker', {})
-        self.enabled = self.config.get('enabled', True)
-        self.failure_threshold = self.config.get('failure_threshold', 3)
-        self.timeout_seconds = self.config.get('timeout_seconds', 300)
-        self.half_open_max_calls = self.config.get('half_open_max_calls', 1)
+        self.config = config.get("circuit_breaker", {})
+        self.enabled = self.config.get("enabled", True)
+        self.failure_threshold = self.config.get("failure_threshold", 3)
+        self.timeout_seconds = self.config.get("timeout_seconds", 300)
+        self.half_open_max_calls = self.config.get("half_open_max_calls", 1)
 
         self.breakers: Dict[str, ExchangeCircuitBreaker] = {}
 
@@ -320,7 +328,7 @@ class CircuitBreakerManager:
                 name=name,
                 failure_threshold=self.failure_threshold,
                 timeout_seconds=self.timeout_seconds,
-                half_open_max_calls=self.half_open_max_calls
+                half_open_max_calls=self.half_open_max_calls,
             )
 
         return self.breakers[name]
@@ -338,24 +346,33 @@ class CircuitBreakerManager:
     def get_health_summary(self) -> Dict:
         """Get overall health summary"""
         total_breakers = len(self.breakers)
-        open_breakers = sum(1 for b in self.breakers.values() if b.state == CircuitState.OPEN)
-        half_open_breakers = sum(1 for b in self.breakers.values() if b.state == CircuitState.HALF_OPEN)
-        closed_breakers = sum(1 for b in self.breakers.values() if b.state == CircuitState.CLOSED)
+        open_breakers = sum(
+            1 for b in self.breakers.values() if b.state == CircuitState.OPEN
+        )
+        half_open_breakers = sum(
+            1 for b in self.breakers.values() if b.state == CircuitState.HALF_OPEN
+        )
+        closed_breakers = sum(
+            1 for b in self.breakers.values() if b.state == CircuitState.CLOSED
+        )
 
         return {
-            'total_breakers': total_breakers,
-            'healthy': closed_breakers,
-            'testing': half_open_breakers,
-            'failed': open_breakers,
-            'overall_health': 'healthy' if open_breakers == 0 else 'degraded'
+            "total_breakers": total_breakers,
+            "healthy": closed_breakers,
+            "testing": half_open_breakers,
+            "failed": open_breakers,
+            "overall_health": "healthy" if open_breakers == 0 else "degraded",
         }
 
 
 # Usage example
 if __name__ == "__main__":
+
     async def test_circuit_breaker():
         """Test circuit breaker functionality"""
-        breaker = ExchangeCircuitBreaker("test_exchange", failure_threshold=3, timeout_seconds=5)
+        breaker = ExchangeCircuitBreaker(
+            "test_exchange", failure_threshold=3, timeout_seconds=5
+        )
 
         # Simulate successful calls
         async def successful_call():

@@ -28,10 +28,10 @@ class TestSecuritySuite:
     def security_suite(self, tmp_path):
         """Create security suite"""
         config = {
-            'security': {
-                'enabled': True,
-                'encryption_enabled': True,
-                'audit_enabled': True
+            "security": {
+                "enabled": True,
+                "encryption_enabled": True,
+                "audit_enabled": True,
             }
         }
         suite = SecuritySuite(config)
@@ -101,10 +101,10 @@ class TestPINManager:
     def pin_manager(self, tmp_path):
         """Create PIN manager"""
         config = {
-            'pin_security': {
-                'enabled': True,
-                'max_attempts': 3,
-                'lockout_duration': 300
+            "pin_security": {
+                "enabled": True,
+                "max_attempts": 3,
+                "lockout_duration": 300,
             }
         }
         manager = PINManager(config)
@@ -193,12 +193,7 @@ class TestAuditTrail:
     @pytest.fixture
     def audit_trail(self, tmp_path):
         """Create audit trail"""
-        config = {
-            'audit': {
-                'enabled': True,
-                'log_path': str(tmp_path / 'audit.log')
-            }
-        }
+        config = {"audit": {"enabled": True, "log_path": str(tmp_path / "audit.log")}}
         return AuditTrail(config)
 
     def test_initialization(self, audit_trail):
@@ -209,9 +204,9 @@ class TestAuditTrail:
     def test_log_event(self, audit_trail):
         """Test logging audit event"""
         event = {
-            'action': 'trade',
-            'user': 'system',
-            'details': {'symbol': 'BTC/USDT', 'amount': 0.1}
+            "action": "trade",
+            "user": "system",
+            "details": {"symbol": "BTC/USDT", "amount": 0.1},
         }
 
         success = audit_trail.log_event(event)
@@ -220,10 +215,10 @@ class TestAuditTrail:
     def test_log_security_event(self, audit_trail):
         """Test logging security event"""
         event = {
-            'action': 'login_attempt',
-            'user': 'admin',
-            'success': False,
-            'ip_address': '192.168.1.1'
+            "action": "login_attempt",
+            "user": "admin",
+            "success": False,
+            "ip_address": "192.168.1.1",
         }
 
         success = audit_trail.log_security_event(event)
@@ -232,8 +227,8 @@ class TestAuditTrail:
     def test_get_events(self, audit_trail):
         """Test retrieving audit events"""
         # Log some events
-        audit_trail.log_event({'action': 'test1'})
-        audit_trail.log_event({'action': 'test2'})
+        audit_trail.log_event({"action": "test1"})
+        audit_trail.log_event({"action": "test2"})
 
         events = audit_trail.get_events(limit=10)
 
@@ -242,31 +237,31 @@ class TestAuditTrail:
 
     def test_get_events_by_action(self, audit_trail):
         """Test filtering events by action"""
-        audit_trail.log_event({'action': 'trade', 'symbol': 'BTC/USDT'})
-        audit_trail.log_event({'action': 'login', 'user': 'admin'})
-        audit_trail.log_event({'action': 'trade', 'symbol': 'ETH/USDT'})
+        audit_trail.log_event({"action": "trade", "symbol": "BTC/USDT"})
+        audit_trail.log_event({"action": "login", "user": "admin"})
+        audit_trail.log_event({"action": "trade", "symbol": "ETH/USDT"})
 
-        events = audit_trail.get_events_by_action('trade')
+        events = audit_trail.get_events_by_action("trade")
 
         assert len(events) == 2
-        assert all(e['action'] == 'trade' for e in events)
+        assert all(e["action"] == "trade" for e in events)
 
     def test_get_events_by_user(self, audit_trail):
         """Test filtering events by user"""
-        audit_trail.log_event({'action': 'trade', 'user': 'system'})
-        audit_trail.log_event({'action': 'login', 'user': 'admin'})
-        audit_trail.log_event({'action': 'trade', 'user': 'system'})
+        audit_trail.log_event({"action": "trade", "user": "system"})
+        audit_trail.log_event({"action": "login", "user": "admin"})
+        audit_trail.log_event({"action": "trade", "user": "system"})
 
-        events = audit_trail.get_events_by_user('system')
+        events = audit_trail.get_events_by_user("system")
 
         assert len(events) == 2
-        assert all(e['user'] == 'system' for e in events)
+        assert all(e["user"] == "system" for e in events)
 
     def test_export_audit_log(self, audit_trail, tmp_path):
         """Test exporting audit log"""
-        audit_trail.log_event({'action': 'test'})
+        audit_trail.log_event({"action": "test"})
 
-        export_path = tmp_path / 'export.csv'
+        export_path = tmp_path / "export.csv"
         success = audit_trail.export_log(str(export_path))
 
         assert success is True
@@ -279,12 +274,7 @@ class TestIntegrityMonitor:
     @pytest.fixture
     def integrity_monitor(self, tmp_path):
         """Create integrity monitor"""
-        config = {
-            'integrity': {
-                'enabled': True,
-                'check_interval': 60
-            }
-        }
+        config = {"integrity": {"enabled": True, "check_interval": 60}}
         monitor = IntegrityMonitor(config)
         monitor.data_path = tmp_path
         return monitor
@@ -350,7 +340,7 @@ class TestIntegrityMonitor:
         results = integrity_monitor.verify_all_files()
 
         assert len(results) == 2
-        assert all(r['valid'] for r in results)
+        assert all(r["valid"] for r in results)
 
     def test_detect_tampering(self, integrity_monitor, tmp_path):
         """Test tampering detection"""
@@ -365,7 +355,7 @@ class TestIntegrityMonitor:
         tampering = integrity_monitor.detect_tampering()
 
         assert len(tampering) > 0
-        assert str(test_file) in [t['file'] for t in tampering]
+        assert str(test_file) in [t["file"] for t in tampering]
 
 
 class TestIntegration:
@@ -374,9 +364,9 @@ class TestIntegration:
     def test_full_security_workflow(self, tmp_path):
         """Test complete security workflow"""
         config = {
-            'security': {'enabled': True},
-            'pin_security': {'enabled': True, 'max_attempts': 3},
-            'audit': {'enabled': True, 'log_path': str(tmp_path / 'audit.log')}
+            "security": {"enabled": True},
+            "pin_security": {"enabled": True, "max_attempts": 3},
+            "audit": {"enabled": True, "log_path": str(tmp_path / "audit.log")},
         }
 
         # Initialize components
@@ -386,19 +376,16 @@ class TestIntegration:
 
         # Set PIN
         pin_mgr.set_pin("1234")
-        audit.log_event({'action': 'pin_set', 'user': 'system'})
+        audit.log_event({"action": "pin_set", "user": "system"})
 
         # Encrypt sensitive data
         sensitive_data = "api_key_12345"
         encrypted = security.encrypt(sensitive_data)
-        audit.log_event({'action': 'data_encrypted'})
+        audit.log_event({"action": "data_encrypted"})
 
         # Verify PIN
         if pin_mgr.verify_pin("1234"):
-            audit.log_security_event({
-                'action': 'pin_verified',
-                'success': True
-            })
+            audit.log_security_event({"action": "pin_verified", "success": True})
 
             # Decrypt data
             decrypted = security.decrypt(encrypted)
@@ -410,7 +397,7 @@ class TestEdgeCases:
 
     def test_encrypt_empty_string(self):
         """Test encrypting empty string"""
-        config = {'security': {'enabled': True}}
+        config = {"security": {"enabled": True}}
         security = SecuritySuite(config)
 
         encrypted = security.encrypt("")
@@ -418,7 +405,7 @@ class TestEdgeCases:
 
     def test_verify_pin_before_set(self):
         """Test verifying PIN before setting it"""
-        config = {'pin_security': {'enabled': True, 'max_attempts': 3}}
+        config = {"pin_security": {"enabled": True, "max_attempts": 3}}
         pin_mgr = PINManager(config)
 
         result = pin_mgr.verify_pin("1234")
@@ -426,7 +413,7 @@ class TestEdgeCases:
 
     def test_hash_none_value(self):
         """Test hashing None"""
-        config = {'security': {'enabled': True}}
+        config = {"security": {"enabled": True}}
         security = SecuritySuite(config)
 
         try:
@@ -437,7 +424,7 @@ class TestEdgeCases:
 
     def test_verify_nonexistent_file(self, tmp_path):
         """Test verifying non-existent file"""
-        config = {'integrity': {'enabled': True}}
+        config = {"integrity": {"enabled": True}}
         monitor = IntegrityMonitor(config)
 
         result = monitor.verify_file(str(tmp_path / "nonexistent.txt"))

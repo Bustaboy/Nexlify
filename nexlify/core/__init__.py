@@ -9,9 +9,9 @@ from nexlify.core.nexlify_trading_integration import TradingIntegrationManager
 AutoTrader = AutoExecutionEngine
 
 __all__ = [
-    'ArasakaNeuralNet',
-    'NexlifyNeuralNet',
-    'AutoExecutionEngine',
-    'AutoTrader',
-    'TradingIntegrationManager',
+    "ArasakaNeuralNet",
+    "NexlifyNeuralNet",
+    "AutoExecutionEngine",
+    "AutoTrader",
+    "TradingIntegrationManager",
 ]

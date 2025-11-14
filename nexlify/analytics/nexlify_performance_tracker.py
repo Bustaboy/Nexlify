@@ -24,6 +24,7 @@ error_handler = get_error_handler()
 @dataclass
 class Trade:
     """Trade record"""
+
     id: Optional[int] = None
     timestamp: datetime = field(default_factory=datetime.now)
     exchange: str = ""
@@ -42,14 +43,15 @@ class Trade:
     def to_dict(self) -> Dict:
         """Convert to dictionary"""
         data = asdict(self)
-        if isinstance(data['timestamp'], datetime):
-            data['timestamp'] = data['timestamp'].isoformat()
+        if isinstance(data["timestamp"], datetime):
+            data["timestamp"] = data["timestamp"].isoformat()
         return data
 
 
 @dataclass
 class PerformanceMetrics:
     """Performance metrics calculation result"""
+
     # Basic metrics
     total_trades: int = 0
     winning_trades: int = 0
@@ -100,18 +102,18 @@ class PerformanceTracker:
 
     def __init__(self, config: Dict):
         """Initialize Performance Tracker"""
-        self.config = config.get('performance_tracking', {})
-        self.enabled = self.config.get('enabled', True)
+        self.config = config.get("performance_tracking", {})
+        self.enabled = self.config.get("enabled", True)
 
         # Database setup
-        db_path = self.config.get('database_path', 'data/trading.db')
+        db_path = self.config.get("database_path", "data/trading.db")
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Configuration
-        self.calculate_sharpe = self.config.get('calculate_sharpe_ratio', True)
-        self.risk_free_rate = self.config.get('risk_free_rate', 0.02)  # 2% annual
-        self.track_drawdown = self.config.get('track_drawdown', True)
+        self.calculate_sharpe = self.config.get("calculate_sharpe_ratio", True)
+        self.risk_free_rate = self.config.get("risk_free_rate", 0.02)  # 2% annual
+        self.track_drawdown = self.config.get("track_drawdown", True)
 
         # Initialize database
         self._init_database()
@@ -122,8 +124,12 @@ class PerformanceTracker:
 
         logger.info("📊 Performance Tracker initialized")
         logger.info(f"   Database: {self.db_path}")
-        logger.info(f"   Sharpe calculation: {'✅ Enabled' if self.calculate_sharpe else '❌ Disabled'}")
-        logger.info(f"   Drawdown tracking: {'✅ Enabled' if self.track_drawdown else '❌ Disabled'}")
+        logger.info(
+            f"   Sharpe calculation: {'✅ Enabled' if self.calculate_sharpe else '❌ Disabled'}"
+        )
+        logger.info(
+            f"   Drawdown tracking: {'✅ Enabled' if self.track_drawdown else '❌ Disabled'}"
+        )
 
     @handle_errors("Performance Tracker - Database Init", reraise=False)
     def _init_database(self):
@@ -132,7 +138,8 @@ class PerformanceTracker:
         cursor = conn.cursor()
 
         # Create trades table
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS trades (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL,
@@ -149,27 +156,34 @@ class PerformanceTracker:
                 strategy TEXT,
                 notes TEXT
             )
-        """)
+        """
+        )
 
         # Create equity_curve table for drawdown calculation
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS equity_curve (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL,
                 equity REAL NOT NULL
             )
-        """)
+        """
+        )
 
         # Create indexes for performance
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_trades_timestamp
             ON trades(timestamp)
-        """)
+        """
+        )
 
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_trades_status
             ON trades(status)
-        """)
+        """
+        )
 
         conn.commit()
         conn.close()
@@ -187,7 +201,7 @@ class PerformanceTracker:
         exit_price: Optional[float] = None,
         fee: float = 0.0,
         strategy: str = "",
-        notes: str = ""
+        notes: str = "",
     ) -> Optional[int]:
         """
         📝 Record a trade in the database
@@ -236,33 +250,36 @@ class PerformanceTracker:
             pnl_percent=pnl_percent,
             status=status,
             strategy=strategy,
-            notes=notes
+            notes=notes,
         )
 
         # Insert into database
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO trades
             (timestamp, exchange, symbol, side, quantity, entry_price,
              exit_price, fee, pnl, pnl_percent, status, strategy, notes)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            trade.timestamp.isoformat(),
-            trade.exchange,
-            trade.symbol,
-            trade.side,
-            trade.quantity,
-            trade.entry_price,
-            trade.exit_price,
-            trade.fee,
-            trade.pnl,
-            trade.pnl_percent,
-            trade.status,
-            trade.strategy,
-            trade.notes
-        ))
+        """,
+            (
+                trade.timestamp.isoformat(),
+                trade.exchange,
+                trade.symbol,
+                trade.side,
+                trade.quantity,
+                trade.entry_price,
+                trade.exit_price,
+                trade.fee,
+                trade.pnl,
+                trade.pnl_percent,
+                trade.status,
+                trade.strategy,
+                trade.notes,
+            ),
+        )
 
         trade_id = cursor.lastrowid
         conn.commit()
@@ -276,12 +293,7 @@ class PerformanceTracker:
         return trade_id
 
     @handle_errors("Performance Tracker - Update Trade", reraise=False)
-    def update_trade(
-        self,
-        trade_id: int,
-        exit_price: float,
-        status: str = "closed"
-    ):
+    def update_trade(self, trade_id: int, exit_price: float, status: str = "closed"):
         """
         🔄 Update an open trade with exit information
 
@@ -316,23 +328,28 @@ class PerformanceTracker:
             pnl_percent = ((entry_price - exit_price) / entry_price) * 100
 
         # Update trade
-        cursor.execute("""
+        cursor.execute(
+            """
             UPDATE trades
             SET exit_price = ?, pnl = ?, pnl_percent = ?, status = ?
             WHERE id = ?
-        """, (exit_price, pnl, pnl_percent, status, trade_id))
+        """,
+            (exit_price, pnl, pnl_percent, status, trade_id),
+        )
 
         conn.commit()
         conn.close()
 
-        logger.info(f"🔄 Trade {trade_id} updated: Exit ${exit_price:.2f}, P&L ${pnl:.2f}")
+        logger.info(
+            f"🔄 Trade {trade_id} updated: Exit ${exit_price:.2f}, P&L ${pnl:.2f}"
+        )
 
     def get_performance_metrics(
         self,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
         exchange: Optional[str] = None,
-        symbol: Optional[str] = None
+        symbol: Optional[str] = None,
     ) -> PerformanceMetrics:
         """
         📊 Calculate comprehensive performance metrics
@@ -415,7 +432,7 @@ class PerformanceTracker:
         metrics.total_pnl_percent = sum(all_pnl_percent)
         metrics.average_win = sum(wins) / len(wins) if wins else 0.0
         metrics.average_loss = sum(losses) / len(losses) if losses else 0.0
-        metrics.profit_factor = (sum(wins) / sum(losses)) if losses else float('inf')
+        metrics.profit_factor = (sum(wins) / sum(losses)) if losses else float("inf")
         metrics.best_trade = max(all_pnl) if all_pnl else 0.0
         metrics.worst_trade = min(all_pnl) if all_pnl else 0.0
         metrics.total_fees = total_fees
@@ -426,11 +443,15 @@ class PerformanceTracker:
 
         # Max drawdown calculation
         if self.track_drawdown:
-            metrics.max_drawdown, metrics.max_drawdown_percent = self._calculate_max_drawdown(all_pnl)
+            metrics.max_drawdown, metrics.max_drawdown_percent = (
+                self._calculate_max_drawdown(all_pnl)
+            )
 
         # Daily metrics
         today = datetime.now().date()
-        daily_query = "SELECT * FROM trades WHERE date(timestamp) = ? AND status = 'closed'"
+        daily_query = (
+            "SELECT * FROM trades WHERE date(timestamp) = ? AND status = 'closed'"
+        )
 
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -443,7 +464,9 @@ class PerformanceTracker:
 
         return metrics
 
-    def _calculate_sharpe_ratio(self, returns: List[float], timeframe: str = '1h') -> float:
+    def _calculate_sharpe_ratio(
+        self, returns: List[float], timeframe: str = "1h"
+    ) -> float:
         """
         Calculate annualized Sharpe ratio
 
@@ -454,8 +477,12 @@ class PerformanceTracker:
 
         # Calculate periods per year for annualization
         timeframe_to_periods = {
-            '1m': 525600, '5m': 105120, '15m': 35040,
-            '1h': 8760, '4h': 2190, '1d': 365
+            "1m": 525600,
+            "5m": 105120,
+            "15m": 35040,
+            "1h": 8760,
+            "4h": 2190,
+            "1d": 365,
         }
         periods_per_year = timeframe_to_periods.get(timeframe, 8760)
 
@@ -464,7 +491,9 @@ class PerformanceTracker:
 
         # Calculate mean and std dev
         mean_return = sum(returns_decimal) / len(returns_decimal)
-        variance = sum((r - mean_return) ** 2 for r in returns_decimal) / len(returns_decimal)
+        variance = sum((r - mean_return) ** 2 for r in returns_decimal) / len(
+            returns_decimal
+        )
         std_dev = math.sqrt(variance)
 
         if std_dev == 0:
@@ -515,7 +544,7 @@ class PerformanceTracker:
         filepath: str,
         format: str = "json",
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
     ) -> bool:
         """
         📤 Export trades to file
@@ -559,12 +588,12 @@ class PerformanceTracker:
         if format == "json":
             # Export as JSON
             trades_data = [dict(zip(columns, trade)) for trade in trades]
-            with open(filepath, 'w') as f:
+            with open(filepath, "w") as f:
                 json.dump(trades_data, f, indent=2, default=str)
 
         elif format == "csv":
             # Export as CSV
-            with open(filepath, 'w', newline='') as f:
+            with open(filepath, "w", newline="") as f:
                 writer = csv.writer(f)
                 writer.writerow(columns)
                 writer.writerows(trades)
@@ -581,28 +610,31 @@ class PerformanceTracker:
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT timestamp, exchange, symbol, side, quantity,
                    entry_price, exit_price, pnl, status
             FROM trades
             ORDER BY timestamp DESC
             LIMIT ?
-        """, (limit,))
+        """,
+            (limit,),
+        )
 
         trades = cursor.fetchall()
         conn.close()
 
         return [
             {
-                'timestamp': t[0],
-                'exchange': t[1],
-                'symbol': t[2],
-                'side': t[3],
-                'quantity': t[4],
-                'entry_price': t[5],
-                'exit_price': t[6],
-                'pnl': t[7],
-                'status': t[8]
+                "timestamp": t[0],
+                "exchange": t[1],
+                "symbol": t[2],
+                "side": t[3],
+                "quantity": t[4],
+                "entry_price": t[5],
+                "exit_price": t[6],
+                "pnl": t[7],
+                "status": t[8],
             }
             for t in trades
         ]
@@ -612,11 +644,11 @@ class PerformanceTracker:
 if __name__ == "__main__":
     # Test configuration
     config = {
-        'performance_tracking': {
-            'enabled': True,
-            'database_path': 'data/test_trading.db',
-            'calculate_sharpe_ratio': True,
-            'risk_free_rate': 0.02
+        "performance_tracking": {
+            "enabled": True,
+            "database_path": "data/test_trading.db",
+            "calculate_sharpe_ratio": True,
+            "risk_free_rate": 0.02,
         }
     }
 
@@ -633,7 +665,7 @@ if __name__ == "__main__":
         quantity=0.1,
         entry_price=50000,
         exit_price=51000,
-        fee=10.0
+        fee=10.0,
     )
 
     # Losing trade
@@ -644,7 +676,7 @@ if __name__ == "__main__":
         quantity=1.0,
         entry_price=3000,
         exit_price=2900,
-        fee=3.0
+        fee=3.0,
     )
 
     # Get metrics
@@ -656,6 +688,8 @@ if __name__ == "__main__":
     print(f"Total P&L: ${metrics.total_pnl:.2f}")
     print(f"Profit Factor: {metrics.profit_factor:.2f}")
     print(f"Sharpe Ratio: {metrics.sharpe_ratio:.2f}")
-    print(f"Max Drawdown: ${metrics.max_drawdown:.2f} ({metrics.max_drawdown_percent:.1f}%)")
+    print(
+        f"Max Drawdown: ${metrics.max_drawdown:.2f} ({metrics.max_drawdown_percent:.1f}%)"
+    )
 
     print("\n✅ Performance Tracker test completed!")

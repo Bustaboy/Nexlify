@@ -23,6 +23,7 @@ error_handler = get_error_handler()
 @dataclass
 class TradeValidation:
     """Result of trade validation"""
+
     approved: bool
     reason: str
     adjusted_size: Optional[float] = None
@@ -34,6 +35,7 @@ class TradeValidation:
 @dataclass
 class RiskMetrics:
     """Current risk metrics"""
+
     daily_loss: float = 0.0
     daily_profit: float = 0.0
     open_positions: int = 0
@@ -58,18 +60,26 @@ class RiskManager:
 
     def __init__(self, config: Dict):
         """Initialize the Risk Manager"""
-        self.config = config.get('risk_management', {})
-        self.enabled = self.config.get('enabled', True)
+        self.config = config.get("risk_management", {})
+        self.enabled = self.config.get("enabled", True)
 
         # Risk parameters
-        self.max_position_size = self.config.get('max_position_size', 0.05)  # 5% default
-        self.max_daily_loss = self.config.get('max_daily_loss', 0.05)  # 5% default
-        self.stop_loss_percent = self.config.get('stop_loss_percent', 0.02)  # 2% default
-        self.take_profit_percent = self.config.get('take_profit_percent', 0.05)  # 5% default
-        self.use_kelly = self.config.get('use_kelly_criterion', True)
-        self.kelly_fraction = self.config.get('kelly_fraction', 0.5)  # Conservative Kelly
-        self.min_kelly_confidence = self.config.get('min_kelly_confidence', 0.6)
-        self.max_concurrent_trades = self.config.get('max_concurrent_trades', 3)
+        self.max_position_size = self.config.get(
+            "max_position_size", 0.05
+        )  # 5% default
+        self.max_daily_loss = self.config.get("max_daily_loss", 0.05)  # 5% default
+        self.stop_loss_percent = self.config.get(
+            "stop_loss_percent", 0.02
+        )  # 2% default
+        self.take_profit_percent = self.config.get(
+            "take_profit_percent", 0.05
+        )  # 5% default
+        self.use_kelly = self.config.get("use_kelly_criterion", True)
+        self.kelly_fraction = self.config.get(
+            "kelly_fraction", 0.5
+        )  # Conservative Kelly
+        self.min_kelly_confidence = self.config.get("min_kelly_confidence", 0.6)
+        self.max_concurrent_trades = self.config.get("max_concurrent_trades", 3)
 
         # Risk state
         self.metrics = RiskMetrics()
@@ -88,7 +98,9 @@ class RiskManager:
         logger.info(f"   Max daily loss: {self.max_daily_loss*100:.1f}%")
         logger.info(f"   Stop loss: {self.stop_loss_percent*100:.1f}%")
         logger.info(f"   Take profit: {self.take_profit_percent*100:.1f}%")
-        logger.info(f"   Kelly Criterion: {'✅ Enabled' if self.use_kelly else '❌ Disabled'}")
+        logger.info(
+            f"   Kelly Criterion: {'✅ Enabled' if self.use_kelly else '❌ Disabled'}"
+        )
 
     @handle_errors("Risk Manager - Load State", reraise=False)
     def _load_state(self):
@@ -97,22 +109,24 @@ class RiskManager:
             return
 
         try:
-            with open(self.state_file, 'r') as f:
+            with open(self.state_file, "r") as f:
                 data = json.load(f)
 
             # Check if we need to reset (new day)
-            last_reset = datetime.fromisoformat(data.get('last_reset', datetime.now().isoformat()))
+            last_reset = datetime.fromisoformat(
+                data.get("last_reset", datetime.now().isoformat())
+            )
             if last_reset.date() < datetime.now().date():
                 logger.info("🔄 New trading day - resetting daily metrics")
                 self._reset_daily_metrics()
             else:
                 # Restore state
-                self.metrics.daily_loss = data.get('daily_loss', 0.0)
-                self.metrics.daily_profit = data.get('daily_profit', 0.0)
-                self.metrics.trades_today = data.get('trades_today', 0)
+                self.metrics.daily_loss = data.get("daily_loss", 0.0)
+                self.metrics.daily_profit = data.get("daily_profit", 0.0)
+                self.metrics.trades_today = data.get("trades_today", 0)
                 self.metrics.last_reset = last_reset
-                self.trading_halted = data.get('trading_halted', False)
-                self.halt_reason = data.get('halt_reason', "")
+                self.trading_halted = data.get("trading_halted", False)
+                self.halt_reason = data.get("halt_reason", "")
 
                 if self.trading_halted:
                     logger.warning(f"⚠️ Trading halted: {self.halt_reason}")
@@ -124,16 +138,16 @@ class RiskManager:
     def _save_state(self):
         """Save risk state to disk"""
         data = {
-            'daily_loss': self.metrics.daily_loss,
-            'daily_profit': self.metrics.daily_profit,
-            'trades_today': self.metrics.trades_today,
-            'last_reset': self.metrics.last_reset.isoformat(),
-            'trading_halted': self.trading_halted,
-            'halt_reason': self.halt_reason
+            "daily_loss": self.metrics.daily_loss,
+            "daily_profit": self.metrics.daily_profit,
+            "trades_today": self.metrics.trades_today,
+            "last_reset": self.metrics.last_reset.isoformat(),
+            "trading_halted": self.trading_halted,
+            "halt_reason": self.halt_reason,
         }
 
         try:
-            with open(self.state_file, 'w') as f:
+            with open(self.state_file, "w") as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
             logger.error(f"Failed to save risk state: {e}")
@@ -161,7 +175,7 @@ class RiskManager:
         quantity: float,
         price: float,
         balance: float,
-        confidence: float = 0.7
+        confidence: float = 0.7,
     ) -> TradeValidation:
         """
         🔍 Validate trade against risk parameters
@@ -179,10 +193,7 @@ class RiskManager:
         """
         # Check if risk management is enabled
         if not self.enabled:
-            return TradeValidation(
-                approved=True,
-                reason="Risk management disabled"
-            )
+            return TradeValidation(approved=True, reason="Risk management disabled")
 
         # Check for daily reset
         self._check_daily_reset()
@@ -190,8 +201,7 @@ class RiskManager:
         # Check if trading is halted
         if self.trading_halted:
             return TradeValidation(
-                approved=False,
-                reason=f"Trading halted: {self.halt_reason}"
+                approved=False, reason=f"Trading halted: {self.halt_reason}"
             )
 
         warnings = []
@@ -201,10 +211,7 @@ class RiskManager:
 
         # Check for zero balance (edge case)
         if balance <= 0:
-            return TradeValidation(
-                approved=False,
-                reason="Insufficient balance"
-            )
+            return TradeValidation(approved=False, reason="Insufficient balance")
 
         # Calculate stop-loss and take-profit first (needed for all validations)
         if side == "buy":
@@ -232,35 +239,34 @@ class RiskManager:
                 adjusted_size=adjusted_quantity,
                 stop_loss=stop_loss,
                 take_profit=take_profit,
-                warnings=[f"Suggested size: {adjusted_quantity:.6f} {symbol.split('/')[0]}"]
+                warnings=[
+                    f"Suggested size: {adjusted_quantity:.6f} {symbol.split('/')[0]}"
+                ],
             )
 
         # 2. Check daily loss limit
         if self.metrics.daily_loss >= self.max_daily_loss:
             self.trading_halted = True
-            self.halt_reason = f"Daily loss limit reached: {self.metrics.daily_loss*100:.2f}%"
+            self.halt_reason = (
+                f"Daily loss limit reached: {self.metrics.daily_loss*100:.2f}%"
+            )
             self._save_state()
 
             logger.error(f"❌ {self.halt_reason}")
 
-            return TradeValidation(
-                approved=False,
-                reason=self.halt_reason
-            )
+            return TradeValidation(approved=False, reason=self.halt_reason)
 
         # 3. Check max concurrent trades
         if self.metrics.open_positions >= self.max_concurrent_trades:
             return TradeValidation(
                 approved=False,
-                reason=f"Max concurrent trades reached ({self.max_concurrent_trades})"
+                reason=f"Max concurrent trades reached ({self.max_concurrent_trades})",
             )
 
         # 4. Apply Kelly Criterion if enabled
         final_quantity = quantity
         if self.use_kelly and confidence >= self.min_kelly_confidence:
-            kelly_quantity = self._calculate_kelly_size(
-                balance, price, confidence
-            )
+            kelly_quantity = self._calculate_kelly_size(balance, price, confidence)
 
             # Use the smaller of Kelly and max position size
             max_quantity = (balance * self.max_position_size) / price
@@ -273,7 +279,9 @@ class RiskManager:
                 )
 
         # 5. Check remaining daily loss allowance
-        remaining_loss_allowance = (self.max_daily_loss - self.metrics.daily_loss) * balance
+        remaining_loss_allowance = (
+            self.max_daily_loss - self.metrics.daily_loss
+        ) * balance
         potential_loss = trade_value * self.stop_loss_percent
 
         if potential_loss > remaining_loss_allowance:
@@ -282,7 +290,9 @@ class RiskManager:
             )
 
         # Log validation
-        logger.info(f"✅ Trade validated: {symbol} {side} {final_quantity:.6f} @ ${price:.2f}")
+        logger.info(
+            f"✅ Trade validated: {symbol} {side} {final_quantity:.6f} @ ${price:.2f}"
+        )
         logger.info(f"   Stop Loss: ${stop_loss:.2f} | Take Profit: ${take_profit:.2f}")
 
         return TradeValidation(
@@ -291,10 +301,12 @@ class RiskManager:
             adjusted_size=final_quantity if final_quantity != quantity else None,
             stop_loss=stop_loss,
             take_profit=take_profit,
-            warnings=warnings
+            warnings=warnings,
         )
 
-    def _calculate_kelly_size(self, balance: float, price: float, confidence: float) -> float:
+    def _calculate_kelly_size(
+        self, balance: float, price: float, confidence: float
+    ) -> float:
         """
         Calculate optimal position size using Kelly Criterion
 
@@ -332,7 +344,7 @@ class RiskManager:
         entry_price: float,
         exit_price: float,
         quantity: float,
-        balance: float
+        balance: float,
     ):
         """
         📝 Record trade result and update risk metrics
@@ -374,7 +386,9 @@ class RiskManager:
         # Check if we hit daily loss limit
         if self.metrics.daily_loss >= self.max_daily_loss:
             self.trading_halted = True
-            self.halt_reason = f"Daily loss limit reached: {self.metrics.daily_loss*100:.2f}%"
+            self.halt_reason = (
+                f"Daily loss limit reached: {self.metrics.daily_loss*100:.2f}%"
+            )
             logger.error(f"🔴 {self.halt_reason}")
 
         # Save state
@@ -398,19 +412,19 @@ class RiskManager:
         loss_remaining = max(0, self.max_daily_loss - self.metrics.daily_loss)
 
         return {
-            'enabled': self.enabled,
-            'trading_halted': self.trading_halted,
-            'halt_reason': self.halt_reason,
-            'daily_profit': f"{self.metrics.daily_profit*100:.2f}%",
-            'daily_loss': f"{self.metrics.daily_loss*100:.2f}%",
-            'net_pnl': f"{net_pnl*100:.2f}%",
-            'loss_remaining': f"{loss_remaining*100:.2f}%",
-            'trades_today': self.metrics.trades_today,
-            'open_positions': self.metrics.open_positions,
-            'max_position_size': f"{self.max_position_size*100:.1f}%",
-            'max_daily_loss': f"{self.max_daily_loss*100:.1f}%",
-            'kelly_enabled': self.use_kelly,
-            'last_reset': self.metrics.last_reset.strftime('%Y-%m-%d %H:%M:%S')
+            "enabled": self.enabled,
+            "trading_halted": self.trading_halted,
+            "halt_reason": self.halt_reason,
+            "daily_profit": f"{self.metrics.daily_profit*100:.2f}%",
+            "daily_loss": f"{self.metrics.daily_loss*100:.2f}%",
+            "net_pnl": f"{net_pnl*100:.2f}%",
+            "loss_remaining": f"{loss_remaining*100:.2f}%",
+            "trades_today": self.metrics.trades_today,
+            "open_positions": self.metrics.open_positions,
+            "max_position_size": f"{self.max_position_size*100:.1f}%",
+            "max_daily_loss": f"{self.max_daily_loss*100:.1f}%",
+            "kelly_enabled": self.use_kelly,
+            "last_reset": self.metrics.last_reset.strftime("%Y-%m-%d %H:%M:%S"),
         }
 
     def force_reset(self):
@@ -431,13 +445,13 @@ class RiskManager:
 if __name__ == "__main__":
     # Test configuration
     test_config = {
-        'risk_management': {
-            'enabled': True,
-            'max_position_size': 0.05,
-            'max_daily_loss': 0.05,
-            'stop_loss_percent': 0.02,
-            'take_profit_percent': 0.05,
-            'use_kelly_criterion': True
+        "risk_management": {
+            "enabled": True,
+            "max_position_size": 0.05,
+            "max_daily_loss": 0.05,
+            "stop_loss_percent": 0.02,
+            "take_profit_percent": 0.05,
+            "use_kelly_criterion": True,
         }
     }
 
@@ -452,7 +466,7 @@ if __name__ == "__main__":
             quantity=0.1,
             price=50000,
             balance=balance,
-            confidence=0.75
+            confidence=0.75,
         )
 
         print(f"Trade approved: {validation.approved}")

@@ -66,7 +66,9 @@ class TradingEnvironment:
         # Calculate features
         price_change = 0
         if self.current_step > 0:
-            price_change = (current_price - self.price_data[self.current_step - 1]) / current_price
+            price_change = (
+                current_price - self.price_data[self.current_step - 1]
+            ) / current_price
 
         # Simple RSI calculation (14 period)
         rsi = self._calculate_rsi(14)
@@ -77,16 +79,21 @@ class TradingEnvironment:
         # Volume ratio (simplified - using price volatility as proxy)
         volume_ratio = self._calculate_volatility(10)
 
-        state = np.array([
-            self.balance / self.initial_balance,  # Normalized balance
-            self.position,  # Position size
-            self.position_price / current_price if current_price > 0 else 0,  # Relative entry price
-            current_price / self.initial_balance,  # Normalized price
-            price_change,  # Price change
-            rsi,  # RSI
-            macd,  # MACD
-            volume_ratio  # Volume ratio
-        ], dtype=np.float32)
+        state = np.array(
+            [
+                self.balance / self.initial_balance,  # Normalized balance
+                self.position,  # Position size
+                (
+                    self.position_price / current_price if current_price > 0 else 0
+                ),  # Relative entry price
+                current_price / self.initial_balance,  # Normalized price
+                price_change,  # Price change
+                rsi,  # RSI
+                macd,  # MACD
+                volume_ratio,  # Volume ratio
+            ],
+            dtype=np.float32,
+        )
 
         return state
 
@@ -95,7 +102,9 @@ class TradingEnvironment:
         if self.current_step < period:
             return 0.5
 
-        prices = self.price_data[max(0, self.current_step - period):self.current_step + 1]
+        prices = self.price_data[
+            max(0, self.current_step - period) : self.current_step + 1
+        ]
         deltas = np.diff(prices)
 
         gains = deltas[deltas > 0].sum()
@@ -114,7 +123,7 @@ class TradingEnvironment:
         if self.current_step < 26:
             return 0
 
-        prices = self.price_data[max(0, self.current_step - 26):self.current_step + 1]
+        prices = self.price_data[max(0, self.current_step - 26) : self.current_step + 1]
 
         ema_12 = self._ema(prices, 12)
         ema_26 = self._ema(prices, 26)
@@ -131,7 +140,7 @@ class TradingEnvironment:
         multiplier = 2 / (period + 1)
         ema = prices[-period]
 
-        for price in prices[-period + 1:]:
+        for price in prices[-period + 1 :]:
             ema = (price - ema) * multiplier + ema
 
         return ema
@@ -141,7 +150,9 @@ class TradingEnvironment:
         if self.current_step < period:
             return 0
 
-        prices = self.price_data[max(0, self.current_step - period):self.current_step + 1]
+        prices = self.price_data[
+            max(0, self.current_step - period) : self.current_step + 1
+        ]
         returns = np.diff(prices) / prices[:-1]
 
         return np.std(returns)
@@ -167,8 +178,8 @@ class TradingEnvironment:
                 self.position = self.balance / current_price
                 self.position_price = current_price
                 self.balance = 0
-                info['action'] = 'buy'
-                info['price'] = current_price
+                info["action"] = "buy"
+                info["price"] = current_price
 
         elif action == 2:  # Sell
             if self.position > 0:
@@ -180,27 +191,31 @@ class TradingEnvironment:
                 reward = profit / self.initial_balance  # Normalized reward
 
                 # Track trade
-                self.trade_history.append({
-                    'entry_price': self.position_price,
-                    'exit_price': current_price,
-                    'profit': profit,
-                    'return': (current_price / self.position_price - 1) * 100
-                })
+                self.trade_history.append(
+                    {
+                        "entry_price": self.position_price,
+                        "exit_price": current_price,
+                        "profit": profit,
+                        "return": (current_price / self.position_price - 1) * 100,
+                    }
+                )
 
                 self.position = 0
                 self.position_price = 0
-                info['action'] = 'sell'
-                info['profit'] = profit
+                info["action"] = "sell"
+                info["profit"] = profit
         else:
             # Hold
-            info['action'] = 'hold'
+            info["action"] = "hold"
             # Small penalty for holding to encourage action
             reward = -0.001
 
         # Calculate unrealized PnL if holding position
         if self.position > 0:
             unrealized_pnl = (current_price - self.position_price) * self.position
-            reward += unrealized_pnl / self.initial_balance * 0.1  # Small reward for good positions
+            reward += (
+                unrealized_pnl / self.initial_balance * 0.1
+            )  # Small reward for good positions
 
         # Move to next step
         self.current_step += 1
@@ -211,8 +226,8 @@ class TradingEnvironment:
         if self.position > 0:
             total_value += self.position * current_price
 
-        info['total_value'] = total_value
-        info['step'] = self.current_step
+        info["total_value"] = total_value
+        info["step"] = self.current_step
 
         self.episode_reward += reward
 
@@ -222,7 +237,11 @@ class TradingEnvironment:
 
     def get_portfolio_value(self) -> float:
         """Get current total portfolio value"""
-        current_price = self.price_data[self.current_step] if self.current_step < len(self.price_data) else 0
+        current_price = (
+            self.price_data[self.current_step]
+            if self.current_step < len(self.price_data)
+            else 0
+        )
         return self.balance + (self.position * current_price)
 
 
@@ -256,12 +275,12 @@ class DQNAgent:
         self.config = config or {}
 
         # Hyperparameters
-        self.gamma = self.config.get('gamma', 0.99)  # Discount factor
-        self.epsilon = self.config.get('epsilon', 1.0)  # Exploration rate
-        self.epsilon_min = self.config.get('epsilon_min', 0.01)
-        self.epsilon_decay = self.config.get('epsilon_decay', 0.995)
-        self.learning_rate = self.config.get('learning_rate', 0.001)
-        self.batch_size = self.config.get('batch_size', 64)
+        self.gamma = self.config.get("gamma", 0.99)  # Discount factor
+        self.epsilon = self.config.get("epsilon", 1.0)  # Exploration rate
+        self.epsilon_min = self.config.get("epsilon_min", 0.01)
+        self.epsilon_decay = self.config.get("epsilon_decay", 0.995)
+        self.learning_rate = self.config.get("learning_rate", 0.001)
+        self.batch_size = self.config.get("batch_size", 64)
 
         # Experience replay
         self.memory = ReplayBuffer(capacity=100000)
@@ -285,6 +304,7 @@ class DQNAgent:
         """Detect available compute device"""
         try:
             import torch
+
             if torch.cuda.is_available():
                 return "cuda"
         except ImportError:
@@ -324,7 +344,9 @@ class DQNAgent:
             self.update_target_model()
 
             # Optimizer
-            self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
+            self.optimizer = torch.optim.Adam(
+                self.model.parameters(), lr=self.learning_rate
+            )
             self.criterion = nn.MSELoss()
 
             logger.info("✅ PyTorch DQN model built")
@@ -342,7 +364,7 @@ class DQNAgent:
     def update_target_model(self):
         """Copy weights from model to target model"""
         try:
-            if hasattr(self, 'model') and self.model is not None:
+            if hasattr(self, "model") and self.model is not None:
                 self.target_model.load_state_dict(self.model.state_dict())
         except:
             pass
@@ -434,10 +456,10 @@ class DQNAgent:
             import torch
 
             save_data = {
-                'model_state_dict': self.model.state_dict(),
-                'optimizer_state_dict': self.optimizer.state_dict(),
-                'epsilon': self.epsilon,
-                'training_history': self.training_history
+                "model_state_dict": self.model.state_dict(),
+                "optimizer_state_dict": self.optimizer.state_dict(),
+                "epsilon": self.epsilon,
+                "training_history": self.training_history,
             }
 
             torch.save(save_data, filepath)
@@ -452,10 +474,10 @@ class DQNAgent:
             import torch
 
             checkpoint = torch.load(filepath)
-            self.model.load_state_dict(checkpoint['model_state_dict'])
-            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            self.epsilon = checkpoint['epsilon']
-            self.training_history = checkpoint.get('training_history', [])
+            self.model.load_state_dict(checkpoint["model_state_dict"])
+            self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            self.epsilon = checkpoint["epsilon"]
+            self.training_history = checkpoint.get("training_history", [])
 
             self.update_target_model()
 
@@ -466,4 +488,4 @@ class DQNAgent:
 
 
 # Export main classes
-__all__ = ['TradingEnvironment', 'DQNAgent', 'ReplayBuffer']
+__all__ = ["TradingEnvironment", "DQNAgent", "ReplayBuffer"]

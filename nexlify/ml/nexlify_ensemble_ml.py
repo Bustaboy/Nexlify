@@ -33,7 +33,7 @@ class EnsembleMLSystem:
     Combines multiple algorithms with intelligent weighting
     """
 
-    def __init__(self, task: str = 'classification', hardware_adaptive: bool = True):
+    def __init__(self, task: str = "classification", hardware_adaptive: bool = True):
         """
         Initialize ensemble ML system
 
@@ -67,13 +67,16 @@ class EnsembleMLSystem:
 
             # Adapt model selection based on hardware
             config = {
-                'use_xgboost': True,  # Always available
-                'use_random_forest': True,  # Always available
-                'use_lstm': hw_config.get('use_gpu', False),  # GPU preferred
-                'use_transformer': hw_config.get('use_gpu', False) and hw_config.get('model_size') in ['large', 'xlarge'],
-                'use_linear': True,  # Always available
-                'max_ensemble_models': 5 if hw_config.get('model_size') in ['large', 'xlarge'] else 3,
-                'n_jobs': hw_config.get('num_workers', -1)
+                "use_xgboost": True,  # Always available
+                "use_random_forest": True,  # Always available
+                "use_lstm": hw_config.get("use_gpu", False),  # GPU preferred
+                "use_transformer": hw_config.get("use_gpu", False)
+                and hw_config.get("model_size") in ["large", "xlarge"],
+                "use_linear": True,  # Always available
+                "max_ensemble_models": (
+                    5 if hw_config.get("model_size") in ["large", "xlarge"] else 3
+                ),
+                "n_jobs": hw_config.get("num_workers", -1),
             }
 
             logger.info(f"Hardware-adaptive config: {config}")
@@ -82,13 +85,13 @@ class EnsembleMLSystem:
         except Exception as e:
             logger.warning(f"Hardware detection failed: {e}, using defaults")
             return {
-                'use_xgboost': True,
-                'use_random_forest': True,
-                'use_lstm': False,
-                'use_linear': True,
-                'use_transformer': False,
-                'max_ensemble_models': 3,
-                'n_jobs': -1
+                "use_xgboost": True,
+                "use_random_forest": True,
+                "use_lstm": False,
+                "use_linear": True,
+                "use_transformer": False,
+                "max_ensemble_models": 3,
+                "n_jobs": -1,
             }
 
     def build_models(self, X_train: np.ndarray, y_train: np.ndarray):
@@ -102,25 +105,29 @@ class EnsembleMLSystem:
         logger.info("🔨 Building ensemble models...")
 
         # 1. XGBoost
-        if self.config.get('use_xgboost', True):
-            self.models['xgboost'] = self._build_xgboost(X_train, y_train)
+        if self.config.get("use_xgboost", True):
+            self.models["xgboost"] = self._build_xgboost(X_train, y_train)
 
         # 2. Random Forest
-        if self.config.get('use_random_forest', True):
-            self.models['random_forest'] = self._build_random_forest(X_train, y_train)
+        if self.config.get("use_random_forest", True):
+            self.models["random_forest"] = self._build_random_forest(X_train, y_train)
 
         # 3. LSTM
-        if self.config.get('use_lstm', False):
-            self.models['lstm'] = self._build_lstm(X_train, y_train)
+        if self.config.get("use_lstm", False):
+            self.models["lstm"] = self._build_lstm(X_train, y_train)
 
         # 4. Transformer
-        if self.config.get('use_transformer', False):
-            self.models['transformer'] = self._build_transformer(X_train, y_train)
+        if self.config.get("use_transformer", False):
+            self.models["transformer"] = self._build_transformer(X_train, y_train)
 
         # 5. Linear models
-        if self.config.get('use_linear', True):
-            self.models['ridge'] = self._build_linear(X_train, y_train, model_type='ridge')
-            self.models['lasso'] = self._build_linear(X_train, y_train, model_type='lasso')
+        if self.config.get("use_linear", True):
+            self.models["ridge"] = self._build_linear(
+                X_train, y_train, model_type="ridge"
+            )
+            self.models["lasso"] = self._build_linear(
+                X_train, y_train, model_type="lasso"
+            )
 
         logger.info(f"✅ Built {len(self.models)} models: {list(self.models.keys())}")
 
@@ -129,18 +136,18 @@ class EnsembleMLSystem:
         try:
             import xgboost as xgb
 
-            if self.task == 'classification':
+            if self.task == "classification":
                 model = xgb.XGBClassifier(
                     n_estimators=300,
                     max_depth=6,
                     learning_rate=0.05,
                     subsample=0.8,
                     colsample_bytree=0.8,
-                    objective='multi:softprob',
+                    objective="multi:softprob",
                     num_class=3,  # buy/sell/hold
                     random_state=42,
-                    n_jobs=self.config.get('n_jobs', -1),
-                    tree_method='gpu_hist' if self.config.get('use_gpu') else 'auto'
+                    n_jobs=self.config.get("n_jobs", -1),
+                    tree_method="gpu_hist" if self.config.get("use_gpu") else "auto",
                 )
             else:  # regression
                 model = xgb.XGBRegressor(
@@ -149,10 +156,10 @@ class EnsembleMLSystem:
                     learning_rate=0.05,
                     subsample=0.8,
                     colsample_bytree=0.8,
-                    objective='reg:squarederror',
+                    objective="reg:squarederror",
                     random_state=42,
-                    n_jobs=self.config.get('n_jobs', -1),
-                    tree_method='gpu_hist' if self.config.get('use_gpu') else 'auto'
+                    n_jobs=self.config.get("n_jobs", -1),
+                    tree_method="gpu_hist" if self.config.get("use_gpu") else "auto",
                 )
 
             model.fit(X_train, y_train, verbose=False)
@@ -172,15 +179,15 @@ class EnsembleMLSystem:
         try:
             from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 
-            if self.task == 'classification':
+            if self.task == "classification":
                 model = RandomForestClassifier(
                     n_estimators=200,
                     max_depth=15,
                     min_samples_split=5,
                     min_samples_leaf=2,
-                    max_features='sqrt',
+                    max_features="sqrt",
                     random_state=42,
-                    n_jobs=self.config.get('n_jobs', -1)
+                    n_jobs=self.config.get("n_jobs", -1),
                 )
             else:
                 model = RandomForestRegressor(
@@ -188,9 +195,9 @@ class EnsembleMLSystem:
                     max_depth=15,
                     min_samples_split=5,
                     min_samples_leaf=2,
-                    max_features='sqrt',
+                    max_features="sqrt",
                     random_state=42,
-                    n_jobs=self.config.get('n_jobs', -1)
+                    n_jobs=self.config.get("n_jobs", -1),
                 )
 
             model.fit(X_train, y_train)
@@ -209,7 +216,14 @@ class EnsembleMLSystem:
             import torch.nn as nn
 
             class LSTMModel(nn.Module):
-                def __init__(self, input_size, hidden_size=128, num_layers=2, output_size=3, dropout=0.2):
+                def __init__(
+                    self,
+                    input_size,
+                    hidden_size=128,
+                    num_layers=2,
+                    output_size=3,
+                    dropout=0.2,
+                ):
                     super(LSTMModel, self).__init__()
                     self.hidden_size = hidden_size
                     self.num_layers = num_layers
@@ -219,7 +233,7 @@ class EnsembleMLSystem:
                         hidden_size=hidden_size,
                         num_layers=num_layers,
                         batch_first=True,
-                        dropout=dropout if num_layers > 1 else 0
+                        dropout=dropout if num_layers > 1 else 0,
                     )
 
                     self.fc = nn.Linear(hidden_size, output_size)
@@ -238,11 +252,11 @@ class EnsembleMLSystem:
             n_samples = len(X_train) - seq_len + 1
             n_features = X_train.shape[1]
 
-            X_seq = np.array([X_train[i:i+seq_len] for i in range(n_samples)])
-            y_seq = y_train[seq_len-1:]
+            X_seq = np.array([X_train[i : i + seq_len] for i in range(n_samples)])
+            y_seq = y_train[seq_len - 1 :]
 
             # Create model
-            output_size = 3 if self.task == 'classification' else 1
+            output_size = 3 if self.task == "classification" else 1
             model = LSTMModel(input_size=n_features, output_size=output_size)
 
             # Simple wrapper to match sklearn interface
@@ -251,17 +265,27 @@ class EnsembleMLSystem:
                     self.model = model
                     self.task = task
                     self.seq_len = seq_len
-                    self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+                    self.device = torch.device(
+                        "cuda" if torch.cuda.is_available() else "cpu"
+                    )
                     self.model.to(self.device)
 
                 def fit(self, X, y, epochs=50, batch_size=32):
                     self.model.train()
-                    criterion = nn.CrossEntropyLoss() if self.task == 'classification' else nn.MSELoss()
+                    criterion = (
+                        nn.CrossEntropyLoss()
+                        if self.task == "classification"
+                        else nn.MSELoss()
+                    )
                     optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
 
                     # Simple training loop
                     X_tensor = torch.FloatTensor(X).to(self.device)
-                    y_tensor = torch.LongTensor(y).to(self.device) if self.task == 'classification' else torch.FloatTensor(y).to(self.device)
+                    y_tensor = (
+                        torch.LongTensor(y).to(self.device)
+                        if self.task == "classification"
+                        else torch.FloatTensor(y).to(self.device)
+                    )
 
                     for epoch in range(epochs):
                         optimizer.zero_grad()
@@ -278,15 +302,22 @@ class EnsembleMLSystem:
                             # Single sample or batch
                             if X.shape[0] < self.seq_len:
                                 # Pad if needed
-                                X = np.vstack([np.zeros((self.seq_len - X.shape[0], X.shape[1])), X])
-                            X_seq = np.array([X[-self.seq_len:]])
+                                X = np.vstack(
+                                    [
+                                        np.zeros(
+                                            (self.seq_len - X.shape[0], X.shape[1])
+                                        ),
+                                        X,
+                                    ]
+                                )
+                            X_seq = np.array([X[-self.seq_len :]])
                         else:
                             X_seq = X
 
                         X_tensor = torch.FloatTensor(X_seq).to(self.device)
                         outputs = self.model(X_tensor)
 
-                        if self.task == 'classification':
+                        if self.task == "classification":
                             return torch.argmax(outputs, dim=1).cpu().numpy()
                         else:
                             return outputs.cpu().numpy()
@@ -296,8 +327,15 @@ class EnsembleMLSystem:
                     with torch.no_grad():
                         if len(X.shape) == 2:
                             if X.shape[0] < self.seq_len:
-                                X = np.vstack([np.zeros((self.seq_len - X.shape[0], X.shape[1])), X])
-                            X_seq = np.array([X[-self.seq_len:]])
+                                X = np.vstack(
+                                    [
+                                        np.zeros(
+                                            (self.seq_len - X.shape[0], X.shape[1])
+                                        ),
+                                        X,
+                                    ]
+                                )
+                            X_seq = np.array([X[-self.seq_len :]])
                         else:
                             X_seq = X
 
@@ -326,7 +364,15 @@ class EnsembleMLSystem:
             import torch.nn as nn
 
             class TransformerModel(nn.Module):
-                def __init__(self, input_size, d_model=128, nhead=8, num_layers=3, output_size=3, dropout=0.1):
+                def __init__(
+                    self,
+                    input_size,
+                    d_model=128,
+                    nhead=8,
+                    num_layers=3,
+                    output_size=3,
+                    dropout=0.1,
+                ):
                     super(TransformerModel, self).__init__()
 
                     self.input_proj = nn.Linear(input_size, d_model)
@@ -336,10 +382,12 @@ class EnsembleMLSystem:
                         nhead=nhead,
                         dim_feedforward=d_model * 4,
                         dropout=dropout,
-                        batch_first=True
+                        batch_first=True,
                     )
 
-                    self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+                    self.transformer = nn.TransformerEncoder(
+                        encoder_layer, num_layers=num_layers
+                    )
                     self.fc = nn.Linear(d_model, output_size)
 
                 def forward(self, x):
@@ -356,28 +404,39 @@ class EnsembleMLSystem:
             n_samples = len(X_train) - seq_len + 1
             n_features = X_train.shape[1]
 
-            X_seq = np.array([X_train[i:i+seq_len] for i in range(n_samples)])
-            y_seq = y_train[seq_len-1:]
+            X_seq = np.array([X_train[i : i + seq_len] for i in range(n_samples)])
+            y_seq = y_train[seq_len - 1 :]
 
-            output_size = 3 if self.task == 'classification' else 1
+            output_size = 3 if self.task == "classification" else 1
             model = TransformerModel(input_size=n_features, output_size=output_size)
 
             # Reuse LSTM wrapper pattern
             from types import SimpleNamespace
+
             wrapper = SimpleNamespace()
             wrapper.model = model
             wrapper.seq_len = seq_len
-            wrapper.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            wrapper.device = torch.device(
+                "cuda" if torch.cuda.is_available() else "cpu"
+            )
             model.to(wrapper.device)
 
             # Simple fit method
             def fit(X, y, epochs=30):
                 model.train()
-                criterion = nn.CrossEntropyLoss() if self.task == 'classification' else nn.MSELoss()
+                criterion = (
+                    nn.CrossEntropyLoss()
+                    if self.task == "classification"
+                    else nn.MSELoss()
+                )
                 optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 
                 X_tensor = torch.FloatTensor(X).to(wrapper.device)
-                y_tensor = torch.LongTensor(y).to(wrapper.device) if self.task == 'classification' else torch.FloatTensor(y).to(wrapper.device)
+                y_tensor = (
+                    torch.LongTensor(y).to(wrapper.device)
+                    if self.task == "classification"
+                    else torch.FloatTensor(y).to(wrapper.device)
+                )
 
                 for epoch in range(epochs):
                     optimizer.zero_grad()
@@ -400,7 +459,9 @@ class EnsembleMLSystem:
             logger.error(f"Transformer build error: {e}")
             return None
 
-    def _build_linear(self, X_train: np.ndarray, y_train: np.ndarray, model_type: str = 'ridge'):
+    def _build_linear(
+        self, X_train: np.ndarray, y_train: np.ndarray, model_type: str = "ridge"
+    ):
         """Build linear model (Ridge or Lasso)"""
         try:
             from sklearn.linear_model import Ridge, Lasso, LogisticRegression
@@ -410,16 +471,16 @@ class EnsembleMLSystem:
             scaler = StandardScaler()
             X_scaled = scaler.fit_transform(X_train)
 
-            if self.task == 'classification':
+            if self.task == "classification":
                 model = LogisticRegression(
                     C=1.0,
                     max_iter=1000,
-                    multi_class='multinomial',
+                    multi_class="multinomial",
                     random_state=42,
-                    n_jobs=self.config.get('n_jobs', -1)
+                    n_jobs=self.config.get("n_jobs", -1),
                 )
             else:
-                if model_type == 'ridge':
+                if model_type == "ridge":
                     model = Ridge(alpha=1.0, random_state=42)
                 else:
                     model = Lasso(alpha=0.1, random_state=42, max_iter=1000)
@@ -437,7 +498,7 @@ class EnsembleMLSystem:
                     return self.model.predict(X_scaled)
 
                 def predict_proba(self, X):
-                    if hasattr(self.model, 'predict_proba'):
+                    if hasattr(self.model, "predict_proba"):
                         X_scaled = self.scaler.transform(X)
                         return self.model.predict_proba(X_scaled)
                     return None
@@ -450,8 +511,13 @@ class EnsembleMLSystem:
             logger.error(f"{model_type} build error: {e}")
             return None
 
-    def train(self, X_train: np.ndarray, y_train: np.ndarray,
-              X_val: Optional[np.ndarray] = None, y_val: Optional[np.ndarray] = None):
+    def train(
+        self,
+        X_train: np.ndarray,
+        y_train: np.ndarray,
+        X_val: Optional[np.ndarray] = None,
+        y_val: Optional[np.ndarray] = None,
+    ):
         """
         Train all models in the ensemble
 
@@ -484,7 +550,12 @@ class EnsembleMLSystem:
         Returns:
             Dictionary of model performances
         """
-        from sklearn.metrics import accuracy_score, f1_score, mean_squared_error, r2_score
+        from sklearn.metrics import (
+            accuracy_score,
+            f1_score,
+            mean_squared_error,
+            r2_score,
+        )
 
         logger.info("📊 Evaluating models...")
 
@@ -495,28 +566,28 @@ class EnsembleMLSystem:
             try:
                 predictions = model.predict(X_test)
 
-                if self.task == 'classification':
+                if self.task == "classification":
                     accuracy = accuracy_score(y_test, predictions)
-                    f1 = f1_score(y_test, predictions, average='weighted')
+                    f1 = f1_score(y_test, predictions, average="weighted")
                     self.model_performance[name] = {
-                        'accuracy': accuracy,
-                        'f1_score': f1,
-                        'score': f1  # Use F1 as primary score
+                        "accuracy": accuracy,
+                        "f1_score": f1,
+                        "score": f1,  # Use F1 as primary score
                     }
                     logger.info(f"  {name}: Accuracy={accuracy:.4f}, F1={f1:.4f}")
                 else:
                     mse = mean_squared_error(y_test, predictions)
                     r2 = r2_score(y_test, predictions)
                     self.model_performance[name] = {
-                        'mse': mse,
-                        'r2': r2,
-                        'score': r2  # Use R2 as primary score
+                        "mse": mse,
+                        "r2": r2,
+                        "score": r2,  # Use R2 as primary score
                     }
                     logger.info(f"  {name}: MSE={mse:.4f}, R2={r2:.4f}")
 
             except Exception as e:
                 logger.error(f"Error evaluating {name}: {e}")
-                self.model_performance[name] = {'score': 0.0}
+                self.model_performance[name] = {"score": 0.0}
 
         return self.model_performance
 
@@ -529,7 +600,9 @@ class EnsembleMLSystem:
             return
 
         # Weight by performance (softmax of scores)
-        scores = np.array([perf.get('score', 0) for perf in self.model_performance.values()])
+        scores = np.array(
+            [perf.get("score", 0) for perf in self.model_performance.values()]
+        )
         scores = np.maximum(scores, 0)  # Ensure non-negative
 
         if scores.sum() == 0:
@@ -547,7 +620,7 @@ class EnsembleMLSystem:
         for name, weight in self.model_weights.items():
             logger.info(f"  {name}: {weight:.4f}")
 
-    def predict(self, X: np.ndarray, method: str = 'weighted') -> np.ndarray:
+    def predict(self, X: np.ndarray, method: str = "weighted") -> np.ndarray:
         """
         Make predictions using ensemble
 
@@ -558,16 +631,16 @@ class EnsembleMLSystem:
         Returns:
             Predictions
         """
-        if method == 'weighted':
+        if method == "weighted":
             return self._predict_weighted(X)
-        elif method == 'voting':
+        elif method == "voting":
             return self._predict_voting(X)
         else:
             return self._predict_weighted(X)
 
     def _predict_weighted(self, X: np.ndarray) -> np.ndarray:
         """Weighted ensemble prediction"""
-        if self.task == 'classification':
+        if self.task == "classification":
             # Weighted probability averaging
             proba_sum = None
             total_weight = 0
@@ -577,7 +650,7 @@ class EnsembleMLSystem:
                     continue
 
                 try:
-                    if hasattr(model, 'predict_proba'):
+                    if hasattr(model, "predict_proba"):
                         proba = model.predict_proba(X)
                         weight = self.model_weights.get(name, 1.0 / len(self.models))
 
@@ -638,9 +711,10 @@ class EnsembleMLSystem:
         # Majority vote (for classification) or median (for regression)
         predictions_array = np.array(all_predictions)
 
-        if self.task == 'classification':
+        if self.task == "classification":
             # Mode (most common)
             from scipy.stats import mode
+
             return mode(predictions_array, axis=0)[0].flatten()
         else:
             # Median
@@ -650,11 +724,13 @@ class EnsembleMLSystem:
         """Get feature importance from tree-based models"""
         importance = {}
 
-        if 'xgboost' in self.models and self.models['xgboost'] is not None:
-            importance['xgboost'] = self.models['xgboost'].feature_importances_
+        if "xgboost" in self.models and self.models["xgboost"] is not None:
+            importance["xgboost"] = self.models["xgboost"].feature_importances_
 
-        if 'random_forest' in self.models and self.models['random_forest'] is not None:
-            importance['random_forest'] = self.models['random_forest'].feature_importances_
+        if "random_forest" in self.models and self.models["random_forest"] is not None:
+            importance["random_forest"] = self.models[
+                "random_forest"
+            ].feature_importances_
 
         return importance
 
@@ -670,21 +746,21 @@ class EnsembleMLSystem:
 
             try:
                 model_path = dir_path / f"{name}.pkl"
-                with open(model_path, 'wb') as f:
+                with open(model_path, "wb") as f:
                     pickle.dump(model, f)
             except Exception as e:
                 logger.error(f"Failed to save {name}: {e}")
 
         # Save metadata
         metadata = {
-            'task': self.task,
-            'model_weights': self.model_weights,
-            'model_performance': self.model_performance,
-            'config': self.config
+            "task": self.task,
+            "model_weights": self.model_weights,
+            "model_performance": self.model_performance,
+            "config": self.config,
         }
 
         metadata_path = dir_path / "metadata.json"
-        with open(metadata_path, 'w') as f:
+        with open(metadata_path, "w") as f:
             json.dump(metadata, f, indent=2)
 
         logger.info(f"✅ Ensemble saved to {directory}")
@@ -696,18 +772,18 @@ class EnsembleMLSystem:
         # Load metadata
         metadata_path = dir_path / "metadata.json"
         if metadata_path.exists():
-            with open(metadata_path, 'r') as f:
+            with open(metadata_path, "r") as f:
                 metadata = json.load(f)
-                self.task = metadata.get('task', self.task)
-                self.model_weights = metadata.get('model_weights', {})
-                self.model_performance = metadata.get('model_performance', {})
-                self.config = metadata.get('config', {})
+                self.task = metadata.get("task", self.task)
+                self.model_weights = metadata.get("model_weights", {})
+                self.model_performance = metadata.get("model_performance", {})
+                self.config = metadata.get("config", {})
 
         # Load models
         for model_file in dir_path.glob("*.pkl"):
             name = model_file.stem
             try:
-                with open(model_file, 'rb') as f:
+                with open(model_file, "rb") as f:
                     self.models[name] = pickle.load(f)
             except Exception as e:
                 logger.error(f"Failed to load {name}: {e}")
@@ -716,4 +792,4 @@ class EnsembleMLSystem:
 
 
 # Export
-__all__ = ['EnsembleMLSystem']
+__all__ = ["EnsembleMLSystem"]

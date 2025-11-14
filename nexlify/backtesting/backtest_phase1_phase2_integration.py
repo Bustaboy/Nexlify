@@ -15,8 +15,7 @@ import sys
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 logger = logging.getLogger(__name__)
@@ -26,7 +25,7 @@ def load_config():
     """Load configuration"""
     config_path = Path("config/neural_config.json")
     if config_path.exists():
-        with open(config_path, 'r') as f:
+        with open(config_path, "r") as f:
             return json.load(f)
     else:
         logger.error("Config file not found!")
@@ -38,11 +37,7 @@ class MockExchange:
 
     def __init__(self, name: str):
         self.name = name
-        self.balances = {
-            'BTC': 10.0,
-            'ETH': 100.0,
-            'USDT': 100000.0
-        }
+        self.balances = {"BTC": 10.0, "ETH": 100.0, "USDT": 100000.0}
         self.positions = []
         self.orders = []
 
@@ -53,13 +48,15 @@ class MockExchange:
     async def create_market_order(self, symbol: str, side: str, quantity: float):
         """Create market order"""
         order_id = f"order_{len(self.orders) + 1}"
-        self.orders.append({
-            'id': order_id,
-            'symbol': symbol,
-            'side': side,
-            'quantity': quantity,
-            'status': 'filled'
-        })
+        self.orders.append(
+            {
+                "id": order_id,
+                "symbol": symbol,
+                "side": side,
+                "quantity": quantity,
+                "status": "filled",
+            }
+        )
         return order_id
 
     async def close_all_positions(self):
@@ -70,10 +67,10 @@ class MockExchange:
 
     async def cancel_all_orders(self):
         """Cancel all open orders"""
-        cancelled = len([o for o in self.orders if o['status'] == 'open'])
+        cancelled = len([o for o in self.orders if o["status"] == "open"])
         for order in self.orders:
-            if order['status'] == 'open':
-                order['status'] = 'cancelled'
+            if order["status"] == "open":
+                order["status"] = "cancelled"
         return cancelled
 
 
@@ -86,7 +83,9 @@ class TradingScenario:
         self.trades = []
         self.prices = {}
 
-    def generate_price_data(self, symbol: str, start_price: float, days: int = 30, volatility: float = 0.02):
+    def generate_price_data(
+        self, symbol: str, start_price: float, days: int = 30, volatility: float = 0.02
+    ):
         """Generate realistic price data with volatility"""
         prices = []
         current_price = start_price
@@ -96,12 +95,15 @@ class TradingScenario:
             for hour in range(24):
                 # Random walk with drift
                 change_pct = random.gauss(0, volatility)
-                current_price *= (1 + change_pct)
-                prices.append({
-                    'timestamp': datetime.now() - timedelta(days=days - day, hours=24 - hour),
-                    'price': current_price,
-                    'volume': random.uniform(1000, 10000)
-                })
+                current_price *= 1 + change_pct
+                prices.append(
+                    {
+                        "timestamp": datetime.now()
+                        - timedelta(days=days - day, hours=24 - hour),
+                        "price": current_price,
+                        "volume": random.uniform(1000, 10000),
+                    }
+                )
 
         self.prices[symbol] = prices
         return prices
@@ -111,21 +113,23 @@ class TradingScenario:
         if symbol not in self.prices or not self.prices[symbol]:
             return None
 
-        last_price = self.prices[symbol][-1]['price']
+        last_price = self.prices[symbol][-1]["price"]
         crash_price = last_price * (1 - crash_percent)
 
         # Add crash candles
         crash_time = datetime.now()
-        self.prices[symbol].append({
-            'timestamp': crash_time,
-            'price': crash_price,
-            'volume': 50000  # High volume
-        })
+        self.prices[symbol].append(
+            {
+                "timestamp": crash_time,
+                "price": crash_price,
+                "volume": 50000,  # High volume
+            }
+        )
 
         return {
-            'before': last_price,
-            'after': crash_price,
-            'drop_pct': crash_percent * 100
+            "before": last_price,
+            "after": crash_price,
+            "drop_pct": crash_percent * 100,
         }
 
 
@@ -142,7 +146,10 @@ async def test_scenario_1_normal_trading():
 
     try:
         from nexlify.financial.nexlify_tax_reporter import TaxReporter
-        from nexlify.financial.nexlify_profit_manager import ProfitManager, WithdrawalDestination
+        from nexlify.financial.nexlify_profit_manager import (
+            ProfitManager,
+            WithdrawalDestination,
+        )
 
         config = load_config()
         if not config:
@@ -153,13 +160,14 @@ async def test_scenario_1_normal_trading():
 
         # Create scenario
         scenario = TradingScenario(
-            "Normal Trading",
-            "Simulate 30 days of normal arbitrage trading"
+            "Normal Trading", "Simulate 30 days of normal arbitrage trading"
         )
 
         # Generate price data
-        btc_prices = scenario.generate_price_data('BTC', 45000, days=30, volatility=0.02)
-        eth_prices = scenario.generate_price_data('ETH', 2500, days=30, volatility=0.03)
+        btc_prices = scenario.generate_price_data(
+            "BTC", 45000, days=30, volatility=0.02
+        )
+        eth_prices = scenario.generate_price_data("ETH", 2500, days=30, volatility=0.03)
 
         print("\n[1.1] Simulating trading activity...")
 
@@ -173,28 +181,39 @@ async def test_scenario_1_normal_trading():
 
             for _ in range(daily_trades):
                 # Randomly trade BTC or ETH
-                asset = random.choice(['BTC', 'ETH'])
-                prices = btc_prices if asset == 'BTC' else eth_prices
+                asset = random.choice(["BTC", "ETH"])
+                prices = btc_prices if asset == "BTC" else eth_prices
 
                 # Get two random prices (buy and sell)
                 buy_idx = random.randint(0, len(prices) - 10)
                 sell_idx = random.randint(buy_idx + 1, len(prices) - 1)
 
-                buy_price = prices[buy_idx]['price']
-                sell_price = prices[sell_idx]['price']
+                buy_price = prices[buy_idx]["price"]
+                sell_price = prices[sell_idx]["price"]
 
-                quantity = random.uniform(0.01, 0.1) if asset == 'BTC' else random.uniform(0.1, 1.0)
+                quantity = (
+                    random.uniform(0.01, 0.1)
+                    if asset == "BTC"
+                    else random.uniform(0.1, 1.0)
+                )
 
                 # Record purchase
                 lot_id = tax_reporter.record_purchase(
-                    asset, quantity, buy_price, "Binance",
-                    timestamp=prices[buy_idx]['timestamp']
+                    asset,
+                    quantity,
+                    buy_price,
+                    "Binance",
+                    timestamp=prices[buy_idx]["timestamp"],
                 )
 
                 # Record sale
                 gains = tax_reporter.record_sale(
-                    asset, quantity, sell_price, "Binance",
-                    fees=0.1, timestamp=prices[sell_idx]['timestamp']
+                    asset,
+                    quantity,
+                    sell_price,
+                    "Binance",
+                    fees=0.1,
+                    timestamp=prices[sell_idx]["timestamp"],
                 )
 
                 # Calculate profit
@@ -228,11 +247,11 @@ async def test_scenario_1_normal_trading():
         print(f"✅ Withdrawal Summary:")
         print(f"   Available: ${withdrawal_summary['available_for_withdrawal']:,.2f}")
 
-        if withdrawal_summary['available_for_withdrawal'] > 1000:
+        if withdrawal_summary["available_for_withdrawal"] > 1000:
             withdrawal_id = await profit_manager.execute_withdrawal(
                 amount=1000,
                 destination=WithdrawalDestination.COLD_WALLET,
-                reason="Profit taking after 30 days"
+                reason="Profit taking after 30 days",
             )
             if withdrawal_id:
                 print(f"✅ Withdrawal executed: {withdrawal_id}")
@@ -243,6 +262,7 @@ async def test_scenario_1_normal_trading():
     except Exception as e:
         print(f"\n❌ Scenario 1 failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -260,8 +280,14 @@ async def test_scenario_2_flash_crash():
     print("=" * 80)
 
     try:
-        from nexlify.risk.nexlify_flash_crash_protection import FlashCrashProtection, CrashSeverity
-        from nexlify.risk.nexlify_emergency_kill_switch import EmergencyKillSwitch, KillSwitchTrigger
+        from nexlify.risk.nexlify_flash_crash_protection import (
+            FlashCrashProtection,
+            CrashSeverity,
+        )
+        from nexlify.risk.nexlify_emergency_kill_switch import (
+            EmergencyKillSwitch,
+            KillSwitchTrigger,
+        )
 
         config = load_config()
         if not config:
@@ -288,55 +314,64 @@ async def test_scenario_2_flash_crash():
 
         # Create scenario
         scenario = TradingScenario(
-            "Flash Crash",
-            "Simulate flash crash and test emergency response"
+            "Flash Crash", "Simulate flash crash and test emergency response"
         )
 
         print("\n[2.1] Setting up normal market conditions...")
-        btc_prices = scenario.generate_price_data('BTC', 50000, days=5, volatility=0.01)
+        btc_prices = scenario.generate_price_data("BTC", 50000, days=5, volatility=0.01)
         print(f"✅ Generated {len(btc_prices)} price candles")
         print(f"   Starting price: ${btc_prices[0]['price']:,.2f}")
 
         # Feed normal prices to flash protection
         for i, price_data in enumerate(btc_prices[-10:]):
-            flash_protection.add_price_update('BTC', price_data['price'], price_data['volume'], price_data['timestamp'])
+            flash_protection.add_price_update(
+                "BTC",
+                price_data["price"],
+                price_data["volume"],
+                price_data["timestamp"],
+            )
 
         print("\n[2.2] Simulating flash crash...")
-        crash_data = scenario.simulate_flash_crash('BTC', crash_percent=0.15)
+        crash_data = scenario.simulate_flash_crash("BTC", crash_percent=0.15)
         print(f"⚠️ Flash crash detected:")
         print(f"   Before: ${crash_data['before']:,.2f}")
         print(f"   After: ${crash_data['after']:,.2f}")
         print(f"   Drop: -{crash_data['drop_pct']:.1f}%")
 
         # Update flash protection with crash price
-        crash_time = scenario.prices['BTC'][-1]['timestamp']
-        flash_protection.add_price_update('BTC', crash_data['after'], 50000, crash_time)
+        crash_time = scenario.prices["BTC"][-1]["timestamp"]
+        flash_protection.add_price_update("BTC", crash_data["after"], 50000, crash_time)
 
         # Detect crash
-        severity, crash_info = flash_protection.detect_crash('BTC')
+        severity, crash_info = flash_protection.detect_crash("BTC")
 
         if severity != CrashSeverity.NONE:
             print(f"✅ Flash crash detected: {severity.name}")
             # Get worst drop from timeframe analysis
-            if crash_info.get('timeframe_analysis'):
-                worst_drop = min(tf['price_change'] for tf in crash_info['timeframe_analysis'].values())
+            if crash_info.get("timeframe_analysis"):
+                worst_drop = min(
+                    tf["price_change"]
+                    for tf in crash_info["timeframe_analysis"].values()
+                )
                 print(f"   Drop: {worst_drop:.2%}")
 
             # Trigger emergency kill switch
             print("\n[2.3] Triggering emergency kill switch...")
             result = await kill_switch.trigger(
                 trigger_type=KillSwitchTrigger.FLASH_CRASH,
-                reason=f"Flash crash detected: {severity.name}"
+                reason=f"Flash crash detected: {severity.name}",
             )
 
             # Check final state - kill switch should be active (either just activated or was already active)
             if kill_switch.is_active:
-                if result['success']:
+                if result["success"]:
                     print(f"✅ Kill switch activated successfully")
                     print(f"   Positions closed: {result['positions_closed']}")
                     print(f"   Orders cancelled: {result['orders_cancelled']}")
                 else:
-                    print(f"✅ Kill switch already active (persistent state working correctly)")
+                    print(
+                        f"✅ Kill switch already active (persistent state working correctly)"
+                    )
 
                 print(f"   System locked: {kill_switch.is_locked}")
 
@@ -346,7 +381,7 @@ async def test_scenario_2_flash_crash():
                 print(f"✅ Status verified:")
                 print(f"   Active: {status['is_active']}")
                 print(f"   Locked: {status['is_locked']}")
-                if status['current_event']:
+                if status["current_event"]:
                     print(f"   Trigger: {status['current_event']['trigger']}")
                 else:
                     print(f"   Trigger: N/A")
@@ -363,6 +398,7 @@ async def test_scenario_2_flash_crash():
     except Exception as e:
         print(f"\n❌ Scenario 2 failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -389,7 +425,7 @@ async def test_scenario_3_defi_yield():
         defi = DeFiIntegration(config)
 
         print("\n[3.1] Fetching available pools...")
-        pools = await defi.fetch_available_pools('uniswap_v3', 'ethereum')
+        pools = await defi.fetch_available_pools("uniswap_v3", "ethereum")
         print(f"✅ Found {len(pools)} suitable pools")
 
         if pools:
@@ -400,8 +436,12 @@ async def test_scenario_3_defi_yield():
 
             print("\n[3.2] Providing liquidity...")
             position_id = await defi.provide_liquidity(
-                'uniswap_v3', 'ethereum', pool.pool_address,
-                pool.token0, pool.token1, 5000
+                "uniswap_v3",
+                "ethereum",
+                pool.pool_address,
+                pool.token0,
+                pool.token1,
+                5000,
             )
 
             if position_id:
@@ -409,7 +449,7 @@ async def test_scenario_3_defi_yield():
 
                 # Simulate time passing and rewards accumulating
                 position = defi.active_positions[position_id]
-                position.rewards_earned = Decimal('125.50')  # Simulate rewards
+                position.rewards_earned = Decimal("125.50")  # Simulate rewards
 
                 print("\n[3.3] Calculating impermanent loss...")
                 # Simulate price change
@@ -437,6 +477,7 @@ async def test_scenario_3_defi_yield():
     except Exception as e:
         print(f"\n❌ Scenario 3 failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -484,7 +525,7 @@ async def test_scenario_4_pin_security():
         print("\n[4.3] Testing failed authentication attempts...")
         wrong_pin = "111111"
         attempts = 0
-        max_attempts = config['pin_authentication']['max_failed_attempts']
+        max_attempts = config["pin_authentication"]["max_failed_attempts"]
 
         for i in range(max_attempts):
             valid, msg = pin_manager.verify_pin(username, wrong_pin, "192.168.1.100")
@@ -514,6 +555,7 @@ async def test_scenario_4_pin_security():
     except Exception as e:
         print(f"\n❌ Scenario 4 failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -554,11 +596,11 @@ async def test_scenario_5_integrity_monitoring():
 
         print("\n[5.3] Getting monitored files...")
         status = monitor.get_status()
-        monitored_count = status.get('monitored_files', 0)
+        monitored_count = status.get("monitored_files", 0)
         print(f"✅ Monitoring {monitored_count} critical files")
-        if status.get('critical_files'):
+        if status.get("critical_files"):
             print(f"   Critical files configured: {len(status['critical_files'])}")
-            for file_path in status['critical_files'][:5]:
+            for file_path in status["critical_files"][:5]:
                 print(f"   - {file_path}")
 
         print("\n[5.4] Testing tamper detection...")
@@ -571,6 +613,7 @@ async def test_scenario_5_integrity_monitoring():
     except Exception as e:
         print(f"\n❌ Scenario 5 failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -610,8 +653,8 @@ async def test_scenario_6_full_integration():
         # Simulate trading session
         print("\n[6.2] Simulating trading session...")
         # Record some trades
-        tax_reporter.record_purchase('BTC', 0.5, 48000, 'Binance')
-        gains = tax_reporter.record_sale('BTC', 0.25, 50000, 'Binance', fees=5.0)
+        tax_reporter.record_purchase("BTC", 0.5, 48000, "Binance")
+        gains = tax_reporter.record_sale("BTC", 0.25, 50000, "Binance", fees=5.0)
         profit = sum(float(g.gain_loss) for g in gains)
 
         profit_manager.update_profit(realized=profit, unrealized=200)
@@ -621,11 +664,13 @@ async def test_scenario_6_full_integration():
         print("\n[6.3] Getting system status...")
         security_status = security_suite.get_comprehensive_status()
         print(f"✅ Security Suite:")
-        kill_switch_status = security_status['components']['kill_switch']
-        flash_status = security_status['components']['flash_protection']
-        integrity_status = security_status['components']['integrity_monitor']
+        kill_switch_status = security_status["components"]["kill_switch"]
+        flash_status = security_status["components"]["flash_protection"]
+        integrity_status = security_status["components"]["integrity_monitor"]
 
-        print(f"   Kill switch: {'Active' if kill_switch_status['is_active'] else 'Standby'}")
+        print(
+            f"   Kill switch: {'Active' if kill_switch_status['is_active'] else 'Standby'}"
+        )
         print(f"   Flash protection: {flash_status['monitoring_symbols']} symbols")
         print(f"   Integrity: {integrity_status['files_monitored']} files")
 
@@ -652,6 +697,7 @@ async def test_scenario_6_full_integration():
     except Exception as e:
         print(f"\n❌ Scenario 6 failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -669,7 +715,9 @@ async def run_all_scenarios():
     results.append(("Flash Crash Response", await test_scenario_2_flash_crash()))
     results.append(("DeFi Yield Farming", await test_scenario_3_defi_yield()))
     results.append(("PIN Security", await test_scenario_4_pin_security()))
-    results.append(("Integrity Monitoring", await test_scenario_5_integrity_monitoring()))
+    results.append(
+        ("Integrity Monitoring", await test_scenario_5_integrity_monitoring())
+    )
     results.append(("Full Integration", await test_scenario_6_full_integration()))
 
     # Print summary
@@ -689,7 +737,9 @@ async def run_all_scenarios():
     print("=" * 80)
 
     if passed == total:
-        print("\n🎉 All scenarios passed! Phase 1 & 2 integration is working correctly.")
+        print(
+            "\n🎉 All scenarios passed! Phase 1 & 2 integration is working correctly."
+        )
     else:
         print(f"\n⚠️ {total - passed} scenario(s) failed. Review logs for details.")
 

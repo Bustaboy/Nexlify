@@ -25,7 +25,7 @@ class AITradingCompanion:
         self.neural_net = neural_net
         self.gui = gui
         self.config = config or {}
-        self.enabled = self.config.get('ai_companion_enabled', True)
+        self.enabled = self.config.get("ai_companion_enabled", True)
 
         # Conversation history
         self.conversation_history: List[Dict] = []
@@ -35,7 +35,9 @@ class AITradingCompanion:
         self.last_insights: List[str] = []
 
         # Personality settings
-        self.personality = self.config.get('personality', 'professional')  # professional, friendly, cyberpunk
+        self.personality = self.config.get(
+            "personality", "professional"
+        )  # professional, friendly, cyberpunk
 
         logger.info("🤖 AI Trading Companion initialized")
 
@@ -54,29 +56,37 @@ class AITradingCompanion:
             insights = []
 
             # Analyze overall market trend
-            if 'btc_price' in market_data:
-                btc_price = market_data['btc_price']
+            if "btc_price" in market_data:
+                btc_price = market_data["btc_price"]
                 insights.append(f"Bitcoin is currently trading at ${btc_price:,.2f}")
 
             # Analyze volatility
-            if 'volatility' in market_data:
-                volatility = market_data['volatility']
+            if "volatility" in market_data:
+                volatility = market_data["volatility"]
                 if volatility < 0.02:
                     insights.append("Markets are relatively calm with low volatility")
                 elif volatility < 0.05:
-                    insights.append("Moderate volatility detected - good for swing trading")
+                    insights.append(
+                        "Moderate volatility detected - good for swing trading"
+                    )
                 else:
-                    insights.append("⚠️ High volatility - exercise caution with position sizing")
+                    insights.append(
+                        "⚠️ High volatility - exercise caution with position sizing"
+                    )
 
             # Analyze active opportunities
-            if 'active_pairs_count' in market_data:
-                count = market_data['active_pairs_count']
+            if "active_pairs_count" in market_data:
+                count = market_data["active_pairs_count"]
                 if count > 15:
-                    insights.append(f"Strong market activity with {count} profitable opportunities detected")
+                    insights.append(
+                        f"Strong market activity with {count} profitable opportunities detected"
+                    )
                 elif count > 5:
                     insights.append(f"{count} trading opportunities identified")
                 else:
-                    insights.append("Limited opportunities in current market conditions")
+                    insights.append(
+                        "Limited opportunities in current market conditions"
+                    )
 
             # Combine insights
             if insights:
@@ -101,94 +111,110 @@ class AITradingCompanion:
         """
         try:
             recommendation = {
-                'symbol': symbol,
-                'action': 'hold',
-                'confidence': 0.0,
-                'reasoning': [],
-                'risk_level': 'unknown',
-                'suggested_entry': None,
-                'suggested_exit': None,
-                'stop_loss': None
+                "symbol": symbol,
+                "action": "hold",
+                "confidence": 0.0,
+                "reasoning": [],
+                "risk_level": "unknown",
+                "suggested_entry": None,
+                "suggested_exit": None,
+                "stop_loss": None,
             }
 
             # Analyze prediction
-            if 'prediction' in analysis_data:
-                pred = analysis_data['prediction']
-                direction = pred.get('direction', 'neutral')
-                confidence = pred.get('confidence', 0)
+            if "prediction" in analysis_data:
+                pred = analysis_data["prediction"]
+                direction = pred.get("direction", "neutral")
+                confidence = pred.get("confidence", 0)
 
-                if direction == 'bullish' and confidence > 0.7:
-                    recommendation['action'] = 'buy'
-                    recommendation['confidence'] = confidence
-                    recommendation['reasoning'].append(
+                if direction == "bullish" and confidence > 0.7:
+                    recommendation["action"] = "buy"
+                    recommendation["confidence"] = confidence
+                    recommendation["reasoning"].append(
                         f"Strong bullish signal with {confidence*100:.0f}% confidence"
                     )
-                elif direction == 'bearish' and confidence > 0.7:
-                    recommendation['action'] = 'sell'
-                    recommendation['confidence'] = confidence
-                    recommendation['reasoning'].append(
+                elif direction == "bearish" and confidence > 0.7:
+                    recommendation["action"] = "sell"
+                    recommendation["confidence"] = confidence
+                    recommendation["reasoning"].append(
                         f"Strong bearish signal with {confidence*100:.0f}% confidence"
                     )
 
             # Analyze technical indicators
-            if 'indicators' in analysis_data:
-                indicators = analysis_data['indicators']
+            if "indicators" in analysis_data:
+                indicators = analysis_data["indicators"]
 
                 # RSI analysis
-                if 'rsi' in indicators:
-                    rsi = indicators['rsi']
+                if "rsi" in indicators:
+                    rsi = indicators["rsi"]
                     if rsi < 30:
-                        recommendation['reasoning'].append("RSI indicates oversold conditions")
-                        if recommendation['action'] == 'hold':
-                            recommendation['action'] = 'buy'
-                            recommendation['confidence'] = 0.6
+                        recommendation["reasoning"].append(
+                            "RSI indicates oversold conditions"
+                        )
+                        if recommendation["action"] == "hold":
+                            recommendation["action"] = "buy"
+                            recommendation["confidence"] = 0.6
                     elif rsi > 70:
-                        recommendation['reasoning'].append("RSI indicates overbought conditions")
-                        if recommendation['action'] == 'hold':
-                            recommendation['action'] = 'sell'
-                            recommendation['confidence'] = 0.6
+                        recommendation["reasoning"].append(
+                            "RSI indicates overbought conditions"
+                        )
+                        if recommendation["action"] == "hold":
+                            recommendation["action"] = "sell"
+                            recommendation["confidence"] = 0.6
 
                 # MACD analysis
-                if 'macd_histogram' in indicators:
-                    macd_hist = indicators['macd_histogram']
+                if "macd_histogram" in indicators:
+                    macd_hist = indicators["macd_histogram"]
                     if macd_hist > 0:
-                        recommendation['reasoning'].append("MACD shows bullish momentum")
+                        recommendation["reasoning"].append(
+                            "MACD shows bullish momentum"
+                        )
                     else:
-                        recommendation['reasoning'].append("MACD shows bearish momentum")
+                        recommendation["reasoning"].append(
+                            "MACD shows bearish momentum"
+                        )
 
             # Determine risk level
-            if 'volatility' in analysis_data:
-                volatility = analysis_data['volatility'].get('volatility', 0)
+            if "volatility" in analysis_data:
+                volatility = analysis_data["volatility"].get("volatility", 0)
                 if volatility < 0.02:
-                    recommendation['risk_level'] = 'low'
+                    recommendation["risk_level"] = "low"
                 elif volatility < 0.05:
-                    recommendation['risk_level'] = 'medium'
+                    recommendation["risk_level"] = "medium"
                 else:
-                    recommendation['risk_level'] = 'high'
+                    recommendation["risk_level"] = "high"
 
             # Add price targets if we have a recommendation
-            if recommendation['action'] in ['buy', 'sell']:
-                current_price = analysis_data.get('current_price', 0)
+            if recommendation["action"] in ["buy", "sell"]:
+                current_price = analysis_data.get("current_price", 0)
                 if current_price > 0:
-                    if recommendation['action'] == 'buy':
-                        recommendation['suggested_entry'] = current_price * 0.995  # 0.5% below
-                        recommendation['suggested_exit'] = current_price * 1.02   # 2% above
-                        recommendation['stop_loss'] = current_price * 0.98        # 2% below
+                    if recommendation["action"] == "buy":
+                        recommendation["suggested_entry"] = (
+                            current_price * 0.995
+                        )  # 0.5% below
+                        recommendation["suggested_exit"] = (
+                            current_price * 1.02
+                        )  # 2% above
+                        recommendation["stop_loss"] = current_price * 0.98  # 2% below
                     else:  # sell
-                        recommendation['suggested_entry'] = current_price * 1.005  # 0.5% above
-                        recommendation['suggested_exit'] = current_price * 0.98    # 2% below
-                        recommendation['stop_loss'] = current_price * 1.02         # 2% above
+                        recommendation["suggested_entry"] = (
+                            current_price * 1.005
+                        )  # 0.5% above
+                        recommendation["suggested_exit"] = (
+                            current_price * 0.98
+                        )  # 2% below
+                        recommendation["stop_loss"] = current_price * 1.02  # 2% above
 
             return recommendation
 
         except Exception as e:
             logger.error(f"Recommendation generation error: {e}")
             return {
-                'symbol': symbol,
-                'action': 'hold',
-                'confidence': 0.0,
-                'reasoning': ['Error generating recommendation'],
-                'risk_level': 'unknown'
+                "symbol": symbol,
+                "action": "hold",
+                "confidence": 0.0,
+                "reasoning": ["Error generating recommendation"],
+                "risk_level": "unknown",
             }
 
     def provide_insight(self, context: str = "general") -> str:
@@ -202,35 +228,35 @@ class AITradingCompanion:
             Insight string
         """
         insights_db = {
-            'startup': [
+            "startup": [
                 "Welcome to Nexlify! Always start with testnet mode to familiarize yourself with the platform.",
                 "Pro tip: Set your risk level to 'low' when starting out.",
                 "Remember to configure your BTC withdrawal address for automated profit taking.",
-                "The neural net will automatically scan for the most profitable pairs across exchanges."
+                "The neural net will automatically scan for the most profitable pairs across exchanges.",
             ],
-            'trading': [
+            "trading": [
                 "Never risk more than 2-5% of your portfolio on a single trade.",
                 "The best traders are patient - wait for high-confidence signals.",
                 "Diversification across multiple pairs can reduce overall portfolio risk.",
                 "Set stop-losses on all positions to protect against unexpected moves.",
-                "Monitor the risk score - pairs below 0.3 are generally safer."
+                "Monitor the risk score - pairs below 0.3 are generally safer.",
             ],
-            'profit': [
+            "profit": [
                 "Consider taking partial profits at predetermined levels.",
                 "Consistent small gains compound into significant returns over time.",
                 "Don't forget to account for fees when calculating profitability.",
-                "Automated profit withdrawal to BTC can help secure your gains."
+                "Automated profit withdrawal to BTC can help secure your gains.",
             ],
-            'general': [
+            "general": [
                 "Market conditions change - stay adaptable.",
                 "The AI continuously learns from market patterns.",
                 "Check the audit trail regularly for complete transparency.",
-                "High volatility means both higher risk and higher opportunity."
-            ]
+                "High volatility means both higher risk and higher opportunity.",
+            ],
         }
 
         # Get insights for context
-        available_insights = insights_db.get(context, insights_db['general'])
+        available_insights = insights_db.get(context, insights_db["general"])
 
         # Return a random insight that hasn't been shown recently
         unused_insights = [i for i in available_insights if i not in self.last_insights]
@@ -251,10 +277,10 @@ class AITradingCompanion:
 
     def _format_message(self, message: str) -> str:
         """Format message based on personality"""
-        if self.personality == 'cyberpunk':
+        if self.personality == "cyberpunk":
             prefixes = ["[NEURAL-LINK] ", "[CYBER-TIP] ", "[MATRIX] "]
             return random.choice(prefixes) + message
-        elif self.personality == 'friendly':
+        elif self.personality == "friendly":
             prefixes = ["💡 ", "👋 ", "✨ "]
             return random.choice(prefixes) + message
         else:  # professional
@@ -274,24 +300,24 @@ class AITradingCompanion:
             summary_parts = []
 
             # Trades executed
-            trades_count = trading_data.get('trades_count', 0)
+            trades_count = trading_data.get("trades_count", 0)
             summary_parts.append(f"Executed {trades_count} trades today")
 
             # Win rate
-            win_rate = trading_data.get('win_rate', 0)
+            win_rate = trading_data.get("win_rate", 0)
             if win_rate > 0:
                 summary_parts.append(f"Win rate: {win_rate*100:.1f}%")
 
             # Profit/Loss
-            total_profit = trading_data.get('total_profit', 0)
+            total_profit = trading_data.get("total_profit", 0)
             if total_profit > 0:
                 summary_parts.append(f"Total profit: +${total_profit:.2f}")
             elif total_profit < 0:
                 summary_parts.append(f"Total loss: -${abs(total_profit):.2f}")
 
             # Most profitable pair
-            if 'best_pair' in trading_data:
-                best_pair = trading_data['best_pair']
+            if "best_pair" in trading_data:
+                best_pair = trading_data["best_pair"]
                 summary_parts.append(f"Top performer: {best_pair}")
 
             if summary_parts:
@@ -316,42 +342,60 @@ class AITradingCompanion:
         # Simple keyword-based responses (could be enhanced with NLP)
         question_lower = question.lower()
 
-        if 'risk' in question_lower:
-            return ("Risk management is crucial in trading. The platform offers three risk levels: "
-                   "Low (conservative), Medium (balanced), and High (aggressive). Choose based on "
-                   "your risk tolerance and experience level.")
+        if "risk" in question_lower:
+            return (
+                "Risk management is crucial in trading. The platform offers three risk levels: "
+                "Low (conservative), Medium (balanced), and High (aggressive). Choose based on "
+                "your risk tolerance and experience level."
+            )
 
-        elif 'arbitrage' in question_lower:
-            return ("Arbitrage involves buying an asset on one exchange and simultaneously selling "
-                   "it on another where the price is higher. The neural net automatically scans "
-                   "for arbitrage opportunities across all connected exchanges.")
+        elif "arbitrage" in question_lower:
+            return (
+                "Arbitrage involves buying an asset on one exchange and simultaneously selling "
+                "it on another where the price is higher. The neural net automatically scans "
+                "for arbitrage opportunities across all connected exchanges."
+            )
 
-        elif 'fee' in question_lower or 'fees' in question_lower:
-            return ("All trades account for exchange fees, gas fees (for blockchain assets), and "
-                   "withdrawal fees. The displayed profit is the NET profit after all fees.")
+        elif "fee" in question_lower or "fees" in question_lower:
+            return (
+                "All trades account for exchange fees, gas fees (for blockchain assets), and "
+                "withdrawal fees. The displayed profit is the NET profit after all fees."
+            )
 
-        elif 'withdraw' in question_lower:
-            return ("Profits can be automatically withdrawn to your BTC wallet. Set your BTC address "
-                   "in settings and configure auto-withdrawal thresholds.")
+        elif "withdraw" in question_lower:
+            return (
+                "Profits can be automatically withdrawn to your BTC wallet. Set your BTC address "
+                "in settings and configure auto-withdrawal thresholds."
+            )
 
-        elif 'testnet' in question_lower:
-            return ("Testnet mode allows you to test strategies with fake money on exchange test "
-                   "networks. Always enable testnet when learning the platform!")
+        elif "testnet" in question_lower:
+            return (
+                "Testnet mode allows you to test strategies with fake money on exchange test "
+                "networks. Always enable testnet when learning the platform!"
+            )
 
-        elif 'indicator' in question_lower or 'rsi' in question_lower or 'macd' in question_lower:
-            return ("The platform uses multiple technical indicators: RSI (momentum), MACD (trend), "
-                   "Bollinger Bands (volatility), and more. These help identify trading opportunities.")
+        elif (
+            "indicator" in question_lower
+            or "rsi" in question_lower
+            or "macd" in question_lower
+        ):
+            return (
+                "The platform uses multiple technical indicators: RSI (momentum), MACD (trend), "
+                "Bollinger Bands (volatility), and more. These help identify trading opportunities."
+            )
 
         else:
-            return ("I can help with questions about risk management, arbitrage, fees, withdrawals, "
-                   "indicators, and platform features. What would you like to know?")
+            return (
+                "I can help with questions about risk management, arbitrage, fees, withdrawals, "
+                "indicators, and platform features. What would you like to know?"
+            )
 
     def log_interaction(self, user_message: str, ai_response: str):
         """Log conversation interaction"""
         interaction = {
-            'timestamp': datetime.now().isoformat(),
-            'user': user_message,
-            'ai': ai_response
+            "timestamp": datetime.now().isoformat(),
+            "user": user_message,
+            "ai": ai_response,
         }
 
         self.conversation_history.append(interaction)
