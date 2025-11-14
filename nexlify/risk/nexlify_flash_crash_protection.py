@@ -141,6 +141,12 @@ class FlashCrashProtection:
             {}
         )  # symbol -> timeframe -> prices
         self.volume_history: Dict[str, deque] = {}  # symbol -> volumes
+        self.halted_symbols: List[str] = []  # Symbols with trading halted
+
+        # Crash detection config for tests
+        self.price_drop_threshold = self.config.get("price_drop_threshold", 10.0)
+        self.time_window_seconds = self.config.get("time_window_seconds", 60)
+        self.min_volume_spike = self.config.get("min_volume_spike", 3.0)
 
         # Maximum history to keep (in data points)
         self.max_history = {
@@ -622,6 +628,79 @@ class FlashCrashProtection:
             logger.error(f"Failed to read event history: {e}")
 
         return events
+
+    # Backward compatibility methods for tests
+
+    def detect_flash_crash(self, price_data: Dict) -> bool:
+        """
+        Simple crash detection based on price drop and volume spike
+
+        Args:
+            price_data: Dict with previous_price, current_price, volume, avg_volume
+
+        Returns:
+            True if flash crash detected
+        """
+        previous_price = price_data.get("previous_price", 0)
+        current_price = price_data.get("current_price", 0)
+        volume = price_data.get("volume", 0)
+        avg_volume = price_data.get("avg_volume", 1)
+
+        if previous_price == 0:
+            return False
+
+        # Calculate price drop percentage
+        price_drop = self.calculate_price_drop(previous_price, current_price)
+
+        # Calculate volume spike
+        volume_spike = self.calculate_volume_spike(volume, avg_volume)
+
+        # Detect crash if both conditions met
+        is_crash = (
+            price_drop >= self.price_drop_threshold
+            and volume_spike >= self.min_volume_spike
+        )
+
+        return is_crash
+
+    def calculate_price_drop(self, previous_price: float, current_price: float) -> float:
+        """Calculate price drop percentage (absolute value)"""
+        if previous_price == 0:
+            return 0.0
+        drop = ((previous_price - current_price) / previous_price) * 100
+        return abs(drop)
+
+    def calculate_volume_spike(self, current_volume: float, average_volume: float) -> float:
+        """Calculate volume spike multiplier"""
+        if average_volume == 0:
+            return 0.0
+        return current_volume / average_volume
+
+    def halt_trading(self, symbol: str) -> bool:
+        """Halt trading for a specific symbol"""
+        if symbol not in self.halted_symbols:
+            self.halted_symbols.append(symbol)
+            logger.warning(f"⚠️ Trading halted for {symbol}")
+        return True
+
+    def resume_trading(self, symbol: str) -> bool:
+        """Resume trading for a specific symbol"""
+        if symbol in self.halted_symbols:
+            self.halted_symbols.remove(symbol)
+            logger.info(f"✅ Trading resumed for {symbol}")
+        return True
+
+    def get_protected_symbols(self) -> List[str]:
+        """Get list of symbols with halted trading"""
+        return self.halted_symbols.copy()
+
+    def check_recovery(self, symbol: str, current_price: float, crash_price: float) -> bool:
+        """Check if market has recovered from crash"""
+        if crash_price == 0:
+            return False
+
+        recovery_percent = ((current_price - crash_price) / crash_price) * 100
+        return recovery_percent >= (self.recovery_threshold * 100)
 
 
 # Usage example
