@@ -120,8 +120,11 @@ class AuditManager:
             else:
                 logger.info(log_message)
 
+            return True  # Return success for test compatibility
+
         except Exception as e:
             error_handler.log_error(e, "Failed to log audit event", severity="error")
+            return False
 
     # Convenience methods for common audit events
 
@@ -417,6 +420,45 @@ class AuditManager:
 
         except Exception as e:
             logger.error(f"Error cleaning up old audits: {e}")
+
+    # Backward compatibility methods for tests
+    @property
+    def enabled(self) -> bool:
+        """Check if audit trail is enabled (always True)"""
+        return True
+
+    async def log_security_event(self, event_type: str, details: Dict = None):
+        """Log security event (backward compatibility)"""
+        return await self.audit_security_event("system", event_type, details or {})
+
+    def get_events(self, limit: int = 100) -> list:
+        """Get recent events (backward compatibility)"""
+        return self.get_recent_events(event_type=None, limit=limit)
+
+    def get_events_by_action(self, action: str, limit: int = 100) -> list:
+        """Get events by action type (backward compatibility)"""
+        return self.get_recent_events(event_type=action, limit=limit)
+
+    def get_events_by_user(self, username: str, limit: int = 100) -> list:
+        """Get events by username (backward compatibility)"""
+        events = self.get_recent_events(event_type=None, limit=limit)
+        return [e for e in events if e.get("username") == username]
+
+    def export_log(self, path: str, format: str = "json") -> bool:
+        """Export audit log to file (backward compatibility)"""
+        try:
+            import json
+            events = self.get_recent_events(limit=10000)
+            with open(path, "w") as f:
+                if format == "json":
+                    json.dump(events, f, indent=2)
+                else:
+                    for event in events:
+                        f.write(json.dumps(event) + "\n")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to export audit log: {e}")
+            return False
 
 
 # Alias for backward compatibility with tests

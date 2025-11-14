@@ -265,7 +265,9 @@ class ReplayBuffer:
 
     def sample(self, batch_size: int) -> List:
         """Sample random batch from buffer"""
-        return random.sample(self.buffer, batch_size)
+        # Handle case where batch_size > buffer size
+        actual_batch_size = min(batch_size, len(self.buffer))
+        return random.sample(self.buffer, actual_batch_size)
 
     def __len__(self):
         return len(self.buffer)
@@ -418,7 +420,7 @@ class DQNAgent:
         """Train on batch from replay buffer"""
         batch_size = batch_size or self.batch_size
         if len(self.memory) < batch_size:
-            return None
+            return 0.0  # Return 0 loss when insufficient data (test compatibility)
 
         try:
             import torch

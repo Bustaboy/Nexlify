@@ -432,6 +432,31 @@ class SecuritySuite:
 
         return results
 
+    # Backward compatibility methods for tests
+    def encrypt(self, data: str) -> str:
+        """Encrypt data using encryption manager"""
+        return self.encryption_manager.encrypt(data)
+
+    def decrypt(self, encrypted_data: str) -> str:
+        """Decrypt data using encryption manager"""
+        return self.encryption_manager.decrypt(encrypted_data)
+
+    def hash_data(self, data: str) -> str:
+        """Hash data using encryption manager"""
+        return self.encryption_manager.hash_data(data)
+
+    def verify_hash(self, data: str, hash_value: str) -> bool:
+        """Verify data hash using encryption manager"""
+        return self.encryption_manager.verify_hash(data, hash_value)
+
+    def generate_api_key(self, user: str = None) -> str:
+        """Generate API key using encryption manager"""
+        return self.encryption_manager.generate_api_key(user or self.authenticated_user or "default")
+
+    def validate_api_key(self, api_key: str, user: str = None) -> bool:
+        """Validate API key using encryption manager"""
+        return self.encryption_manager.validate_api_key(api_key, user or self.authenticated_user or "default")
+
 
 # Usage example and testing
 if __name__ == "__main__":

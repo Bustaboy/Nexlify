@@ -613,6 +613,23 @@ class PINManager:
             logger.error(f"Failed to read audit log: {e}")
             return []
 
+    # Backward compatibility properties and methods for tests
+    @property
+    def max_attempts(self) -> int:
+        """Get max failed attempts (backward compatibility)"""
+        return self.pin_config.max_failed_attempts
+
+    def set_pin(self, pin: str, username: str = "default") -> bool:
+        """Set PIN for user (backward compatibility wrapper for setup_pin)"""
+        success, message = self.setup_pin(username, pin)
+        return success
+
+    def reset_attempts(self, username: str = "default"):
+        """Reset failed attempt count for user"""
+        if username in self.failed_attempts:
+            self.failed_attempts[username] = []
+        logger.info(f"Reset attempts for {username}")
+
 
 # Usage example
 if __name__ == "__main__":
