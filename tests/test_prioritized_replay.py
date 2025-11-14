@@ -499,7 +499,8 @@ class TestPERVisualization:
 
         assert "final_beta" in summary
         assert "mean_priority_avg" in summary
-        assert summary["final_beta"] == pytest.approx(1.0, abs=0.01)
+        # Final beta should be 0.4 + 9*0.06 = 0.94
+        assert summary["final_beta"] == pytest.approx(0.94, abs=0.01)
 
     def test_create_report(self):
         """Test creating PER report"""

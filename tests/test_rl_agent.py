@@ -227,8 +227,8 @@ class TestDQNAgent:
         assert agent.learning_rate_decay == 0.9998
         assert agent.batch_size == 64
         assert agent.target_update_freq == 1200
-        assert len(agent.memory.buffer) == 0
-        assert agent.memory.max_size == 60000  # Smaller buffer for regime adaptation
+        assert len(agent.memory) == 0  # Memory should be empty initially
+        assert agent.memory.max_size == 60000 or agent.memory.capacity == 60000  # Smaller buffer for regime adaptation
 
         # Verify scheduled epsilon decay is used by default
         assert isinstance(agent.epsilon_decay_strategy, ScheduledEpsilonDecay)

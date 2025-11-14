@@ -856,17 +856,19 @@ class DQNAgent:
                 target_q_values = rewards + (1 - dones) * self.gamma * next_q_values
 
             # Compute TD errors (for PER priority updates)
-            td_errors = (target_q_values - current_q_values.squeeze()).detach()
+            # Ensure consistent shapes for TD error calculation
+            current_q = current_q_values.squeeze(1)  # [batch_size, 1] -> [batch_size]
+            td_errors = (target_q_values - current_q).detach()
 
             # Compute loss (with IS weights if using PER)
             if self.use_per and is_weights is not None:
                 # Apply importance sampling weights to each sample's loss
                 element_wise_loss = torch.nn.functional.mse_loss(
-                    current_q_values.squeeze(), target_q_values, reduction='none'
+                    current_q, target_q_values, reduction='none'
                 )
                 loss = (is_weights * element_wise_loss).mean()
             else:
-                loss = self.criterion(current_q_values.squeeze(), target_q_values)
+                loss = self.criterion(current_q, target_q_values)
 
             # Backpropagation
             self.optimizer.zero_grad()
