@@ -163,6 +163,39 @@ class TradingEnvironment:
             f"   Reward function: {'Improved (risk-adjusted)' if use_improved_rewards else 'Legacy'}"
         )
 
+    def _run_async_in_context(self, coro):
+        """
+        Run async coroutine when already in an async context.
+        Uses a separate thread to avoid 'event loop already running' error.
+        """
+        import asyncio
+        import concurrent.futures
+        import threading
+
+        result = [None]
+        exception = [None]
+
+        def run_in_thread():
+            try:
+                # Create new event loop for this thread
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    result[0] = loop.run_until_complete(coro)
+                finally:
+                    loop.close()
+            except Exception as e:
+                exception[0] = e
+
+        thread = threading.Thread(target=run_in_thread)
+        thread.start()
+        thread.join()
+
+        if exception[0]:
+            raise exception[0]
+
+        return result[0]
+
     def reset(self) -> np.ndarray:
         """
         Reset environment to initial state
@@ -286,22 +319,39 @@ class TradingEnvironment:
         # Execute in paper trading engine if enabled
         if self.use_paper_trading:
             import asyncio
+            import inspect
 
+            # Check if we're already in an async context
             try:
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
+                # We're in an async context - use asyncio.ensure_future and wait
+                # Since we can't await in a non-async function, we need to run synchronously
+                # The best approach is to make the paper trading calls synchronous
+                result = self._run_async_in_context(
+                    self.paper_engine.place_order(
+                        "BTC/USDT",
+                        "buy",
+                        amount,
+                        self.current_price,
+                        strategy="rl_training",
+                    )
+                )
             except RuntimeError:
+                # No event loop running - create one and run
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-
-            result = loop.run_until_complete(
-                self.paper_engine.place_order(
-                    "BTC/USDT",
-                    "buy",
-                    amount,
-                    self.current_price,
-                    strategy="rl_training",
-                )
-            )
+                try:
+                    result = loop.run_until_complete(
+                        self.paper_engine.place_order(
+                            "BTC/USDT",
+                            "buy",
+                            amount,
+                            self.current_price,
+                            strategy="rl_training",
+                        )
+                    )
+                finally:
+                    loop.close()
 
             if not result.get("success"):
                 return False
@@ -339,21 +389,35 @@ class TradingEnvironment:
         if self.use_paper_trading:
             import asyncio
 
+            # Check if we're already in an async context
             try:
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
+                # We're in an async context - use helper
+                result = self._run_async_in_context(
+                    self.paper_engine.place_order(
+                        "BTC/USDT",
+                        "sell",
+                        amount,
+                        self.current_price,
+                        strategy="rl_training",
+                    )
+                )
             except RuntimeError:
+                # No event loop running - create one and run
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-
-            result = loop.run_until_complete(
-                self.paper_engine.place_order(
-                    "BTC/USDT",
-                    "sell",
-                    amount,
-                    self.current_price,
-                    strategy="rl_training",
-                )
-            )
+                try:
+                    result = loop.run_until_complete(
+                        self.paper_engine.place_order(
+                            "BTC/USDT",
+                            "sell",
+                            amount,
+                            self.current_price,
+                            strategy="rl_training",
+                        )
+                    )
+                finally:
+                    loop.close()
 
             if not result.get("success"):
                 return False
@@ -404,15 +468,23 @@ class TradingEnvironment:
         if self.use_paper_trading and self.position > 0:
             import asyncio
 
+            # Check if we're already in an async context
             try:
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
+                # We're in an async context - use helper
+                self._run_async_in_context(
+                    self.paper_engine.update_positions({"BTC/USDT": self.current_price})
+                )
             except RuntimeError:
+                # No event loop running - create one and run
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-
-            loop.run_until_complete(
-                self.paper_engine.update_positions({"BTC/USDT": self.current_price})
-            )
+                try:
+                    loop.run_until_complete(
+                        self.paper_engine.update_positions({"BTC/USDT": self.current_price})
+                    )
+                finally:
+                    loop.close()
 
     def _calculate_reward(self, action: int, trade_executed: bool) -> float:
         """
