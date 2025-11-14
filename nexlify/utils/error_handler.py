@@ -383,3 +383,6 @@ try:
     import asyncio
 except ImportError:
     asyncio = None
+
+# Alias for backward compatibility with tests
+ErrorHandler = NightCityErrorHandler

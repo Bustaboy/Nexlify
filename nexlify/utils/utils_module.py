@@ -409,3 +409,44 @@ normalize_symbol = crypto_utils.normalize_symbol
 safe_json_load = file_utils.safe_json_load
 safe_json_save = file_utils.safe_json_save
 create_backup = file_utils.create_backup
+
+
+# Utility functions for tests and general use
+def format_currency(amount: float, currency: str = "USD", decimals: int = 2) -> str:
+    """Format amount as currency string"""
+    symbol = "$" if currency == "USD" else currency
+    return f"{symbol}{amount:,.{decimals}f}"
+
+
+def format_percentage(value: float, decimals: int = 2) -> str:
+    """Format value as percentage string"""
+    return f"{value:.{decimals}f}%"
+
+
+def calculate_returns(prices: List[float]) -> List[float]:
+    """Calculate returns from price series"""
+    if len(prices) < 2:
+        return []
+    returns = []
+    for i in range(1, len(prices)):
+        ret = (prices[i] - prices[i - 1]) / prices[i - 1] if prices[i - 1] != 0 else 0
+        returns.append(ret)
+    return returns
+
+
+def safe_divide(numerator: float, denominator: float, default: float = 0.0) -> float:
+    """Safely divide two numbers, returning default if denominator is zero"""
+    if denominator == 0:
+        return default
+    return numerator / denominator
+
+
+def validate_config(config: Dict, required_keys: Optional[List[str]] = None) -> bool:
+    """Validate configuration dictionary"""
+    if not isinstance(config, dict):
+        return False
+    if required_keys:
+        for key in required_keys:
+            if key not in config:
+                return False
+    return True

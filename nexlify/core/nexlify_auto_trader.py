@@ -682,3 +682,7 @@ class AutoExecutionEngine:
             "daily_profit": self.risk_manager.daily_profit,
             "auto_trade_enabled": self.auto_trade_enabled,
         }
+
+
+# Alias for backward compatibility with tests
+AutoTrader = AutoExecutionEngine

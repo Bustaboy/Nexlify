@@ -407,3 +407,7 @@ class AuditManager:
 
         except Exception as e:
             logger.error(f"Error cleaning up old audits: {e}")
+
+
+# Alias for backward compatibility with tests
+AuditTrail = AuditManager
