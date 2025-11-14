@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class EpsilonDecayStrategy(ABC):
     """Base class for epsilon decay strategies"""
 
-    def __init__(self, epsilon_start: float = 1.0, epsilon_end: float = 0.18):
+    def __init__(self, epsilon_start: float = 1.0, epsilon_end: float = 0.22):
         self.epsilon_start = epsilon_start
         self.epsilon_end = epsilon_end
         self.current_epsilon = epsilon_start
@@ -103,16 +103,16 @@ class LinearEpsilonDecay(EpsilonDecayStrategy):
 
     Formula: epsilon = start - (start - end) * (current_step / total_steps)
 
-    Example (Crypto Trading):
-        - Start: 1.0, End: 0.18, Steps: 2000
+    Example (24/7 Crypto Trading):
+        - Start: 1.0, End: 0.22, Steps: 2000
         - Step 0: ε = 1.0
-        - Step 100: ε ≈ 0.959
-        - Step 500: ε ≈ 0.795
-        - Step 1000: ε ≈ 0.59
-        - Step 2000: ε = 0.18 (18% ongoing exploration for crypto market adaptation)
+        - Step 100: ε ≈ 0.961
+        - Step 500: ε ≈ 0.805
+        - Step 1000: ε ≈ 0.61
+        - Step 2000: ε = 0.22 (22% ongoing exploration for crypto market adaptation)
     """
 
-    def __init__(self, epsilon_start: float = 1.0, epsilon_end: float = 0.18,
+    def __init__(self, epsilon_start: float = 1.0, epsilon_end: float = 0.22,
                  decay_steps: int = 2000):
         super().__init__(epsilon_start, epsilon_end)
         self.decay_steps = decay_steps
@@ -146,25 +146,25 @@ class ScheduledEpsilonDecay(EpsilonDecayStrategy):
     Supports defining specific epsilon values at specific steps
     and interpolates between them.
 
-    Example (Crypto Trading):
-        schedule = {0: 1.0, 300: 0.7, 1000: 0.35, 2000: 0.18}
-        - Step 0-300: Linear decay from 1.0 to 0.7 (learn basics)
-        - Step 300-1000: Linear decay from 0.7 to 0.35 (refine strategies)
-        - Step 1000-2000: Linear decay from 0.35 to 0.18 (exploit + adapt)
-        - Step 2000+: Constant at 0.18 (ongoing crypto market exploration)
+    Example (24/7 Crypto Trading - Default):
+        schedule = {0: 1.0, 200: 0.65, 800: 0.35, 2000: 0.22}
+        - Step 0-200: Linear decay from 1.0 to 0.65 (learn basics, ~8 days)
+        - Step 200-800: Linear decay from 0.65 to 0.35 (refine strategies, ~1 month)
+        - Step 800-2000: Linear decay from 0.35 to 0.22 (exploit + adapt, ~2.5 months)
+        - Step 2000+: Constant at 0.22 (high ongoing exploration for regime changes)
     """
 
-    def __init__(self, epsilon_start: float = 1.0, epsilon_end: float = 0.18,
+    def __init__(self, epsilon_start: float = 1.0, epsilon_end: float = 0.22,
                  schedule: Optional[Dict[int, float]] = None):
         super().__init__(epsilon_start, epsilon_end)
 
-        # Default schedule if none provided (optimized for crypto trading)
+        # Default schedule if none provided (optimized for 24/7 crypto trading)
         if schedule is None:
             schedule = {
-                0: 1.0,
-                300: 0.7,
-                1000: 0.35,
-                2000: 0.18
+                0: 1.0,      # Full exploration
+                200: 0.65,   # Learn basics quickly (~8 days)
+                800: 0.35,   # Start exploiting patterns (~1 month)
+                2000: 0.22   # High ongoing exploration (~2.5 months)
             }
 
         # Ensure schedule starts at 0 and ends with epsilon_end
@@ -210,17 +210,17 @@ class ExponentialEpsilonDecay(EpsilonDecayStrategy):
     Better defaults than simple multiplicative decay (0.995).
     Uses decay_steps to automatically calculate appropriate decay_rate.
 
-    Example (Crypto Trading):
-        - Start: 1.0, End: 0.18, Steps: 2000
-        - Decay rate automatically calculated to reach 0.18 at step 2000
+    Example (24/7 Crypto Trading):
+        - Start: 1.0, End: 0.22, Steps: 2000
+        - Decay rate automatically calculated to reach 0.22 at step 2000
         - Step 0: ε = 1.0
-        - Step 100: ε ≈ 0.90
-        - Step 500: ε ≈ 0.65
-        - Step 1000: ε ≈ 0.42
-        - Step 2000: ε = 0.18 (maintains exploration for crypto volatility)
+        - Step 100: ε ≈ 0.92
+        - Step 500: ε ≈ 0.69
+        - Step 1000: ε ≈ 0.47
+        - Step 2000: ε = 0.22 (maintains exploration for crypto volatility)
     """
 
-    def __init__(self, epsilon_start: float = 1.0, epsilon_end: float = 0.18,
+    def __init__(self, epsilon_start: float = 1.0, epsilon_end: float = 0.22,
                  decay_steps: int = 2000, decay_rate: Optional[float] = None):
         super().__init__(epsilon_start, epsilon_end)
 
