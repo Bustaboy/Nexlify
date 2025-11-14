@@ -329,7 +329,7 @@ class DQNAgent:
 
         # Legacy config support - convert old parameters to new system
         epsilon_start = self.config.get("epsilon", 1.0)
-        epsilon_end = self.config.get("epsilon_min", 0.05)
+        epsilon_end = self.config.get("epsilon_min", 0.18)  # Crypto-optimized default
 
         # If old-style epsilon_decay (multiplicative) is provided, use exponential decay
         if "epsilon_decay" in self.config and "epsilon_decay_steps" not in self.config:
