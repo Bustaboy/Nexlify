@@ -193,7 +193,19 @@ def train_1000_rounds(
     use_early_stopping: bool = True,
     early_stopping_patience: int = 30,
     early_stopping_min_delta: float = 0.01,
-    early_stopping_mode: str = 'max'
+    early_stopping_mode: str = 'max',
+    # Advanced validation parameters
+    validation_num_episodes: int = 5,
+    # Overfitting detection parameters
+    overfitting_threshold: float = 0.20,
+    overfitting_window: int = 10,
+    # Phase detection parameters
+    exploration_threshold: float = 0.7,
+    learning_threshold: float = 0.3,
+    # Patience multipliers
+    exploration_patience_multiplier: float = 2.0,
+    learning_patience_multiplier: float = 1.5,
+    exploitation_patience_multiplier: float = 1.0
 ):
     """
     Train ML/RL agent for exactly 1000 rounds with validation and early stopping
@@ -213,6 +225,14 @@ def train_1000_rounds(
         early_stopping_patience: Episodes without improvement before stopping (default: 30)
         early_stopping_min_delta: Minimum improvement threshold (default: 0.01)
         early_stopping_mode: 'max' for metrics to maximize, 'min' for minimize
+        validation_num_episodes: Number of validation episodes to average (default: 5)
+        overfitting_threshold: Overfitting detection threshold (default: 0.20 = 20%)
+        overfitting_window: Window size for overfitting detection (default: 10)
+        exploration_threshold: Epsilon threshold for exploration phase (default: 0.7)
+        learning_threshold: Epsilon threshold for learning phase (default: 0.3)
+        exploration_patience_multiplier: Patience multiplier in exploration (default: 2.0)
+        learning_patience_multiplier: Patience multiplier in learning (default: 1.5)
+        exploitation_patience_multiplier: Patience multiplier in exploitation (default: 1.0)
     """
     TOTAL_EPISODES = 1000
     SAVE_INTERVAL = 50
@@ -329,13 +349,20 @@ def train_1000_rounds(
                 metric=validation_metric,
                 restore_best_weights=True,
                 save_best_model=True,
-                model_save_path=str(checkpoint_path / "best_model.pth")
+                model_save_path=str(checkpoint_path / "best_model.pth"),
+                # Patience multipliers
+                exploration_patience_multiplier=exploration_patience_multiplier,
+                learning_patience_multiplier=learning_patience_multiplier,
+                exploitation_patience_multiplier=exploitation_patience_multiplier
             )
 
-            phase_detector = TrainingPhaseDetector()
+            phase_detector = TrainingPhaseDetector(
+                exploration_threshold=exploration_threshold,
+                learning_threshold=learning_threshold
+            )
             overfitting_detector = OverfittingDetector(
-                overfitting_threshold=0.20,  # 20% difference threshold
-                window_size=10
+                overfitting_threshold=overfitting_threshold,
+                window_size=overfitting_window
             )
 
             early_stopping = EarlyStopping(
@@ -516,7 +543,7 @@ def train_1000_rounds(
                     agent=agent,
                     val_env=val_env,
                     current_episode=episode + 1,
-                    num_episodes=5  # Average over 5 validation episodes
+                    num_episodes=validation_num_episodes
                 )
 
                 # Update best validation
@@ -1050,6 +1077,66 @@ def main():
         help='Minimum improvement threshold for early stopping (default: 0.01)'
     )
 
+    # Advanced validation arguments
+    parser.add_argument(
+        '--validation-episodes',
+        type=int,
+        default=5,
+        help='Number of validation episodes to average (default: 5)'
+    )
+
+    # Overfitting detection arguments
+    parser.add_argument(
+        '--overfitting-threshold',
+        type=float,
+        default=0.20,
+        help='Overfitting detection threshold as fraction (default: 0.20 = 20%%)'
+    )
+
+    parser.add_argument(
+        '--overfitting-window',
+        type=int,
+        default=10,
+        help='Window size for overfitting detection (default: 10)'
+    )
+
+    # Training phase detection arguments
+    parser.add_argument(
+        '--exploration-threshold',
+        type=float,
+        default=0.7,
+        help='Epsilon threshold for exploration phase (default: 0.7)'
+    )
+
+    parser.add_argument(
+        '--learning-threshold',
+        type=float,
+        default=0.3,
+        help='Epsilon threshold for learning phase (default: 0.3)'
+    )
+
+    # Patience multiplier arguments
+    parser.add_argument(
+        '--exploration-patience-mult',
+        type=float,
+        default=2.0,
+        help='Patience multiplier during exploration (default: 2.0)'
+    )
+
+    parser.add_argument(
+        '--learning-patience-mult',
+        type=float,
+        default=1.5,
+        help='Patience multiplier during learning (default: 1.5)'
+    )
+
+    parser.add_argument(
+        '--exploitation-patience-mult',
+        type=float,
+        default=1.0,
+        help='Patience multiplier during exploitation (default: 1.0)'
+    )
+
     args = parser.parse_args()
 
     # Train agent
@@ -1070,7 +1157,19 @@ def main():
             use_early_stopping=args.use_early_stopping,
             early_stopping_patience=args.patience,
             early_stopping_min_delta=args.min_delta,
-            early_stopping_mode='max'  # Sharpe/return/win_rate should all be maximized
+            early_stopping_mode='max',  # Sharpe/return/win_rate should all be maximized
+            # Advanced validation parameters
+            validation_num_episodes=args.validation_episodes,
+            # Overfitting detection parameters
+            overfitting_threshold=args.overfitting_threshold,
+            overfitting_window=args.overfitting_window,
+            # Phase detection parameters
+            exploration_threshold=args.exploration_threshold,
+            learning_threshold=args.learning_threshold,
+            # Patience multipliers
+            exploration_patience_multiplier=args.exploration_patience_mult,
+            learning_patience_multiplier=args.learning_patience_mult,
+            exploitation_patience_multiplier=args.exploitation_patience_mult
         )
 
         print("\n" + "=" * 80)
