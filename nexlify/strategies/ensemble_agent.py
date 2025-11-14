@@ -176,7 +176,6 @@ class EnsembleManager:
             pass
         return "cpu"
 
-    @handle_errors
     def add_model(
         self,
         model_path: str,
@@ -281,7 +280,6 @@ class EnsembleManager:
 
         logger.info(f"🧠 Initialized stacking meta-model ({num_models} base models)")
 
-    @handle_errors
     def load_ensemble_from_directory(
         self,
         models_dir: str,
@@ -335,7 +333,6 @@ class EnsembleManager:
 
         return loaded_count
 
-    @handle_errors
     def select_diverse_models(
         self,
         candidate_models: List[Tuple[str, float]],
@@ -451,7 +448,6 @@ class EnsembleManager:
 
         return diversity_score
 
-    @handle_errors
     def predict(
         self,
         state: np.ndarray,

@@ -213,7 +213,6 @@ class EnsembleTrainer:
 
         return config
 
-    @handle_errors
     def train_ensemble(self) -> List[ModelTrainingResult]:
         """
         Train all models in ensemble
