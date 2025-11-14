@@ -194,6 +194,12 @@ class EnsembleManager:
             True if model added successfully
         """
         try:
+            # Check if model file exists
+            model_file = Path(model_path)
+            if not model_file.exists():
+                logger.error(f"Model file not found: {model_path}")
+                return False
+
             # Create agent instance
             agent = DQNAgent(
                 state_size=self.state_size,
