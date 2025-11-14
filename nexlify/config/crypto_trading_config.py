@@ -58,6 +58,34 @@ class CryptoTradingConfig:
     replay_buffer_size: int = 60000
 
     # ========================================================================
+    # PRIORITIZED EXPERIENCE REPLAY (PER) SETTINGS
+    # ========================================================================
+
+    # Enable Prioritized Experience Replay
+    use_prioritized_replay: bool = True
+
+    # Priority exponent (0=uniform, 1=full prioritization)
+    # Higher values focus more on high-priority experiences
+    per_alpha: float = 0.6
+
+    # Importance sampling correction (0=no correction, 1=full correction)
+    # Starts lower to allow faster learning, increases to reduce bias
+    per_beta_start: float = 0.4
+
+    # Final importance sampling correction value
+    per_beta_end: float = 1.0
+
+    # Steps to anneal beta from start to end
+    # Crypto context: 10000 steps ≈ 100-200 episodes
+    per_beta_annealing_steps: int = 10000
+
+    # Small constant added to TD error to prevent zero priorities
+    per_epsilon: float = 1e-6
+
+    # Maximum priority value (None=no clipping)
+    per_priority_clip: Optional[float] = None
+
+    # ========================================================================
     # EPSILON DECAY SETTINGS
     # ========================================================================
 
@@ -282,6 +310,15 @@ class CryptoTradingConfig:
             "batch_size": self.batch_size,
             "target_update_freq": self.target_update_freq,
             "replay_buffer_size": self.replay_buffer_size,
+
+            # Prioritized Experience Replay
+            "use_prioritized_replay": self.use_prioritized_replay,
+            "per_alpha": self.per_alpha,
+            "per_beta_start": self.per_beta_start,
+            "per_beta_end": self.per_beta_end,
+            "per_beta_annealing_steps": self.per_beta_annealing_steps,
+            "per_epsilon": self.per_epsilon,
+            "per_priority_clip": self.per_priority_clip,
 
             # Timeframe for gamma selection
             "timeframe": self.timeframe,

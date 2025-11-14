@@ -20,6 +20,14 @@ from nexlify.strategies.gamma_selector import GammaSelector, get_recommended_gam
 from nexlify.config.crypto_trading_config import CRYPTO_24_7_CONFIG, FEATURE_PERIODS
 from nexlify.config.fee_providers import FeeProvider, FeeEstimate
 
+# Prioritized Experience Replay
+try:
+    from nexlify.memory.prioritized_replay_buffer import PrioritizedReplayBuffer
+    PER_AVAILABLE = True
+except ImportError:
+    PER_AVAILABLE = False
+    logger.warning("PrioritizedReplayBuffer not available - using standard replay buffer")
+
 # Training optimization utilities
 try:
     from nexlify.training.training_optimizers import GradientClipper, LRSchedulerManager
@@ -553,7 +561,36 @@ class DQNAgent:
 
         # Experience replay (optimized for regime adaptation)
         replay_buffer_size = self.config.get("replay_buffer_size", CRYPTO_24_7_CONFIG.replay_buffer_size)
-        self.memory = ReplayBuffer(capacity=replay_buffer_size)
+
+        # Use Prioritized Experience Replay if enabled and available
+        use_per = self.config.get("use_prioritized_replay", CRYPTO_24_7_CONFIG.use_prioritized_replay)
+
+        if use_per and PER_AVAILABLE:
+            per_alpha = self.config.get("per_alpha", CRYPTO_24_7_CONFIG.per_alpha)
+            per_beta_start = self.config.get("per_beta_start", CRYPTO_24_7_CONFIG.per_beta_start)
+            per_beta_end = self.config.get("per_beta_end", CRYPTO_24_7_CONFIG.per_beta_end)
+            per_beta_annealing_steps = self.config.get(
+                "per_beta_annealing_steps", CRYPTO_24_7_CONFIG.per_beta_annealing_steps
+            )
+            per_epsilon = self.config.get("per_epsilon", CRYPTO_24_7_CONFIG.per_epsilon)
+            per_priority_clip = self.config.get("per_priority_clip", CRYPTO_24_7_CONFIG.per_priority_clip)
+
+            self.memory = PrioritizedReplayBuffer(
+                capacity=replay_buffer_size,
+                alpha=per_alpha,
+                beta_start=per_beta_start,
+                beta_end=per_beta_end,
+                beta_annealing_steps=per_beta_annealing_steps,
+                epsilon=per_epsilon,
+                priority_clip=per_priority_clip,
+            )
+            self.use_per = True
+            logger.info(f"✨ Using Prioritized Experience Replay (alpha={per_alpha}, beta={per_beta_start}→{per_beta_end})")
+        else:
+            self.memory = ReplayBuffer(capacity=replay_buffer_size)
+            self.use_per = False
+            if use_per and not PER_AVAILABLE:
+                logger.warning("⚠️  PER requested but not available - using standard replay buffer")
 
         # Neural network models
         self.model = None
@@ -781,9 +818,20 @@ class DQNAgent:
         try:
             import torch
 
-            # Sample batch
-            batch = self.memory.sample(batch_size)
-            states, actions, rewards, next_states, dones = zip(*batch)
+            # Sample batch (different for PER vs standard)
+            if self.use_per:
+                batch, indices, is_weights = self.memory.sample(batch_size)
+                states, actions, rewards, next_states, dones = zip(*batch)
+
+                # Convert IS weights to tensor
+                is_weights = torch.FloatTensor(is_weights)
+                if self.device == "cuda":
+                    is_weights = is_weights.cuda()
+            else:
+                batch = self.memory.sample(batch_size)
+                states, actions, rewards, next_states, dones = zip(*batch)
+                indices = None
+                is_weights = None
 
             # Convert to tensors
             states = torch.FloatTensor(np.array(states))
@@ -807,8 +855,18 @@ class DQNAgent:
                 next_q_values = self.target_model(next_states).max(1)[0]
                 target_q_values = rewards + (1 - dones) * self.gamma * next_q_values
 
-            # Compute loss
-            loss = self.criterion(current_q_values.squeeze(), target_q_values)
+            # Compute TD errors (for PER priority updates)
+            td_errors = (target_q_values - current_q_values.squeeze()).detach()
+
+            # Compute loss (with IS weights if using PER)
+            if self.use_per and is_weights is not None:
+                # Apply importance sampling weights to each sample's loss
+                element_wise_loss = torch.nn.functional.mse_loss(
+                    current_q_values.squeeze(), target_q_values, reduction='none'
+                )
+                loss = (is_weights * element_wise_loss).mean()
+            else:
+                loss = self.criterion(current_q_values.squeeze(), target_q_values)
 
             # Backpropagation
             self.optimizer.zero_grad()
@@ -827,6 +885,12 @@ class DQNAgent:
 
             # Optimizer step
             self.optimizer.step()
+
+            # Update priorities in PER buffer
+            if self.use_per and indices is not None:
+                # Convert TD errors to numpy for priority update
+                td_errors_np = td_errors.cpu().numpy() if self.device == "cuda" else td_errors.numpy()
+                self.memory.update_priorities(indices, td_errors_np)
 
             # LR scheduling (if enabled)
             current_lr = self.learning_rate
@@ -848,6 +912,14 @@ class DQNAgent:
                         'gradient_norm_before': gradient_norm_before,
                         'gradient_norm_after': gradient_norm_after,
                         'gradient_clipped': gradient_clipped,
+                    })
+
+                # Track PER stats if enabled
+                if self.use_per:
+                    per_stats = self.memory.get_stats()
+                    training_info.update({
+                        'per_beta': per_stats['beta'],
+                        'per_mean_priority': per_stats['mean_priority'],
                     })
 
                 # Only store every 10th step to avoid memory bloat
@@ -875,6 +947,17 @@ class DQNAgent:
             "style": self.gamma_selector.get_style_name(),
             "timeframe": self.gamma_selector.timeframe
         }
+
+    def get_per_stats(self) -> Optional[Dict[str, Any]]:
+        """
+        Get Prioritized Experience Replay statistics
+
+        Returns:
+            Dictionary of PER statistics if PER is enabled, None otherwise
+        """
+        if self.use_per:
+            return self.memory.get_stats()
+        return None
 
     def save(self, filepath: str):
         """Save model to file"""
@@ -975,7 +1058,7 @@ class DQNAgent:
             )
 
             gamma_info = self.get_gamma_info()
-            return (
+            summary = (
                 f"DQN Agent Model Summary\n"
                 f"{'='*50}\n"
                 f"Type: PyTorch DQN\n"
@@ -988,6 +1071,21 @@ class DQNAgent:
                 f"Learning Rate: {self.learning_rate}\n"
                 f"Gamma: {self.gamma:.3f} ({gamma_info['style']}, timeframe: {gamma_info['timeframe']})\n"
             )
+
+            # Add PER info if enabled
+            if self.use_per:
+                per_stats = self.get_per_stats()
+                summary += (
+                    f"Replay Buffer: Prioritized (PER)\n"
+                    f"  Size: {per_stats['size']}/{per_stats['capacity']}\n"
+                    f"  Alpha: {per_stats['alpha']:.2f}\n"
+                    f"  Beta: {per_stats['beta']:.3f}\n"
+                    f"  Mean Priority: {per_stats['mean_priority']:.4f}\n"
+                )
+            else:
+                summary += f"Replay Buffer: Standard (size: {len(self.memory)})\n"
+
+            return summary
 
         except Exception as e:
             logger.error(f"Model summary error: {e}")
