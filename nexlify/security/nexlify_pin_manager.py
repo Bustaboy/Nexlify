@@ -160,7 +160,8 @@ class PINManager:
 
     def __init__(self, config: Dict, encryption_manager=None):
         """Initialize PIN Manager"""
-        pin_config = config.get("pin_authentication", {})
+        # Support both pin_authentication and pin_security for backward compatibility
+        pin_config = config.get("pin_authentication", config.get("pin_security", {}))
 
         # PIN configuration
         self.pin_config = PINConfig(
@@ -464,20 +465,20 @@ class PINManager:
             )
             return False, "Authentication error"
 
-    def change_pin(self, username: str, old_pin: str, new_pin: str) -> Tuple[bool, str]:
+    def change_pin(self, old_pin: str, new_pin: str, username: str = "default") -> Tuple[bool, str]:
         """
         Change user PIN
 
         Args:
-            username: Username
             old_pin: Current PIN
             new_pin: New PIN
+            username: Username (default: "default")
 
         Returns:
             (success, message)
         """
         # Verify old PIN first
-        success, message = self.verify_pin(username, old_pin)
+        success, message = self.verify_pin(old_pin, username)
         if not success:
             return False, "Current PIN is incorrect"
 
