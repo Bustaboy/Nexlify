@@ -1,14 +1,81 @@
-name: Nexlify Training Pipeline Tests
+name: Nexlify Test Suite
 
 on:
   push:
     branches: [ main, develop, claude/** ]
+    paths:
+      - 'nexlify/**/*.py'
+      - 'tests/**/*.py'
+      - 'requirements.txt'
+      - 'setup.py'
+      - 'pytest.ini'
+      - '.github/workflows/tests.yml'
   pull_request:
     branches: [ main, develop ]
+    paths:
+      - 'nexlify/**/*.py'
+      - 'tests/**/*.py'
+      - 'requirements.txt'
+      - 'setup.py'
+      - 'pytest.ini'
+
+# Cancel in-progress runs when a new run is triggered
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test:
+  # Quick smoke tests for direct pushes to main/develop only
+  quick-tests:
+    name: Quick Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    # Only run on push to main/develop branches (not PR branches)
+    if: |
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') &&
+      !contains(github.event.head_commit.message, '[skip ci]')
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11']  # Only latest version for quick tests
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+        cache-dependency-path: 'requirements.txt'
+
+    - name: Cache pip packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # Install requirements.txt first to get correct versions
+        if [ -f requirements.txt ]; then
+          pip install -r requirements.txt
+        fi
+
+    - name: Run unit tests only (no integration/slow tests)
+      run: |
+        pytest tests/ -v -m "not slow and not integration" --tb=short
+      timeout-minutes: 10
+
+  # Full test suite for pull requests
+  full-tests:
+    name: Full Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
     strategy:
       fail-fast: false
       matrix:
@@ -23,35 +90,146 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
+        cache-dependency-path: 'requirements.txt'
+
+    - name: Cache pip packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}-${{ matrix.python-version }}
+        restore-keys: |
+          ${{ runner.os }}-pip-${{ matrix.python-version }}-
+          ${{ runner.os }}-pip-
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest pytest-cov
+        pip install pytest pytest-cov pytest-asyncio pytest-mock
         pip install torch --index-url https://download.pytorch.org/whl/cpu
-        pip install -r requirements.txt || pip install numpy pandas ccxt scikit-learn matplotlib requests
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-    - name: Run quick tests
+    - name: Run all tests with coverage
       run: |
-        python test_training_pipeline.py --quick
-      continue-on-error: true
-
-    - name: Run pytest with coverage
-      run: |
-        pytest test_training_pipeline.py -v --cov=. --cov-report=xml --cov-report=term -m "not slow"
-      continue-on-error: true
+        pytest tests/ -v --cov=nexlify --cov-report=xml --cov-report=term-missing --cov-report=html -m "not slow"
+      timeout-minutes: 15
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
         file: ./coverage.xml
         flags: unittests
+        name: python-${{ matrix.python-version }}
         fail_ci_if_error: false
 
     - name: Upload coverage HTML report
       uses: actions/upload-artifact@v4
-      if: always()
+      if: matrix.python-version == '3.11'
       with:
-        name: coverage-report-py${{ matrix.python-version }}
+        name: coverage-report-${{ matrix.python-version }}
         path: htmlcov/
-        if-no-files-found: ignore
+        retention-days: 7
+
+  # Integration and slow tests - only on PR to main
+  integration-tests:
+    name: Integration Tests (Python 3.11)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+        cache-dependency-path: 'requirements.txt'
+
+    - name: Cache pip packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-integration-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-integration-
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-asyncio pytest-mock
+        pip install torch --index-url https://download.pytorch.org/whl/cpu
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    - name: Run integration tests
+      run: |
+        pytest tests/ -v -m "integration" --tb=short
+      timeout-minutes: 20
+      continue-on-error: true
+
+    - name: Run slow tests
+      run: |
+        pytest tests/ -v -m "slow" --tb=short
+      timeout-minutes: 30
+      continue-on-error: true
+
+    - name: Run training pipeline test
+      run: |
+        python test_training_pipeline.py --quick
+      timeout-minutes: 10
+      continue-on-error: true
+
+  # Code quality checks
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install quality tools and dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pylint black isort mypy
+        # Install project dependencies for better import resolution
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    - name: Check code formatting with black
+      run: |
+        black --check nexlify/ tests/ || true
+      continue-on-error: true
+
+    - name: Check import sorting with isort
+      run: |
+        isort --check-only nexlify/ tests/ || true
+      continue-on-error: true
+
+    - name: Run pylint
+      run: |
+        pylint nexlify/ --exit-zero --max-line-length=120
+      continue-on-error: true
+
+  # Summary job
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [full-tests]
+    if: always() && github.event_name == 'pull_request'
+
+    steps:
+    - name: Check test results
+      run: |
+        echo "Full tests: ${{ needs.full-tests.result }}"
+
+        if [ "${{ needs.full-tests.result }}" == "failure" ]; then
+          echo "::warning::Some tests failed. Please review the test results."
+        fi

@@ -10,20 +10,23 @@ Fully supports:
 - Per-core performance accounting
 """
 
-import numpy as np
-import psutil
+import logging
 import platform
 import threading
 import time
-import logging
-from typing import Dict, List, Optional, Tuple, Any
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
+import psutil
 
 # Import GPU optimizer
 try:
-    from nexlify.ml.nexlify_gpu_optimizations import GPUOptimizer, GPUCapabilities
+    from nexlify.ml.nexlify_gpu_optimizations import (GPUCapabilities,
+                                                      GPUOptimizer)
+
     GPU_OPTIMIZER_AVAILABLE = True
 except ImportError:
     GPU_OPTIMIZER_AVAILABLE = False
@@ -33,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 class Bottleneck(Enum):
     """Types of system bottlenecks"""
+
     CPU = "cpu"
     GPU = "gpu"
     RAM = "ram"
@@ -45,6 +49,7 @@ class Bottleneck(Enum):
 @dataclass
 class CPUTopology:
     """Detailed CPU topology information"""
+
     physical_cores: int
     logical_cores: int
     has_ht_smt: bool  # Hyperthreading or SMT enabled
@@ -58,6 +63,7 @@ class CPUTopology:
 @dataclass
 class ResourceSnapshot:
     """Snapshot of system resources at a point in time"""
+
     timestamp: float
     cpu_percent: float
     cpu_cores_used: float
@@ -90,10 +96,10 @@ class EnhancedDynamicResourceMonitor:
 
         # Running statistics
         self.running_stats = {
-            'cpu': deque(maxlen=50),
-            'ram': deque(maxlen=50),
-            'gpu': deque(maxlen=50),
-            'vram': deque(maxlen=50)
+            "cpu": deque(maxlen=50),
+            "ram": deque(maxlen=50),
+            "gpu": deque(maxlen=50),
+            "vram": deque(maxlen=50),
         }
 
         # Monitoring thread
@@ -120,12 +126,16 @@ class EnhancedDynamicResourceMonitor:
                 self.gpu_optimizer = None
 
         logger.info("🔍 Enhanced Dynamic Resource Monitor initialized")
-        logger.info(f"   CPU Topology: {self.cpu_topology.physical_cores}P / "
-                   f"{self.cpu_topology.logical_cores}L cores "
-                   f"(HT/SMT: {'Yes' if self.cpu_topology.has_ht_smt else 'No'})")
+        logger.info(
+            f"   CPU Topology: {self.cpu_topology.physical_cores}P / "
+            f"{self.cpu_topology.logical_cores}L cores "
+            f"(HT/SMT: {'Yes' if self.cpu_topology.has_ht_smt else 'No'})"
+        )
         if self.cpu_topology.has_ht_smt:
-            logger.info(f"   Effective cores: {self.cpu_topology.effective_cores:.1f} "
-                       f"(HT efficiency: {self.cpu_topology.ht_efficiency*100:.0f}%)")
+            logger.info(
+                f"   Effective cores: {self.cpu_topology.effective_cores:.1f} "
+                f"(HT efficiency: {self.cpu_topology.ht_efficiency*100:.0f}%)"
+            )
 
     def _detect_cpu_topology(self) -> CPUTopology:
         """
@@ -190,14 +200,16 @@ class EnhancedDynamicResourceMonitor:
             effective_cores=effective_cores,
             architecture=architecture,
             vendor=vendor,
-            per_core_usage=per_core_usage
+            per_core_usage=per_core_usage,
         )
 
     def start_monitoring(self):
         """Start background monitoring thread"""
         if not self.monitoring:
             self.monitoring = True
-            self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
+            self.monitor_thread = threading.Thread(
+                target=self._monitor_loop, daemon=True
+            )
             self.monitor_thread.start()
             logger.info("📊 Enhanced resource monitoring started")
 
@@ -215,10 +227,10 @@ class EnhancedDynamicResourceMonitor:
             self.history.append(snapshot)
 
             # Update running stats
-            self.running_stats['cpu'].append(snapshot.cpu_percent)
-            self.running_stats['ram'].append(snapshot.ram_percent)
-            self.running_stats['gpu'].append(snapshot.gpu_percent)
-            self.running_stats['vram'].append(snapshot.gpu_memory_percent)
+            self.running_stats["cpu"].append(snapshot.cpu_percent)
+            self.running_stats["ram"].append(snapshot.ram_percent)
+            self.running_stats["gpu"].append(snapshot.gpu_percent)
+            self.running_stats["vram"].append(snapshot.gpu_memory_percent)
 
             time.sleep(self.sample_interval)
 
@@ -244,15 +256,15 @@ class EnhancedDynamicResourceMonitor:
             effective_cores=self.cpu_topology.effective_cores,
             architecture=self.cpu_topology.architecture,
             vendor=self.cpu_topology.vendor,
-            per_core_usage=per_core_usage
+            per_core_usage=per_core_usage,
         )
 
         # Calculate effective cores in use
         # Account for SMT efficiency
         if current_topology.has_ht_smt:
             # Split into physical and hyperthreaded cores
-            physical_usage = per_core_usage[:current_topology.physical_cores]
-            ht_usage = per_core_usage[current_topology.physical_cores:]
+            physical_usage = per_core_usage[: current_topology.physical_cores]
+            ht_usage = per_core_usage[current_topology.physical_cores :]
 
             # Effective cores = physical usage + HT usage * efficiency
             physical_cores_used = sum(physical_usage) / 100
@@ -301,7 +313,7 @@ class EnhancedDynamicResourceMonitor:
             gpu_capabilities=gpu_capabilities,
             disk_io_mb_per_sec=disk_io_mb_per_sec,
             bottleneck=bottleneck,
-            overhead_capacity=overhead
+            overhead_capacity=overhead,
         )
 
     def _get_gpu_stats(self) -> Tuple[float, float, float]:
@@ -313,14 +325,20 @@ class EnhancedDynamicResourceMonitor:
                 # Try nvidia-smi first
                 try:
                     import subprocess
+
                     result = subprocess.run(
-                        ['nvidia-smi', '--query-gpu=utilization.gpu,memory.used,memory.total',
-                         '--format=csv,noheader,nounits'],
-                        capture_output=True, text=True, timeout=1
+                        [
+                            "nvidia-smi",
+                            "--query-gpu=utilization.gpu,memory.used,memory.total",
+                            "--format=csv,noheader,nounits",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=1,
                     )
 
                     if result.returncode == 0:
-                        parts = result.stdout.strip().split(',')
+                        parts = result.stdout.strip().split(",")
                         gpu_util = float(parts[0])
                         mem_used_mb = float(parts[1])
                         mem_total_mb = float(parts[2])
@@ -373,8 +391,13 @@ class EnhancedDynamicResourceMonitor:
         except:
             return 0.0
 
-    def _detect_bottleneck(self, cpu_percent: float, ram_percent: float,
-                          gpu_percent: float, vram_percent: float) -> Bottleneck:
+    def _detect_bottleneck(
+        self,
+        cpu_percent: float,
+        ram_percent: float,
+        gpu_percent: float,
+        vram_percent: float,
+    ) -> Bottleneck:
         """Detect the primary bottleneck"""
         bottlenecks = []
 
@@ -393,17 +416,22 @@ class EnhancedDynamicResourceMonitor:
 
         return Bottleneck.NONE
 
-    def _calculate_overhead(self, cpu_percent: float, ram_percent: float,
-                           gpu_percent: float, vram_percent: float) -> Dict[str, float]:
+    def _calculate_overhead(
+        self,
+        cpu_percent: float,
+        ram_percent: float,
+        gpu_percent: float,
+        vram_percent: float,
+    ) -> Dict[str, float]:
         """Calculate available overhead capacity for each component"""
         return {
-            'cpu': max(0, 100 - cpu_percent),
-            'ram': max(0, 100 - ram_percent),
-            'gpu': max(0, 100 - gpu_percent),
-            'vram': max(0, 100 - vram_percent)
+            "cpu": max(0, 100 - cpu_percent),
+            "ram": max(0, 100 - ram_percent),
+            "gpu": max(0, 100 - gpu_percent),
+            "vram": max(0, 100 - vram_percent),
         }
 
-    def calculate_optimal_workers(self, workload_type: str = 'preprocessing') -> int:
+    def calculate_optimal_workers(self, workload_type: str = "preprocessing") -> int:
         """
         Calculate optimal number of worker threads considering hyperthreading/SMT
 
@@ -417,7 +445,7 @@ class EnhancedDynamicResourceMonitor:
         snapshot = self.take_snapshot()
 
         # Get available CPU capacity
-        cpu_overhead = snapshot.overhead_capacity['cpu']
+        cpu_overhead = snapshot.overhead_capacity["cpu"]
 
         if cpu_overhead < 10:
             # CPU saturated - minimal workers
@@ -427,18 +455,18 @@ class EnhancedDynamicResourceMonitor:
         available_effective_cores = topology.effective_cores * (cpu_overhead / 100)
 
         # Workload-specific adjustments
-        if workload_type == 'preprocessing':
+        if workload_type == "preprocessing":
             # Data preprocessing benefits moderately from HT/SMT
             # Use up to 80% of available effective cores
             optimal_workers = int(available_effective_cores * 0.8)
 
-        elif workload_type == 'computation':
+        elif workload_type == "computation":
             # Heavy computation may not benefit much from HT/SMT
             # Prefer physical cores
             available_physical = topology.physical_cores * (cpu_overhead / 100)
             optimal_workers = int(available_physical * 0.7)
 
-        elif workload_type == 'io':
+        elif workload_type == "io":
             # I/O bound work benefits greatly from HT/SMT
             # Can use all logical cores
             available_logical = topology.logical_cores * (cpu_overhead / 100)
@@ -451,8 +479,10 @@ class EnhancedDynamicResourceMonitor:
         # Clamp to reasonable range
         optimal_workers = max(0, min(optimal_workers, topology.logical_cores - 1))
 
-        logger.debug(f"Optimal workers for {workload_type}: {optimal_workers} "
-                    f"(from {available_effective_cores:.1f} available effective cores)")
+        logger.debug(
+            f"Optimal workers for {workload_type}: {optimal_workers} "
+            f"(from {available_effective_cores:.1f} available effective cores)"
+        )
 
         return optimal_workers
 
@@ -514,7 +544,7 @@ class EnhancedDynamicResourceMonitor:
         """Get current available overhead for each component"""
         if self.history:
             return self.history[-1].overhead_capacity
-        return {'cpu': 0, 'ram': 0, 'gpu': 0, 'vram': 0}
+        return {"cpu": 0, "ram": 0, "gpu": 0, "vram": 0}
 
     def get_average_usage(self, window: int = 10) -> Dict[str, float]:
         """Get average resource usage over last N samples"""
@@ -522,15 +552,15 @@ class EnhancedDynamicResourceMonitor:
             window = len(self.history)
 
         if window == 0:
-            return {'cpu': 0, 'ram': 0, 'gpu': 0, 'vram': 0}
+            return {"cpu": 0, "ram": 0, "gpu": 0, "vram": 0}
 
         recent = list(self.history)[-window:]
 
         return {
-            'cpu': np.mean([s.cpu_percent for s in recent]),
-            'ram': np.mean([s.ram_percent for s in recent]),
-            'gpu': np.mean([s.gpu_percent for s in recent]),
-            'vram': np.mean([s.gpu_memory_percent for s in recent])
+            "cpu": np.mean([s.cpu_percent for s in recent]),
+            "ram": np.mean([s.ram_percent for s in recent]),
+            "gpu": np.mean([s.gpu_percent for s in recent]),
+            "vram": np.mean([s.gpu_memory_percent for s in recent]),
         }
 
     def get_gpu_optimal_batch_size(self) -> int:
@@ -548,54 +578,54 @@ class EnhancedDynamicResourceMonitor:
     def get_precision_dtype(self) -> str:
         """Get recommended precision dtype"""
         if not self.gpu_optimizer or not self.gpu_optimizer.config:
-            return 'float32'
+            return "float32"
 
         config = self.gpu_optimizer.config
 
         if config.use_fp8:
-            return 'float8'
+            return "float8"
         elif config.use_bf16:
-            return 'bfloat16'
+            return "bfloat16"
         elif config.use_fp16:
-            return 'float16'
+            return "float16"
         elif config.use_tf32:
-            return 'tf32'
+            return "tf32"
         else:
-            return 'float32'
+            return "float32"
 
     def get_device_string(self) -> str:
         """Get appropriate device string for PyTorch"""
         if self.gpu_optimizer:
             return self.gpu_optimizer.get_device_string()
-        return 'cpu'
+        return "cpu"
 
     def get_gpu_info_summary(self) -> Dict[str, Any]:
         """Get summary of GPU information"""
         if not self.gpu_optimizer or not self.gpu_optimizer.capabilities:
-            return {'available': False}
+            return {"available": False}
 
         caps = self.gpu_optimizer.capabilities
         config = self.gpu_optimizer.config
 
         return {
-            'available': True,
-            'vendor': caps.vendor.value,
-            'name': caps.name,
-            'architecture': caps.architecture,
-            'vram_gb': caps.vram_gb,
-            'has_tensor_cores': caps.has_tensor_cores,
-            'optimal_batch_size': caps.optimal_batch_size,
-            'use_mixed_precision': config.use_mixed_precision,
-            'precision': self.get_precision_dtype(),
-            'num_streams': config.num_streams,
-            'gradient_accumulation_steps': config.gradient_accumulation_steps
+            "available": True,
+            "vendor": caps.vendor.value,
+            "name": caps.name,
+            "architecture": caps.architecture,
+            "vram_gb": caps.vram_gb,
+            "has_tensor_cores": caps.has_tensor_cores,
+            "optimal_batch_size": caps.optimal_batch_size,
+            "use_mixed_precision": config.use_mixed_precision,
+            "precision": self.get_precision_dtype(),
+            "num_streams": config.num_streams,
+            "gradient_accumulation_steps": config.gradient_accumulation_steps,
         }
 
 
 # Export
 __all__ = [
-    'Bottleneck',
-    'CPUTopology',
-    'ResourceSnapshot',
-    'EnhancedDynamicResourceMonitor'
+    "Bottleneck",
+    "CPUTopology",
+    "ResourceSnapshot",
+    "EnhancedDynamicResourceMonitor",
 ]

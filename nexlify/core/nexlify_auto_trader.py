@@ -6,10 +6,11 @@ Fully autonomous trading system with risk management
 
 import asyncio
 import logging
-import numpy as np
-from typing import Dict, List, Optional
-from datetime import datetime, timedelta
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional
+
+import numpy as np
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 
@@ -20,6 +21,7 @@ error_handler = get_error_handler()
 @dataclass
 class TradeExecution:
     """Represents an executed trade"""
+
     trade_id: str
     symbol: str
     exchange: str
@@ -38,11 +40,11 @@ class RiskManager:
 
     def __init__(self, config: Dict):
         self.config = config
-        self.max_position_size = config.get('max_position_size', 100)  # USD
-        self.max_concurrent_trades = config.get('max_concurrent_trades', 5)
-        self.max_daily_loss = config.get('max_daily_loss', 100)  # USD
-        self.min_profit_threshold = config.get('min_profit_percent', 0.5)
-        self.min_confidence = config.get('min_confidence', 0.7)
+        self.max_position_size = config.get("max_position_size", 100)  # USD
+        self.max_concurrent_trades = config.get("max_concurrent_trades", 5)
+        self.max_daily_loss = config.get("max_daily_loss", 100)  # USD
+        self.min_profit_threshold = config.get("min_profit_percent", 0.5)
+        self.min_confidence = config.get("min_confidence", 0.7)
 
         # Track daily statistics
         self.daily_profit = 0.0
@@ -69,18 +71,24 @@ class RiskManager:
     def check_concurrent_trades(self, active_count: int) -> bool:
         """Check if max concurrent trades limit exceeded"""
         if active_count >= self.max_concurrent_trades:
-            logger.warning(f"Max concurrent trades reached: {active_count}/{self.max_concurrent_trades}")
+            logger.warning(
+                f"Max concurrent trades reached: {active_count}/{self.max_concurrent_trades}"
+            )
             return False
         return True
 
-    def calculate_position_size(self, balance: float, risk_percent: float = 2.0) -> float:
+    def calculate_position_size(
+        self, balance: float, risk_percent: float = 2.0
+    ) -> float:
         """Calculate position size based on risk management"""
         # Use Kelly Criterion simplified
         risk_amount = balance * (risk_percent / 100)
         position_size = min(risk_amount, self.max_position_size)
         return position_size
 
-    def should_trade(self, pair_data: Dict, balance: float, active_trades: int) -> tuple[bool, str]:
+    def should_trade(
+        self, pair_data: Dict, balance: float, active_trades: int
+    ) -> tuple[bool, str]:
         """
         Determine if a trade should be executed
 
@@ -96,14 +104,20 @@ class RiskManager:
             return False, "Max concurrent trades reached"
 
         # Check profit threshold
-        profit_score = pair_data.get('profit_score', 0)
+        profit_score = pair_data.get("profit_score", 0)
         if profit_score < self.min_profit_threshold:
-            return False, f"Profit too low: {profit_score:.2f}% < {self.min_profit_threshold}%"
+            return (
+                False,
+                f"Profit too low: {profit_score:.2f}% < {self.min_profit_threshold}%",
+            )
 
         # Check confidence threshold
-        confidence = pair_data.get('neural_confidence', 0)
+        confidence = pair_data.get("neural_confidence", 0)
         if confidence < self.min_confidence:
-            return False, f"Confidence too low: {confidence:.2f} < {self.min_confidence}"
+            return (
+                False,
+                f"Confidence too low: {confidence:.2f} < {self.min_confidence}",
+            )
 
         # Check sufficient balance
         required_size = self.calculate_position_size(balance)
@@ -118,12 +132,14 @@ class PositionManager:
 
     def __init__(self, config: Dict):
         self.config = config
-        self.take_profit_percent = config.get('take_profit', 5.0)  # 5%
-        self.stop_loss_percent = config.get('stop_loss', 2.0)  # 2%
-        self.trailing_stop_percent = config.get('trailing_stop', 3.0)  # 3%
-        self.max_hold_time_hours = config.get('max_hold_time_hours', 24)
+        self.take_profit_percent = config.get("take_profit", 5.0)  # 5%
+        self.stop_loss_percent = config.get("stop_loss", 2.0)  # 2%
+        self.trailing_stop_percent = config.get("trailing_stop", 3.0)  # 3%
+        self.max_hold_time_hours = config.get("max_hold_time_hours", 24)
 
-    async def should_close_position(self, trade: TradeExecution, current_price: float) -> tuple[bool, str]:
+    async def should_close_position(
+        self, trade: TradeExecution, current_price: float
+    ) -> tuple[bool, str]:
         """
         Determine if position should be closed
 
@@ -150,16 +166,19 @@ class PositionManager:
         # Check max hold time
         hold_time = datetime.now() - trade.timestamp
         if hold_time > timedelta(hours=self.max_hold_time_hours):
-            return True, f"Max hold time exceeded: {hold_time.total_seconds()/3600:.1f}h"
+            return (
+                True,
+                f"Max hold time exceeded: {hold_time.total_seconds()/3600:.1f}h",
+            )
 
         return False, "Position still valid"
 
     def calculate_exit_levels(self, entry_price: float) -> Dict:
         """Calculate take-profit and stop-loss levels"""
         return {
-            'take_profit': entry_price * (1 + self.take_profit_percent / 100),
-            'stop_loss': entry_price * (1 - self.stop_loss_percent / 100),
-            'trailing_stop': entry_price * (1 + self.trailing_stop_percent / 100)
+            "take_profit": entry_price * (1 + self.take_profit_percent / 100),
+            "stop_loss": entry_price * (1 - self.stop_loss_percent / 100),
+            "trailing_stop": entry_price * (1 + self.trailing_stop_percent / 100),
         }
 
 
@@ -168,26 +187,32 @@ class AutoExecutionEngine:
     Main autonomous trading execution engine
     """
 
-    def __init__(self, neural_net, audit_manager=None, config: Dict = None):
+    def __init__(self, neural_net=None, audit_manager=None, config: Dict = None):
         self.neural_net = neural_net
         self.audit_manager = audit_manager
         self.config = config or {}
 
         # Initialize managers
-        self.risk_manager = RiskManager(self.config.get('trading', {}))
-        self.position_manager = PositionManager(self.config.get('trading', {}))
+        self.risk_manager = RiskManager(self.config.get("trading", {}) or self.config.get("risk_management", {}))
+        self.position_manager = PositionManager(self.config.get("trading", {}))
 
         # State tracking
         self.active_trades: Dict[str, TradeExecution] = {}
         self.is_active = False
-        self.auto_trade_enabled = self.config.get('auto_trade', False)
+        self.auto_trade_enabled = self.config.get("auto_trade", False)
+
+        # Backward compatibility attributes for tests
+        self.enabled = self.config.get("enabled", True)
+        self.check_interval = self.config.get("check_interval", 60)
+        self.is_running = False  # Alias for is_active, updated by start/stop
+        self.exchanges = {}  # Exchange connections
 
         # Phase 1 & 2 Integration Manager (will be set by neural_net)
         self.integration_manager = None
 
         # RL Agent integration
         self.rl_agent = None
-        self.use_rl = self.config.get('use_rl_agent', False)
+        self.use_rl = self.config.get("use_rl_agent", False)
         if self.use_rl:
             self._load_rl_agent()
 
@@ -202,8 +227,9 @@ class AutoExecutionEngine:
     def _load_rl_agent(self):
         """Load trained RL agent"""
         try:
-            from nexlify.strategies.nexlify_rl_agent import DQNAgent
             from pathlib import Path
+
+            from nexlify.strategies.nexlify_rl_agent import DQNAgent
 
             model_path = Path("models/rl_agent_trained.pth")
 
@@ -224,20 +250,23 @@ class AutoExecutionEngine:
 
     def _get_rl_state(self, pair_data: Dict, balance: float) -> np.ndarray:
         """Convert market data to RL state representation"""
-        current_price = pair_data.get('current_price', 0)
+        current_price = pair_data.get("current_price", 0)
 
         # State: [balance, position, position_price, current_price,
         #         price_change, RSI, MACD, volume_ratio]
-        state = np.array([
-            balance / 10000,  # Normalized balance
-            0,  # No current position for new trade
-            0,  # No entry price yet
-            current_price / 10000,  # Normalized price
-            pair_data.get('price_change', 0),
-            pair_data.get('rsi', 0.5),
-            pair_data.get('macd', 0),
-            pair_data.get('volume_ratio', 0.5)
-        ], dtype=np.float32)
+        state = np.array(
+            [
+                balance / 10000,  # Normalized balance
+                0,  # No current position for new trade
+                0,  # No entry price yet
+                current_price / 10000,  # Normalized price
+                pair_data.get("price_change", 0),
+                pair_data.get("rsi", 0.5),
+                pair_data.get("macd", 0),
+                pair_data.get("volume_ratio", 0.5),
+            ],
+            dtype=np.float32,
+        )
 
         return state
 
@@ -260,18 +289,20 @@ class AutoExecutionEngine:
             return
 
         self.is_active = True
+        self.is_running = True  # Backward compatibility
         logger.info("🚀 Auto-Execution Engine started")
 
         # Start background tasks
         await asyncio.gather(
             self.opportunity_monitor(),
             self.position_monitor(),
-            self.performance_reporter()
+            self.performance_reporter(),
         )
 
     async def stop(self):
         """Stop the auto-execution engine"""
         self.is_active = False
+        self.is_running = False  # Backward compatibility
         logger.info("🛑 Auto-Execution Engine stopped")
 
         # Close all open positions
@@ -292,7 +323,7 @@ class AutoExecutionEngine:
                     continue
 
                 # Get opportunities from neural net
-                if not hasattr(self.neural_net, 'active_pairs'):
+                if not hasattr(self.neural_net, "active_pairs"):
                     await asyncio.sleep(30)
                     continue
 
@@ -309,10 +340,10 @@ class AutoExecutionEngine:
 
                     # Convert pair to dict format
                     pair_data = {
-                        'symbol': pair.symbol,
-                        'profit_score': pair.profit_score,
-                        'neural_confidence': pair.neural_confidence,
-                        'exchanges': pair.exchanges
+                        "symbol": pair.symbol,
+                        "profit_score": pair.profit_score,
+                        "neural_confidence": pair.neural_confidence,
+                        "exchanges": pair.exchanges,
                     }
 
                     # Check with RL agent first (if enabled)
@@ -325,19 +356,21 @@ class AutoExecutionEngine:
                         # Only proceed if RL says Buy (action=1)
                         if action != 1:
                             rl_approved = False
-                            logger.debug(f"🤖 RL Agent: Skip {symbol} (action={action})")
+                            logger.debug(
+                                f"🤖 RL Agent: Skip {symbol} (action={action})"
+                            )
 
                     if rl_approved:
                         # Check with risk manager
                         should_trade, reason = self.risk_manager.should_trade(
-                            pair_data,
-                            balance,
-                            len(self.active_trades)
+                            pair_data, balance, len(self.active_trades)
                         )
 
                         if should_trade:
                             rl_tag = "🤖 RL+" if self.use_rl else ""
-                            logger.info(f"🎯 {rl_tag} Trade opportunity: {symbol} ({reason})")
+                            logger.info(
+                                f"🎯 {rl_tag} Trade opportunity: {symbol} ({reason})"
+                            )
                             await self.execute_trade(pair)
                         else:
                             logger.debug(f"⏭️ Skipping {symbol}: {reason}")
@@ -366,18 +399,20 @@ class AutoExecutionEngine:
                     try:
                         # Get current price
                         current_price = await self.get_current_price(
-                            trade.exchange,
-                            trade.symbol
+                            trade.exchange, trade.symbol
                         )
 
                         # Check if should close
-                        should_close, reason = await self.position_manager.should_close_position(
-                            trade,
-                            current_price
+                        should_close, reason = (
+                            await self.position_manager.should_close_position(
+                                trade, current_price
+                            )
                         )
 
                         if should_close:
-                            logger.info(f"🔄 Closing position: {trade.symbol} - {reason}")
+                            logger.info(
+                                f"🔄 Closing position: {trade.symbol} - {reason}"
+                            )
                             await self.close_position(trade_id, reason)
 
                     except Exception as e:
@@ -401,67 +436,78 @@ class AutoExecutionEngine:
 
             # Get current price
             ticker = await self.neural_net.exchanges[exchange_id].fetch_ticker(symbol)
-            current_price = ticker['last']
+            current_price = ticker["last"]
 
             # Calculate amount in base currency
             amount = position_size / current_price
 
             # Execute buy order
-            logger.info(f"📈 Executing BUY: {amount:.6f} {symbol} @ ${current_price:.2f}")
-
-            order = await self.neural_net.exchanges[exchange_id].create_market_buy_order(
-                symbol,
-                amount
+            logger.info(
+                f"📈 Executing BUY: {amount:.6f} {symbol} @ ${current_price:.2f}"
             )
 
-            if order and order.get('status') in ['closed', 'filled']:
+            order = await self.neural_net.exchanges[
+                exchange_id
+            ].create_market_buy_order(symbol, amount)
+
+            if order and order.get("status") in ["closed", "filled"]:
                 # Calculate exit levels
                 exit_levels = self.position_manager.calculate_exit_levels(current_price)
 
                 # Create trade record
                 trade = TradeExecution(
-                    trade_id=order['id'],
+                    trade_id=order["id"],
                     symbol=symbol,
                     exchange=exchange_id,
-                    side='buy',
+                    side="buy",
                     amount=amount,
                     price=current_price,
                     timestamp=datetime.now(),
-                    profit_target=exit_levels['take_profit'],
-                    stop_loss=exit_levels['stop_loss'],
-                    strategy='auto_execution',
-                    status='open'
+                    profit_target=exit_levels["take_profit"],
+                    stop_loss=exit_levels["stop_loss"],
+                    strategy="auto_execution",
+                    status="open",
                 )
 
                 self.active_trades[trade.trade_id] = trade
                 self.total_trades += 1
 
-                logger.info(f"✅ Trade executed: {symbol} - TP: ${exit_levels['take_profit']:.2f}, SL: ${exit_levels['stop_loss']:.2f}")
+                logger.info(
+                    f"✅ Trade executed: {symbol} - TP: ${exit_levels['take_profit']:.2f}, SL: ${exit_levels['stop_loss']:.2f}"
+                )
 
                 # Audit log
                 if self.audit_manager:
                     await self.audit_manager.audit_trade(
-                        'auto_trader',
+                        "auto_trader",
                         exchange_id,
                         symbol,
-                        'buy',
+                        "buy",
                         amount,
                         current_price,
-                        'market',
-                        True
+                        "market",
+                        True,
                     )
 
                 # Notify integration manager (Phase 1 & 2)
                 if self.integration_manager:
-                    asyncio.create_task(self.integration_manager.on_trade_executed({
-                        'symbol': symbol,
-                        'side': 'buy',
-                        'quantity': amount,
-                        'price': current_price,
-                        'exchange': exchange_id,
-                        'timestamp': datetime.now(),
-                        'fees': order.get('fee', {}).get('cost', 0) if isinstance(order.get('fee'), dict) else 0
-                    }))
+                    asyncio.create_task(
+                        self.integration_manager.on_trade_executed(
+                            {
+                                "symbol": symbol,
+                                "side": "buy",
+                                "quantity": amount,
+                                "price": current_price,
+                                "exchange": exchange_id,
+                                "timestamp": datetime.now(),
+                                "fees": (
+                                    order.get("fee", {}).get("cost", 0)
+                                    if isinstance(order.get("fee"), dict)
+                                    else 0
+                                ),
+                            }
+                        )
+                    )
 
                 return True
             else:
@@ -469,7 +515,9 @@ class AutoExecutionEngine:
                 return False
 
         except Exception as e:
-            error_handler.log_error(e, f"Trade execution failed: {symbol}", severity="error")
+            error_handler.log_error(
+                e, f"Trade execution failed: {symbol}", severity="error"
+            )
             return False
 
     async def close_position(self, trade_id: str, reason: str):
@@ -487,14 +535,15 @@ class AutoExecutionEngine:
             pnl_percent = ((current_price - trade.price) / trade.price) * 100
 
             # Execute sell order
-            logger.info(f"📉 Executing SELL: {trade.amount:.6f} {trade.symbol} @ ${current_price:.2f}")
-
-            order = await self.neural_net.exchanges[trade.exchange].create_market_sell_order(
-                trade.symbol,
-                trade.amount
+            logger.info(
+                f"📉 Executing SELL: {trade.amount:.6f} {trade.symbol} @ ${current_price:.2f}"
             )
 
-            if order and order.get('status') in ['closed', 'filled']:
+            order = await self.neural_net.exchanges[
+                trade.exchange
+            ].create_market_sell_order(trade.symbol, trade.amount)
+
+            if order and order.get("status") in ["closed", "filled"]:
                 # Update statistics
                 self.risk_manager.daily_profit += pnl
                 self.total_profit += pnl
@@ -505,44 +554,58 @@ class AutoExecutionEngine:
                     self.losing_trades += 1
 
                 # Remove from active trades
-                trade.status = 'closed'
+                trade.status = "closed"
                 del self.active_trades[trade_id]
 
-                logger.info(f"✅ Position closed: {trade.symbol} - PnL: ${pnl:.2f} ({pnl_percent:+.2f}%) - {reason}")
+                logger.info(
+                    f"✅ Position closed: {trade.symbol} - PnL: ${pnl:.2f} ({pnl_percent:+.2f}%) - {reason}"
+                )
 
                 # Audit log
                 if self.audit_manager:
                     await self.audit_manager.audit_trade(
-                        'auto_trader',
+                        "auto_trader",
                         trade.exchange,
                         trade.symbol,
-                        'sell',
+                        "sell",
                         trade.amount,
                         current_price,
-                        'market',
-                        True
+                        "market",
+                        True,
                     )
 
                 # Notify integration manager (Phase 1 & 2)
                 if self.integration_manager:
                     # Record the sell transaction
-                    asyncio.create_task(self.integration_manager.on_trade_executed({
-                        'symbol': trade.symbol,
-                        'side': 'sell',
-                        'quantity': trade.amount,
-                        'price': current_price,
-                        'exchange': trade.exchange,
-                        'timestamp': datetime.now(),
-                        'fees': order.get('fee', {}).get('cost', 0) if isinstance(order.get('fee'), dict) else 0
-                    }))
+                    asyncio.create_task(
+                        self.integration_manager.on_trade_executed(
+                            {
+                                "symbol": trade.symbol,
+                                "side": "sell",
+                                "quantity": trade.amount,
+                                "price": current_price,
+                                "exchange": trade.exchange,
+                                "timestamp": datetime.now(),
+                                "fees": (
+                                    order.get("fee", {}).get("cost", 0)
+                                    if isinstance(order.get("fee"), dict)
+                                    else 0
+                                ),
+                            }
+                        )
+                    )
 
                     # Notify position closure
-                    asyncio.create_task(self.integration_manager.on_position_closed({
-                        'trade_id': trade_id,
-                        'symbol': trade.symbol,
-                        'pnl': pnl,
-                        'exit_price': current_price
-                    }))
+                    asyncio.create_task(
+                        self.integration_manager.on_position_closed(
+                            {
+                                "trade_id": trade_id,
+                                "symbol": trade.symbol,
+                                "pnl": pnl,
+                                "exit_price": current_price,
+                            }
+                        )
+                    )
 
                 return True
             else:
@@ -550,7 +613,9 @@ class AutoExecutionEngine:
                 return False
 
         except Exception as e:
-            error_handler.log_error(e, f"Close position failed: {trade_id}", severity="error")
+            error_handler.log_error(
+                e, f"Close position failed: {trade_id}", severity="error"
+            )
             return False
 
     async def close_all_positions(self):
@@ -568,7 +633,7 @@ class AutoExecutionEngine:
             balance = await self.neural_net.exchanges[exchange_id].fetch_balance()
 
             # Get USDT balance
-            usdt_free = balance.get('USDT', {}).get('free', 0)
+            usdt_free = balance.get("USDT", {}).get("free", 0)
             return float(usdt_free)
 
         except Exception as e:
@@ -579,7 +644,7 @@ class AutoExecutionEngine:
         """Get current market price for a symbol"""
         try:
             ticker = await self.neural_net.exchanges[exchange_id].fetch_ticker(symbol)
-            return ticker['last']
+            return ticker["last"]
         except Exception as e:
             logger.error(f"Error getting price for {symbol}: {e}")
             return 0.0
@@ -594,30 +659,80 @@ class AutoExecutionEngine:
                     win_rate = (self.winning_trades / self.total_trades) * 100
                     avg_profit = self.total_profit / self.total_trades
 
-                    logger.info("="*50)
+                    logger.info("=" * 50)
                     logger.info("📊 AUTO-TRADER PERFORMANCE REPORT")
-                    logger.info("="*50)
+                    logger.info("=" * 50)
                     logger.info(f"Total Trades: {self.total_trades}")
                     logger.info(f"Win Rate: {win_rate:.2f}%")
                     logger.info(f"Total Profit: ${self.total_profit:.2f}")
                     logger.info(f"Avg Profit/Trade: ${avg_profit:.2f}")
                     logger.info(f"Active Positions: {len(self.active_trades)}")
-                    logger.info("="*50)
+                    logger.info("=" * 50)
 
             except Exception as e:
                 logger.error(f"Error in performance reporter: {e}")
 
     def get_statistics(self) -> Dict:
         """Get current trading statistics"""
-        win_rate = (self.winning_trades / self.total_trades * 100) if self.total_trades > 0 else 0
+        win_rate = (
+            (self.winning_trades / self.total_trades * 100)
+            if self.total_trades > 0
+            else 0
+        )
 
         return {
-            'total_trades': self.total_trades,
-            'winning_trades': self.winning_trades,
-            'losing_trades': self.losing_trades,
-            'win_rate': win_rate,
-            'total_profit': self.total_profit,
-            'active_positions': len(self.active_trades),
-            'daily_profit': self.risk_manager.daily_profit,
-            'auto_trade_enabled': self.auto_trade_enabled
+            "total_trades": self.total_trades,
+            "winning_trades": self.winning_trades,
+            "losing_trades": self.losing_trades,
+            "win_rate": win_rate,
+            "total_profit": self.total_profit,
+            "active_positions": len(self.active_trades),
+            "daily_profit": self.risk_manager.daily_profit,
+            "auto_trade_enabled": self.auto_trade_enabled,
         }
+
+    async def get_account_balance(self, exchange: str) -> float:
+        """Get account balance for specified exchange"""
+        try:
+            if exchange not in self.exchanges:
+                logger.error(f"Exchange {exchange} not found")
+                return 0.0
+
+            balance_data = await self.exchanges[exchange].fetch_balance()
+            # Return USDT balance
+            usdt_balance = balance_data.get("USDT", {})
+            return usdt_balance.get("free", 0.0)
+        except Exception as e:
+            logger.error(f"Error fetching balance from {exchange}: {e}")
+            return 0.0
+
+    def get_active_trades_count(self) -> int:
+        """Get count of active trades"""
+        return len(self.active_trades)
+
+    def record_trade_profit(self, profit: float):
+        """Record trade profit/loss"""
+        self.risk_manager.daily_profit += profit
+        self.risk_manager.daily_trades += 1
+        self.total_profit += profit
+
+        if profit > 0:
+            self.winning_trades += 1
+        else:
+            self.losing_trades += 1
+
+        self.total_trades += 1
+
+    def get_status(self) -> Dict:
+        """Get current status of auto trader"""
+        return {
+            "enabled": self.enabled,
+            "running": self.is_running,
+            "active_trades": len(self.active_trades),
+            "daily_profit": self.risk_manager.daily_profit,
+            "daily_trades": self.risk_manager.daily_trades,
+        }
+
+
+# Alias for backward compatibility with tests
+AutoTrader = AutoExecutionEngine

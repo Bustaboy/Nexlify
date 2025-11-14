@@ -9,7 +9,7 @@ from nexlify.strategies.epsilon_decay import (
     LinearEpsilonDecay,
     ScheduledEpsilonDecay,
     ExponentialEpsilonDecay,
-    EpsilonDecayFactory
+    EpsilonDecayFactory,
 )
 
 # Backward compatibility aliases

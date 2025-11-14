@@ -20,17 +20,19 @@ import pickle
 import struct
 import threading
 import time
-import numpy as np
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
 from collections import OrderedDict, deque
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
 # Optional: LZ4 for ultra-fast compression
 try:
     import lz4.frame
+
     LZ4_AVAILABLE = True
 except ImportError:
     LZ4_AVAILABLE = False
@@ -40,6 +42,7 @@ except ImportError:
 @dataclass
 class CacheStats:
     """Cache statistics"""
+
     hits: int = 0
     misses: int = 0
     evictions: int = 0
@@ -116,12 +119,12 @@ class LRUCache:
         hit_rate = self.stats.hits / total_accesses if total_accesses > 0 else 0
 
         return {
-            'hits': self.stats.hits,
-            'misses': self.stats.misses,
-            'hit_rate': hit_rate,
-            'evictions': self.stats.evictions,
-            'size_mb': self.current_size_bytes / (1024 * 1024),
-            'num_items': len(self.cache)
+            "hits": self.stats.hits,
+            "misses": self.stats.misses,
+            "hit_rate": hit_rate,
+            "evictions": self.stats.evictions,
+            "size_mb": self.current_size_bytes / (1024 * 1024),
+            "num_items": len(self.cache),
         }
 
 
@@ -163,15 +166,16 @@ class ChunkedCompressedStorage:
         if self.compression_enabled:
             logger.info(f"   ✓ LZ4 compression enabled (instant decompression!)")
         else:
-            logger.info(f"   ⚠️  Compression disabled (install lz4 for 3-5x space savings)")
+            logger.info(
+                f"   ⚠️  Compression disabled (install lz4 for 3-5x space savings)"
+            )
 
     def start_background_compression(self):
         """Start background compression thread"""
         if not self.compressing:
             self.compressing = True
             self.compression_thread = threading.Thread(
-                target=self._compression_worker,
-                daemon=True
+                target=self._compression_worker, daemon=True
             )
             self.compression_thread.start()
             logger.info("🔄 Background compression started")
@@ -194,7 +198,9 @@ class ChunkedCompressedStorage:
             except Exception as e:
                 logger.error(f"Compression worker error: {e}")
 
-    def put(self, key: str, data: Union[np.ndarray, bytes, Any], async_write: bool = True):
+    def put(
+        self, key: str, data: Union[np.ndarray, bytes, Any], async_write: bool = True
+    ):
         """
         Store data with optional compression
 
@@ -228,10 +234,12 @@ class ChunkedCompressedStorage:
         # Compress if available
         if self.compression_enabled and LZ4_AVAILABLE:
             try:
-                compressed = lz4.frame.compress(serialized, compression_level=0)  # Fastest
+                compressed = lz4.frame.compress(
+                    serialized, compression_level=0
+                )  # Fastest
                 compressed_size = len(compressed)
                 self.stats.compressions += 1
-                self.stats.bytes_saved += (uncompressed_size - compressed_size)
+                self.stats.bytes_saved += uncompressed_size - compressed_size
             except Exception as e:
                 logger.error(f"Compression failed: {e}")
                 compressed = serialized
@@ -243,9 +251,9 @@ class ChunkedCompressedStorage:
         # Write to file
         file_path = self.cache_dir / f"{key}.lz4"
 
-        with open(file_path, 'wb') as f:
+        with open(file_path, "wb") as f:
             # Header: magic, uncompressed size, compressed size
-            header = struct.pack('<4sII', b'LZ4C', uncompressed_size, compressed_size)
+            header = struct.pack("<4sII", b"LZ4C", uncompressed_size, compressed_size)
             f.write(header)
             f.write(compressed)
 
@@ -270,7 +278,7 @@ class ChunkedCompressedStorage:
             return None
 
         try:
-            with open(file_path, 'rb') as f:
+            with open(file_path, "rb") as f:
                 # Skip header
                 f.seek(offset)
 
@@ -330,11 +338,13 @@ class SmartCache:
     - Zero overhead (background compression)
     """
 
-    def __init__(self,
-                 cache_dir: Union[str, Path],
-                 memory_cache_mb: int = 1000,
-                 enable_compression: bool = True,
-                 enable_prefetch: bool = True):
+    def __init__(
+        self,
+        cache_dir: Union[str, Path],
+        memory_cache_mb: int = 1000,
+        enable_compression: bool = True,
+        enable_prefetch: bool = True,
+    ):
         """
         Args:
             cache_dir: Directory for disk cache
@@ -346,10 +356,13 @@ class SmartCache:
 
         # Two-tier cache
         self.memory_cache = LRUCache(max_size_mb=memory_cache_mb)
-        self.disk_cache = ChunkedCompressedStorage(
-            cache_dir=self.cache_dir / 'disk_cache',
-            chunk_size_kb=1024
-        ) if enable_compression else None
+        self.disk_cache = (
+            ChunkedCompressedStorage(
+                cache_dir=self.cache_dir / "disk_cache", chunk_size_kb=1024
+            )
+            if enable_compression
+            else None
+        )
 
         # Access pattern detection
         self.enable_prefetch = enable_prefetch
@@ -443,6 +456,7 @@ class SmartCache:
         if following:
             # Count frequencies
             from collections import Counter
+
             freq = Counter(following)
             # Store top 5 most common
             self.access_patterns[current_key] = [k for k, _ in freq.most_common(5)]
@@ -464,23 +478,23 @@ class SmartCache:
     def get_stats(self) -> Dict:
         """Get cache statistics"""
         stats = {
-            'memory_cache': self.memory_cache.get_stats(),
+            "memory_cache": self.memory_cache.get_stats(),
         }
 
         if self.disk_cache:
-            stats['disk_cache'] = {
-                'compressions': self.disk_cache.stats.compressions,
-                'decompressions': self.disk_cache.stats.decompressions,
-                'compression_ratio': self.disk_cache.get_compression_ratio(),
-                'bytes_saved_mb': self.disk_cache.stats.bytes_saved / (1024 * 1024),
-                'total_reads': self.disk_cache.stats.total_reads,
-                'total_writes': self.disk_cache.stats.total_writes
+            stats["disk_cache"] = {
+                "compressions": self.disk_cache.stats.compressions,
+                "decompressions": self.disk_cache.stats.decompressions,
+                "compression_ratio": self.disk_cache.get_compression_ratio(),
+                "bytes_saved_mb": self.disk_cache.stats.bytes_saved / (1024 * 1024),
+                "total_reads": self.disk_cache.stats.total_reads,
+                "total_writes": self.disk_cache.stats.total_writes,
             }
 
         if self.enable_prefetch:
-            stats['prefetch'] = {
-                'patterns_learned': len(self.access_patterns),
-                'access_history_size': len(self.access_history)
+            stats["prefetch"] = {
+                "patterns_learned": len(self.access_patterns),
+                "access_history_size": len(self.access_history),
             }
 
         return stats
@@ -494,7 +508,7 @@ class SmartCache:
         print("=" * 80)
 
         # Memory cache
-        mem = stats['memory_cache']
+        mem = stats["memory_cache"]
         print(f"\nMemory Cache:")
         print(f"  Hits: {mem['hits']:,}")
         print(f"  Misses: {mem['misses']:,}")
@@ -503,8 +517,8 @@ class SmartCache:
         print(f"  Size: {mem['size_mb']:.1f} MB ({mem['num_items']} items)")
 
         # Disk cache
-        if 'disk_cache' in stats:
-            disk = stats['disk_cache']
+        if "disk_cache" in stats:
+            disk = stats["disk_cache"]
             print(f"\nDisk Cache:")
             print(f"  Reads: {disk['total_reads']:,}")
             print(f"  Writes: {disk['total_writes']:,}")
@@ -514,8 +528,8 @@ class SmartCache:
             print(f"  Space Saved: {disk['bytes_saved_mb']:.1f} MB")
 
         # Prefetch
-        if 'prefetch' in stats:
-            prefetch = stats['prefetch']
+        if "prefetch" in stats:
+            prefetch = stats["prefetch"]
             print(f"\nPrefetching:")
             print(f"  Patterns Learned: {prefetch['patterns_learned']:,}")
             print(f"  Access History: {prefetch['access_history_size']:,}")
@@ -527,22 +541,23 @@ class SmartCache:
 
 
 # Convenience functions
-def create_smart_cache(cache_dir: Union[str, Path],
-                      memory_cache_mb: int = 1000) -> SmartCache:
+def create_smart_cache(
+    cache_dir: Union[str, Path], memory_cache_mb: int = 1000
+) -> SmartCache:
     """Create smart cache with default settings"""
     return SmartCache(
         cache_dir=cache_dir,
         memory_cache_mb=memory_cache_mb,
         enable_compression=LZ4_AVAILABLE,
-        enable_prefetch=True
+        enable_prefetch=True,
     )
 
 
 # Export
 __all__ = [
-    'CacheStats',
-    'LRUCache',
-    'ChunkedCompressedStorage',
-    'SmartCache',
-    'create_smart_cache'
+    "CacheStats",
+    "LRUCache",
+    "ChunkedCompressedStorage",
+    "SmartCache",
+    "create_smart_cache",
 ]

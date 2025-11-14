@@ -4,20 +4,19 @@ Unit tests for Nexlify Circuit Breaker
 Comprehensive testing of circuit breaker functionality
 """
 
-import pytest
 import asyncio
-import time
-import sys
 import os
+import sys
+import time
+
+import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from nexlify.risk.nexlify_circuit_breaker import (
-    ExchangeCircuitBreaker,
-    CircuitBreakerManager,
-    CircuitState
-)
+from nexlify.risk.nexlify_circuit_breaker import (CircuitBreakerManager,
+                                                  CircuitState,
+                                                  ExchangeCircuitBreaker)
 
 
 @pytest.fixture
@@ -27,7 +26,7 @@ def circuit_breaker():
         name="test_exchange",
         failure_threshold=3,
         timeout_seconds=2,
-        half_open_max_calls=1
+        half_open_max_calls=1,
     )
 
 
@@ -35,11 +34,11 @@ def circuit_breaker():
 def circuit_manager():
     """Create a circuit breaker manager"""
     config = {
-        'circuit_breaker': {
-            'enabled': True,
-            'failure_threshold': 3,
-            'timeout_seconds': 2,
-            'half_open_max_calls': 1
+        "circuit_breaker": {
+            "enabled": True,
+            "failure_threshold": 3,
+            "timeout_seconds": 2,
+            "half_open_max_calls": 1,
         }
     }
     return CircuitBreakerManager(config)
@@ -75,7 +74,7 @@ class TestCircuitBreakerInitialization:
             name="custom",
             failure_threshold=5,
             timeout_seconds=60,
-            half_open_max_calls=3
+            half_open_max_calls=3,
         )
         assert breaker.failure_threshold == 5
         assert breaker.timeout_seconds == 60
@@ -312,13 +311,13 @@ class TestStatistics:
 
         status = circuit_breaker.get_status()
 
-        assert status['name'] == "test_exchange"
-        assert status['state'] == CircuitState.CLOSED.value
-        assert status['total_calls'] == 2
-        assert status['successful_calls'] == 2
-        assert status['failed_calls'] == 0
-        assert 'success_rate' in status
-        assert status['success_rate'] == "100.0%"
+        assert status["name"] == "test_exchange"
+        assert status["state"] == CircuitState.CLOSED.value
+        assert status["total_calls"] == 2
+        assert status["successful_calls"] == 2
+        assert status["failed_calls"] == 0
+        assert "success_rate" in status
+        assert status["success_rate"] == "100.0%"
 
     @pytest.mark.asyncio
     async def test_success_rate_calculation(self, circuit_breaker):
@@ -341,7 +340,7 @@ class TestStatistics:
 
         status = circuit_breaker.get_status()
         # 3 of 5 = 60%
-        assert status['success_rate'] == "60.0%"
+        assert status["success_rate"] == "60.0%"
 
     @pytest.mark.asyncio
     async def test_last_failure_tracking(self, circuit_breaker):
@@ -352,7 +351,7 @@ class TestStatistics:
             pass
 
         status = circuit_breaker.get_status()
-        assert status['last_failure'] != "Never"
+        assert status["last_failure"] != "Never"
 
     @pytest.mark.asyncio
     async def test_recovery_time_display(self, circuit_breaker):
@@ -360,7 +359,7 @@ class TestStatistics:
         circuit_breaker.force_open("Test")
 
         status = circuit_breaker.get_status()
-        assert status['recovery_in'] != "N/A"
+        assert status["recovery_in"] != "N/A"
 
 
 class TestCircuitBreakerManager:
@@ -429,11 +428,11 @@ class TestCircuitBreakerManager:
 
         summary = circuit_manager.get_health_summary()
 
-        assert summary['total_breakers'] == 3
-        assert summary['healthy'] == 1
-        assert summary['testing'] == 1
-        assert summary['failed'] == 1
-        assert summary['overall_health'] == 'degraded'
+        assert summary["total_breakers"] == 3
+        assert summary["healthy"] == 1
+        assert summary["testing"] == 1
+        assert summary["failed"] == 1
+        assert summary["overall_health"] == "degraded"
 
 
 class TestEdgeCases:
@@ -471,6 +470,7 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_exception_types(self, circuit_breaker):
         """Test handling different exception types"""
+
         async def timeout_error():
             raise TimeoutError("Request timeout")
 

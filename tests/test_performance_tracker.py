@@ -4,34 +4,33 @@ Unit tests for Nexlify Performance Tracker
 Comprehensive testing of performance tracking functionality
 """
 
-import pytest
-import sys
+import csv
+import json
 import os
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-import json
-import csv
+
+import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from nexlify.analytics.nexlify_performance_tracker import (
-    PerformanceTracker,
-    PerformanceMetrics,
-    Trade
-)
+from nexlify.analytics.nexlify_performance_tracker import (PerformanceMetrics,
+                                                           PerformanceTracker,
+                                                           Trade)
 
 
 @pytest.fixture
 def tracker(tmp_path):
     """Create a performance tracker with temporary database"""
     config = {
-        'performance_tracking': {
-            'enabled': True,
-            'database_path': str(tmp_path / 'test_trading.db'),
-            'calculate_sharpe_ratio': True,
-            'risk_free_rate': 0.02,
-            'track_drawdown': True
+        "performance_tracking": {
+            "enabled": True,
+            "database_path": str(tmp_path / "test_trading.db"),
+            "calculate_sharpe_ratio": True,
+            "risk_free_rate": 0.02,
+            "track_drawdown": True,
         }
     }
     return PerformanceTracker(config)
@@ -50,9 +49,7 @@ class TestPerformanceTrackerInitialization:
 
     def test_disabled_tracker(self, tmp_path):
         """Test disabled tracker"""
-        config = {
-            'performance_tracking': {'enabled': False}
-        }
+        config = {"performance_tracking": {"enabled": False}}
         tracker = PerformanceTracker(config)
         assert tracker.enabled is False
 
@@ -70,7 +67,7 @@ class TestTradeRecording:
             entry_price=50000,
             exit_price=51000,
             fee=10.0,
-            strategy="test"
+            strategy="test",
         )
 
         assert trade_id is not None
@@ -85,7 +82,7 @@ class TestTradeRecording:
             quantity=1.0,
             entry_price=3000,
             exit_price=None,  # Still open
-            fee=0.0
+            fee=0.0,
         )
 
         assert trade_id is not None
@@ -99,7 +96,7 @@ class TestTradeRecording:
             quantity=1.0,
             entry_price=50000,
             exit_price=52000,
-            fee=100.0
+            fee=100.0,
         )
 
         assert trade_id is not None
@@ -119,7 +116,7 @@ class TestTradeRecording:
             quantity=1.0,
             entry_price=50000,
             exit_price=48000,
-            fee=100.0
+            fee=100.0,
         )
 
         assert trade_id is not None
@@ -140,7 +137,7 @@ class TestTradeRecording:
             quantity=1.0,
             entry_price=50000,
             exit_price=48000,  # Profit on short
-            fee=100.0
+            fee=100.0,
         )
 
         metrics = tracker.get_performance_metrics()
@@ -160,7 +157,7 @@ class TestTradeUpdating:
             quantity=1.0,
             entry_price=50000,
             exit_price=None,
-            fee=50.0
+            fee=50.0,
         )
 
         # Update with exit price
@@ -209,8 +206,12 @@ class TestPerformanceMetrics:
     def test_profit_metrics(self, tracker):
         """Test profit metrics calculation"""
         # Record trades with known P&L
-        tracker.record_trade("binance", "BTC/USDT", "buy", 1.0, 50000, 51000, 0)  # $1000 win
-        tracker.record_trade("binance", "BTC/USDT", "buy", 1.0, 50000, 49000, 0)  # $1000 loss
+        tracker.record_trade(
+            "binance", "BTC/USDT", "buy", 1.0, 50000, 51000, 0
+        )  # $1000 win
+        tracker.record_trade(
+            "binance", "BTC/USDT", "buy", 1.0, 50000, 49000, 0
+        )  # $1000 loss
 
         metrics = tracker.get_performance_metrics()
 
@@ -223,9 +224,15 @@ class TestPerformanceMetrics:
     def test_profit_factor_calculation(self, tracker):
         """Test profit factor calculation"""
         # Total wins: $3000, Total losses: $1000 = PF 3.0
-        tracker.record_trade("binance", "BTC/USDT", "buy", 1.0, 50000, 52000, 0)  # $2000
-        tracker.record_trade("binance", "BTC/USDT", "buy", 1.0, 50000, 51000, 0)  # $1000
-        tracker.record_trade("binance", "BTC/USDT", "buy", 1.0, 50000, 49000, 0)  # -$1000
+        tracker.record_trade(
+            "binance", "BTC/USDT", "buy", 1.0, 50000, 52000, 0
+        )  # $2000
+        tracker.record_trade(
+            "binance", "BTC/USDT", "buy", 1.0, 50000, 51000, 0
+        )  # $1000
+        tracker.record_trade(
+            "binance", "BTC/USDT", "buy", 1.0, 50000, 49000, 0
+        )  # -$1000
 
         metrics = tracker.get_performance_metrics()
         assert metrics.profit_factor == 3.0
@@ -286,10 +293,16 @@ class TestMaxDrawdown:
         # Equity: 0 -> 1000 -> 2000 -> 1500 -> 500 -> 1000
         # Max drawdown: 2000 - 500 = 1500
 
-        tracker.record_trade("binance", "BTC/USDT", "buy", 1.0, 50000, 51000, 0)  # +1000
-        tracker.record_trade("binance", "BTC/USDT", "buy", 1.0, 50000, 51000, 0)  # +1000
+        tracker.record_trade(
+            "binance", "BTC/USDT", "buy", 1.0, 50000, 51000, 0
+        )  # +1000
+        tracker.record_trade(
+            "binance", "BTC/USDT", "buy", 1.0, 50000, 51000, 0
+        )  # +1000
         tracker.record_trade("binance", "BTC/USDT", "buy", 1.0, 50000, 49500, 0)  # -500
-        tracker.record_trade("binance", "BTC/USDT", "buy", 1.0, 50000, 49000, 0)  # -1000
+        tracker.record_trade(
+            "binance", "BTC/USDT", "buy", 1.0, 50000, 49000, 0
+        )  # -1000
         tracker.record_trade("binance", "BTC/USDT", "buy", 1.0, 50000, 50500, 0)  # +500
 
         metrics = tracker.get_performance_metrics()
@@ -320,8 +333,7 @@ class TestFiltering:
         future_end = datetime.now() + timedelta(days=2)
 
         metrics = tracker.get_performance_metrics(
-            start_date=future_start,
-            end_date=future_end
+            start_date=future_start, end_date=future_end
         )
 
         # Should have no trades
@@ -395,9 +407,7 @@ class TestExporting:
         future_date = datetime.now() + timedelta(days=1)
 
         success = tracker.export_trades(
-            str(export_path),
-            format="json",
-            start_date=future_date
+            str(export_path), format="json", start_date=future_date
         )
 
         assert success is True
@@ -421,9 +431,9 @@ class TestTradesSummary:
         summary = tracker.get_trades_summary(limit=3)
 
         assert len(summary) == 3
-        assert 'timestamp' in summary[0]
-        assert 'symbol' in summary[0]
-        assert 'pnl' in summary[0]
+        assert "timestamp" in summary[0]
+        assert "symbol" in summary[0]
+        assert "pnl" in summary[0]
 
     def test_empty_summary(self, tracker):
         """Test summary with no trades"""
@@ -444,7 +454,7 @@ class TestEdgeCases:
             quantity=0.0,
             entry_price=50000,
             exit_price=51000,
-            fee=0.0
+            fee=0.0,
         )
 
         assert trade_id is not None
@@ -459,7 +469,7 @@ class TestEdgeCases:
             quantity=1.0,
             entry_price=-50000,
             exit_price=51000,
-            fee=0.0
+            fee=0.0,
         )
 
         assert trade_id is not None
@@ -473,7 +483,7 @@ class TestEdgeCases:
             quantity=1000.0,
             entry_price=50000,
             exit_price=100000,
-            fee=0.0
+            fee=0.0,
         )
 
         metrics = tracker.get_performance_metrics()

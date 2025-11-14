@@ -4,14 +4,15 @@ Nexlify Advanced Analytics Suite
 Comprehensive performance tracking and risk metrics
 """
 
+import json
 import logging
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, Tuple
-from datetime import datetime, timedelta
-from dataclasses import dataclass, field
-from pathlib import Path
-import json
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 
@@ -22,6 +23,7 @@ error_handler = get_error_handler()
 @dataclass
 class PerformanceMetrics:
     """Comprehensive performance metrics"""
+
     # Returns
     total_return: float = 0.0
     total_return_percent: float = 0.0
@@ -70,7 +72,7 @@ class AdvancedAnalytics:
 
     def __init__(self, config: Dict = None):
         self.config = config or {}
-        self.risk_free_rate = self.config.get('risk_free_rate', 0.02)  # 2% annual
+        self.risk_free_rate = self.config.get("risk_free_rate", 0.02)  # 2% annual
 
         logger.info("📊 Advanced Analytics initialized")
 
@@ -80,7 +82,7 @@ class AdvancedAnalytics:
         equity_curve: List[float],
         trades: List[Dict],
         dates: List[datetime],
-        timeframe: str = '1h'
+        timeframe: str = "1h",
     ) -> PerformanceMetrics:
         """
         Calculate comprehensive performance metrics
@@ -99,12 +101,12 @@ class AdvancedAnalytics:
 
         # Calculate periods per year for annualization
         timeframe_to_periods = {
-            '1m': 525600,   # 365 * 24 * 60
-            '5m': 105120,   # 365 * 24 * 12
-            '15m': 35040,   # 365 * 24 * 4
-            '1h': 8760,     # 365 * 24
-            '4h': 2190,     # 365 * 6
-            '1d': 365,      # 365
+            "1m": 525600,  # 365 * 24 * 60
+            "5m": 105120,  # 365 * 24 * 12
+            "15m": 35040,  # 365 * 24 * 4
+            "1h": 8760,  # 365 * 24
+            "4h": 2190,  # 365 * 6
+            "1d": 365,  # 365
         }
         periods_per_year = timeframe_to_periods.get(timeframe, 8760)
 
@@ -123,7 +125,9 @@ class AdvancedAnalytics:
         years = days / 365.25
         metrics.total_days = days
         if years > 0:
-            metrics.annualized_return = ((equity[-1] / equity[0]) ** (1 / years) - 1) * 100
+            metrics.annualized_return = (
+                (equity[-1] / equity[0]) ** (1 / years) - 1
+            ) * 100
 
         # Volatility (annualized based on timeframe)
         metrics.volatility = np.std(returns) * np.sqrt(periods_per_year) * 100
@@ -131,12 +135,16 @@ class AdvancedAnalytics:
         # Sharpe Ratio (annualized based on timeframe)
         excess_returns = returns - (self.risk_free_rate / periods_per_year)
         if np.std(returns) > 0:
-            metrics.sharpe_ratio = (np.mean(excess_returns) / np.std(returns)) * np.sqrt(periods_per_year)
+            metrics.sharpe_ratio = (
+                np.mean(excess_returns) / np.std(returns)
+            ) * np.sqrt(periods_per_year)
 
         # Sortino Ratio (uses only downside deviation, annualized based on timeframe)
         downside_returns = returns[returns < 0]
         if len(downside_returns) > 0 and np.std(downside_returns) > 0:
-            metrics.sortino_ratio = (np.mean(excess_returns) / np.std(downside_returns)) * np.sqrt(periods_per_year)
+            metrics.sortino_ratio = (
+                np.mean(excess_returns) / np.std(downside_returns)
+            ) * np.sqrt(periods_per_year)
 
         # Maximum Drawdown
         peak = np.maximum.accumulate(equity)
@@ -146,7 +154,9 @@ class AdvancedAnalytics:
 
         # Calmar Ratio
         if metrics.max_drawdown_percent > 0:
-            metrics.calmar_ratio = metrics.annualized_return / metrics.max_drawdown_percent
+            metrics.calmar_ratio = (
+                metrics.annualized_return / metrics.max_drawdown_percent
+            )
 
         # Value at Risk (95% confidence)
         metrics.value_at_risk_95 = np.percentile(returns, 5) * equity[-1]
@@ -165,7 +175,7 @@ class AdvancedAnalytics:
             metrics.omega_ratio = gains / losses
 
         # Ulcer Index (measure of downside volatility)
-        drawdown_squared = drawdown ** 2
+        drawdown_squared = drawdown**2
         metrics.ulcer_index = np.sqrt(np.mean(drawdown_squared)) * 100
 
         # Best/Worst days
@@ -177,13 +187,13 @@ class AdvancedAnalytics:
 
         # Trade-specific metrics
         if trades:
-            winning_trades = [t for t in trades if t.get('pnl', 0) > 0]
-            losing_trades = [t for t in trades if t.get('pnl', 0) <= 0]
+            winning_trades = [t for t in trades if t.get("pnl", 0) > 0]
+            losing_trades = [t for t in trades if t.get("pnl", 0) <= 0]
 
             metrics.win_rate = (len(winning_trades) / len(trades)) * 100
 
             if winning_trades:
-                wins = [t['pnl'] for t in winning_trades]
+                wins = [t["pnl"] for t in winning_trades]
                 metrics.avg_win = np.mean(wins)
                 metrics.largest_win = np.max(wins)
                 total_wins = sum(wins)
@@ -191,7 +201,7 @@ class AdvancedAnalytics:
                 total_wins = 0
 
             if losing_trades:
-                losses = [abs(t['pnl']) for t in losing_trades]
+                losses = [abs(t["pnl"]) for t in losing_trades]
                 metrics.avg_loss = np.mean(losses)
                 metrics.largest_loss = np.max(losses)
                 total_losses = sum(losses)
@@ -211,17 +221,20 @@ class AdvancedAnalytics:
                 win_prob = metrics.win_rate / 100
                 loss_prob = 1 - win_prob
                 win_loss_ratio = metrics.avg_win / metrics.avg_loss
-                metrics.kelly_criterion = (win_prob / loss_prob - 1 / win_loss_ratio) * 100
+                metrics.kelly_criterion = (
+                    win_prob / loss_prob - 1 / win_loss_ratio
+                ) * 100
 
             # Expectancy
             win_prob = metrics.win_rate / 100
-            metrics.expectancy = (win_prob * metrics.avg_win) - ((1 - win_prob) * metrics.avg_loss)
+            metrics.expectancy = (win_prob * metrics.avg_win) - (
+                (1 - win_prob) * metrics.avg_loss
+            )
 
         return metrics
 
     def calculate_correlation_matrix(
-        self,
-        price_data: Dict[str, List[float]]
+        self, price_data: Dict[str, List[float]]
     ) -> pd.DataFrame:
         """
         Calculate correlation matrix between different assets
@@ -243,16 +256,17 @@ class AdvancedAnalytics:
         return correlation
 
     def calculate_rolling_sharpe(
-        self,
-        equity_curve: List[float],
-        window: int = 30,
-        timeframe: str = '1h'
+        self, equity_curve: List[float], window: int = 30, timeframe: str = "1h"
     ) -> List[float]:
         """Calculate rolling Sharpe ratio over time"""
         # Calculate periods per year for annualization
         timeframe_to_periods = {
-            '1m': 525600, '5m': 105120, '15m': 35040,
-            '1h': 8760, '4h': 2190, '1d': 365
+            "1m": 525600,
+            "5m": 105120,
+            "15m": 35040,
+            "1h": 8760,
+            "4h": 2190,
+            "1d": 365,
         }
         periods_per_year = timeframe_to_periods.get(timeframe, 8760)
 
@@ -262,11 +276,13 @@ class AdvancedAnalytics:
         rolling_sharpe = []
 
         for i in range(window, len(returns)):
-            window_returns = returns[i-window:i]
+            window_returns = returns[i - window : i]
             excess_returns = window_returns - (self.risk_free_rate / periods_per_year)
 
             if np.std(window_returns) > 0:
-                sharpe = (np.mean(excess_returns) / np.std(window_returns)) * np.sqrt(periods_per_year)
+                sharpe = (np.mean(excess_returns) / np.std(window_returns)) * np.sqrt(
+                    periods_per_year
+                )
                 rolling_sharpe.append(sharpe)
             else:
                 rolling_sharpe.append(0)
@@ -274,37 +290,47 @@ class AdvancedAnalytics:
         return rolling_sharpe
 
     def calculate_monthly_returns(
-        self,
-        equity_curve: List[float],
-        dates: List[datetime]
+        self, equity_curve: List[float], dates: List[datetime]
     ) -> pd.DataFrame:
         """Calculate monthly return breakdown"""
-        df = pd.DataFrame({
-            'equity': equity_curve,
-            'date': dates
-        })
+        df = pd.DataFrame({"equity": equity_curve, "date": dates})
 
-        df.set_index('date', inplace=True)
-        df['returns'] = df['equity'].pct_change()
+        df.set_index("date", inplace=True)
+        df["returns"] = df["equity"].pct_change()
 
         # Resample to monthly
-        monthly = df['returns'].resample('M').apply(lambda x: (1 + x).prod() - 1)
+        monthly = df["returns"].resample("M").apply(lambda x: (1 + x).prod() - 1)
 
         # Create pivot table (year x month)
-        monthly_df = pd.DataFrame({
-            'Year': monthly.index.year,
-            'Month': monthly.index.month,
-            'Return': monthly.values
-        })
+        monthly_df = pd.DataFrame(
+            {
+                "Year": monthly.index.year,
+                "Month": monthly.index.month,
+                "Return": monthly.values,
+            }
+        )
 
-        pivot = monthly_df.pivot(index='Year', columns='Month', values='Return')
+        pivot = monthly_df.pivot(index="Year", columns="Month", values="Return")
         pivot = pivot * 100  # Convert to percentage
 
         # Rename columns to month names
-        month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-        pivot.columns = [month_names[int(m)-1] if m <= 12 else f'M{int(m)}'
-                        for m in pivot.columns]
+        month_names = [
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
+        ]
+        pivot.columns = [
+            month_names[int(m) - 1] if m <= 12 else f"M{int(m)}" for m in pivot.columns
+        ]
 
         return pivot
 
@@ -313,7 +339,7 @@ class AdvancedAnalytics:
         metrics: PerformanceMetrics,
         equity_curve: List[float],
         dates: List[datetime],
-        output_path: str = "analytics"
+        output_path: str = "analytics",
     ):
         """Generate comprehensive analytics report with visualizations"""
         try:
@@ -332,10 +358,16 @@ class AdvancedAnalytics:
 
             # 1. Equity Curve
             ax1 = fig.add_subplot(gs[0, :])
-            ax1.plot(dates, equity_curve, linewidth=2, color='#00ff9f', label='Portfolio Value')
-            ax1.fill_between(dates, equity_curve, alpha=0.3, color='#00ff9f')
-            ax1.set_title('Equity Curve', fontsize=14, fontweight='bold')
-            ax1.set_ylabel('Portfolio Value ($)')
+            ax1.plot(
+                dates,
+                equity_curve,
+                linewidth=2,
+                color="#00ff9f",
+                label="Portfolio Value",
+            )
+            ax1.fill_between(dates, equity_curve, alpha=0.3, color="#00ff9f")
+            ax1.set_title("Equity Curve", fontsize=14, fontweight="bold")
+            ax1.set_ylabel("Portfolio Value ($)")
             ax1.grid(True, alpha=0.3)
             ax1.legend()
 
@@ -343,36 +375,42 @@ class AdvancedAnalytics:
             ax2 = fig.add_subplot(gs[1, :])
             peak = np.maximum.accumulate(equity_curve)
             drawdown = ((np.array(equity_curve) - peak) / peak) * 100
-            ax2.fill_between(dates, drawdown, 0, color='#ff0055', alpha=0.3)
-            ax2.plot(dates, drawdown, color='#ff0055', linewidth=2)
-            ax2.set_title('Drawdown', fontsize=14, fontweight='bold')
-            ax2.set_ylabel('Drawdown (%)')
+            ax2.fill_between(dates, drawdown, 0, color="#ff0055", alpha=0.3)
+            ax2.plot(dates, drawdown, color="#ff0055", linewidth=2)
+            ax2.set_title("Drawdown", fontsize=14, fontweight="bold")
+            ax2.set_ylabel("Drawdown (%)")
             ax2.grid(True, alpha=0.3)
 
             # 3. Returns Distribution
             ax3 = fig.add_subplot(gs[2, 0])
             returns = np.diff(equity_curve) / equity_curve[:-1]
-            ax3.hist(returns * 100, bins=50, color='#7d5fff', alpha=0.7, edgecolor='white')
-            ax3.axvline(x=0, color='#666', linestyle='--', linewidth=2)
-            ax3.set_title('Returns Distribution')
-            ax3.set_xlabel('Return (%)')
-            ax3.set_ylabel('Frequency')
+            ax3.hist(
+                returns * 100, bins=50, color="#7d5fff", alpha=0.7, edgecolor="white"
+            )
+            ax3.axvline(x=0, color="#666", linestyle="--", linewidth=2)
+            ax3.set_title("Returns Distribution")
+            ax3.set_xlabel("Return (%)")
+            ax3.set_ylabel("Frequency")
             ax3.grid(True, alpha=0.3)
 
             # 4. Rolling Sharpe
             ax4 = fig.add_subplot(gs[2, 1])
             rolling_sharpe = self.calculate_rolling_sharpe(equity_curve, window=30)
             if rolling_sharpe:
-                ax4.plot(dates[30:len(rolling_sharpe)+30], rolling_sharpe,
-                        linewidth=2, color='#00d4ff')
-                ax4.axhline(y=0, color='#666', linestyle='--')
-                ax4.set_title('Rolling Sharpe Ratio (30-day)')
-                ax4.set_ylabel('Sharpe Ratio')
+                ax4.plot(
+                    dates[30 : len(rolling_sharpe) + 30],
+                    rolling_sharpe,
+                    linewidth=2,
+                    color="#00d4ff",
+                )
+                ax4.axhline(y=0, color="#666", linestyle="--")
+                ax4.set_title("Rolling Sharpe Ratio (30-day)")
+                ax4.set_ylabel("Sharpe Ratio")
                 ax4.grid(True, alpha=0.3)
 
             # 5. Performance Metrics Table
             ax5 = fig.add_subplot(gs[2, 2])
-            ax5.axis('off')
+            ax5.axis("off")
             metrics_text = f"""
 PERFORMANCE METRICS
 
@@ -399,49 +437,64 @@ Trade Metrics
 • Avg Win/Loss: {metrics.avg_win_loss_ratio:.2f}
 • Expectancy: ${metrics.expectancy:.2f}
 """
-            ax5.text(0.05, 0.95, metrics_text, fontsize=9, family='monospace',
-                    verticalalignment='top')
+            ax5.text(
+                0.05,
+                0.95,
+                metrics_text,
+                fontsize=9,
+                family="monospace",
+                verticalalignment="top",
+            )
 
             # 6. Risk Metrics Gauge
             ax6 = fig.add_subplot(gs[3, 0])
-            categories = ['Sharpe', 'Sortino', 'Calmar', 'Omega']
+            categories = ["Sharpe", "Sortino", "Calmar", "Omega"]
             values = [
                 min(metrics.sharpe_ratio, 3),
                 min(metrics.sortino_ratio, 3),
                 min(metrics.calmar_ratio, 3),
-                min(metrics.omega_ratio, 3)
+                min(metrics.omega_ratio, 3),
             ]
-            colors = ['#00ff9f' if v > 1 else '#ff0055' for v in values]
+            colors = ["#00ff9f" if v > 1 else "#ff0055" for v in values]
             ax6.barh(categories, values, color=colors, alpha=0.7)
-            ax6.axvline(x=1, color='#666', linestyle='--', label='Threshold')
-            ax6.set_title('Risk-Adjusted Returns')
-            ax6.set_xlabel('Ratio Value')
+            ax6.axvline(x=1, color="#666", linestyle="--", label="Threshold")
+            ax6.set_title("Risk-Adjusted Returns")
+            ax6.set_xlabel("Ratio Value")
             ax6.legend()
             ax6.grid(True, alpha=0.3)
 
             # 7. Win/Loss Analysis
             ax7 = fig.add_subplot(gs[3, 1])
             win_loss_data = [metrics.avg_win, -metrics.avg_loss]
-            colors_wl = ['#00ff9f', '#ff0055']
-            ax7.bar(['Avg Win', 'Avg Loss'], win_loss_data, color=colors_wl, alpha=0.7)
-            ax7.set_title('Win/Loss Analysis')
-            ax7.set_ylabel('Amount ($)')
+            colors_wl = ["#00ff9f", "#ff0055"]
+            ax7.bar(["Avg Win", "Avg Loss"], win_loss_data, color=colors_wl, alpha=0.7)
+            ax7.set_title("Win/Loss Analysis")
+            ax7.set_ylabel("Amount ($)")
             ax7.grid(True, alpha=0.3)
 
             # 8. Daily Performance
             ax8 = fig.add_subplot(gs[3, 2])
             day_data = [metrics.positive_days, metrics.negative_days]
-            colors_days = ['#00ff9f', '#ff0055']
-            ax8.pie(day_data, labels=['Positive', 'Negative'], colors=colors_days,
-                   autopct='%1.1f%%', startangle=90)
-            ax8.set_title('Daily Win Rate')
+            colors_days = ["#00ff9f", "#ff0055"]
+            ax8.pie(
+                day_data,
+                labels=["Positive", "Negative"],
+                colors=colors_days,
+                autopct="%1.1f%%",
+                startangle=90,
+            )
+            ax8.set_title("Daily Win Rate")
 
-            plt.suptitle(f'Advanced Analytics Report - {timestamp}',
-                        fontsize=16, fontweight='bold', y=0.995)
+            plt.suptitle(
+                f"Advanced Analytics Report - {timestamp}",
+                fontsize=16,
+                fontweight="bold",
+                y=0.995,
+            )
 
             # Save
             report_path = output_dir / f"analytics_report_{timestamp}.png"
-            plt.savefig(report_path, dpi=150, bbox_inches='tight', facecolor='#1a1a1a')
+            plt.savefig(report_path, dpi=150, bbox_inches="tight", facecolor="#1a1a1a")
             logger.info(f"📊 Analytics report saved: {report_path}")
 
             # Save metrics as JSON
@@ -457,36 +510,36 @@ Trade Metrics
     def _save_metrics_json(self, metrics: PerformanceMetrics, filepath: Path):
         """Save metrics to JSON file"""
         data = {
-            'returns': {
-                'total_return': metrics.total_return,
-                'total_return_percent': metrics.total_return_percent,
-                'annualized_return': metrics.annualized_return
+            "returns": {
+                "total_return": metrics.total_return,
+                "total_return_percent": metrics.total_return_percent,
+                "annualized_return": metrics.annualized_return,
             },
-            'risk_adjusted': {
-                'sharpe_ratio': metrics.sharpe_ratio,
-                'sortino_ratio': metrics.sortino_ratio,
-                'calmar_ratio': metrics.calmar_ratio,
-                'omega_ratio': metrics.omega_ratio
+            "risk_adjusted": {
+                "sharpe_ratio": metrics.sharpe_ratio,
+                "sortino_ratio": metrics.sortino_ratio,
+                "calmar_ratio": metrics.calmar_ratio,
+                "omega_ratio": metrics.omega_ratio,
             },
-            'risk_metrics': {
-                'volatility': metrics.volatility,
-                'max_drawdown': metrics.max_drawdown,
-                'max_drawdown_percent': metrics.max_drawdown_percent,
-                'value_at_risk_95': metrics.value_at_risk_95,
-                'conditional_var_95': metrics.conditional_var_95,
-                'ulcer_index': metrics.ulcer_index
+            "risk_metrics": {
+                "volatility": metrics.volatility,
+                "max_drawdown": metrics.max_drawdown,
+                "max_drawdown_percent": metrics.max_drawdown_percent,
+                "value_at_risk_95": metrics.value_at_risk_95,
+                "conditional_var_95": metrics.conditional_var_95,
+                "ulcer_index": metrics.ulcer_index,
             },
-            'trade_metrics': {
-                'win_rate': metrics.win_rate,
-                'profit_factor': metrics.profit_factor,
-                'avg_win': metrics.avg_win,
-                'avg_loss': metrics.avg_loss,
-                'expectancy': metrics.expectancy,
-                'kelly_criterion': metrics.kelly_criterion
-            }
+            "trade_metrics": {
+                "win_rate": metrics.win_rate,
+                "profit_factor": metrics.profit_factor,
+                "avg_win": metrics.avg_win,
+                "avg_loss": metrics.avg_loss,
+                "expectancy": metrics.expectancy,
+                "kelly_criterion": metrics.kelly_criterion,
+            },
         }
 
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             json.dump(data, f, indent=2)
 
         logger.info(f"💾 Metrics saved: {filepath}")

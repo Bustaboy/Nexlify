@@ -15,35 +15,39 @@ import logging
 import subprocess
 import threading
 import time
-import psutil
-from typing import Dict, List, Optional, Tuple
+from collections import deque
 from dataclasses import dataclass
 from enum import Enum
-from collections import deque
+from typing import Dict, List, Optional, Tuple
+
+import psutil
 
 logger = logging.getLogger(__name__)
 
 
 class ThermalState(Enum):
     """Thermal states"""
-    OPTIMAL = "optimal"          # < 70°C
-    WARM = "warm"                # 70-80°C
-    HOT = "hot"                  # 80-85°C
-    THROTTLING = "throttling"    # 85-95°C
-    CRITICAL = "critical"        # > 95°C
+
+    OPTIMAL = "optimal"  # < 70°C
+    WARM = "warm"  # 70-80°C
+    HOT = "hot"  # 80-85°C
+    THROTTLING = "throttling"  # 85-95°C
+    CRITICAL = "critical"  # > 95°C
 
 
 class PowerState(Enum):
     """Power states"""
-    UNLIMITED = "unlimited"      # Desktop, AC power
-    BALANCED = "balanced"        # Balanced mode
+
+    UNLIMITED = "unlimited"  # Desktop, AC power
+    BALANCED = "balanced"  # Balanced mode
     POWER_SAVER = "power_saver"  # Battery, power limit active
-    THROTTLED = "throttled"      # Power limit exceeded
+    THROTTLED = "throttled"  # Power limit exceeded
 
 
 @dataclass
 class ThermalSnapshot:
     """Snapshot of thermal state"""
+
     timestamp: float
     gpu_temps: List[float]
     gpu_power_watts: List[float]
@@ -86,13 +90,17 @@ class ThermalMonitor:
         self.throttle_count = 0
         self.throttle_cooldown = 0
 
-        logger.info(f"🌡️  Thermal Monitor initialized (check interval: {check_interval}s)")
+        logger.info(
+            f"🌡️  Thermal Monitor initialized (check interval: {check_interval}s)"
+        )
 
     def start_monitoring(self):
         """Start background monitoring thread (LOW OVERHEAD)"""
         if not self.monitoring:
             self.monitoring = True
-            self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
+            self.monitor_thread = threading.Thread(
+                target=self._monitor_loop, daemon=True
+            )
             self.monitor_thread.start()
             logger.info("📊 Thermal monitoring started")
 
@@ -114,9 +122,13 @@ class ThermalMonitor:
                 # Check for throttling
                 if snapshot.is_throttling:
                     self.throttle_count += 1
-                    logger.warning(f"⚠️  Thermal throttling detected! Count: {self.throttle_count}")
+                    logger.warning(
+                        f"⚠️  Thermal throttling detected! Count: {self.throttle_count}"
+                    )
                     logger.warning(f"   GPU temps: {snapshot.gpu_temps}")
-                    logger.warning(f"   Recommendation: Reduce batch size or improve cooling")
+                    logger.warning(
+                        f"   Recommendation: Reduce batch size or improve cooling"
+                    )
                 else:
                     # Decay throttle count
                     if self.throttle_count > 0:
@@ -126,7 +138,9 @@ class ThermalMonitor:
                 if snapshot.power_state == PowerState.THROTTLED:
                     logger.warning("⚠️  GPU power limit exceeded - performance reduced")
                 elif snapshot.on_battery:
-                    logger.info("🔋 Running on battery - using power-efficient settings")
+                    logger.info(
+                        "🔋 Running on battery - using power-efficient settings"
+                    )
 
             except Exception as e:
                 logger.debug(f"Thermal monitoring error: {e}")
@@ -152,16 +166,21 @@ class ThermalMonitor:
                 # Use nvidia-smi for detailed info (CACHED every 30s)
                 try:
                     result = subprocess.run(
-                        ['nvidia-smi', '--query-gpu=temperature.gpu,power.draw,power.limit',
-                         '--format=csv,noheader,nounits'],
-                        capture_output=True, text=True, timeout=2
+                        [
+                            "nvidia-smi",
+                            "--query-gpu=temperature.gpu,power.draw,power.limit",
+                            "--format=csv,noheader,nounits",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=2,
                     )
 
                     if result.returncode == 0:
-                        lines = result.stdout.strip().split('\n')
+                        lines = result.stdout.strip().split("\n")
 
                         for line in lines[:num_gpus]:
-                            parts = line.split(',')
+                            parts = line.split(",")
                             if len(parts) >= 3:
                                 temp = float(parts[0].strip())
                                 power = float(parts[1].strip())
@@ -195,8 +214,8 @@ class ThermalMonitor:
 
         # Check throttling
         is_throttling = (
-            thermal_state in [ThermalState.THROTTLING, ThermalState.CRITICAL] or
-            power_state == PowerState.THROTTLED
+            thermal_state in [ThermalState.THROTTLING, ThermalState.CRITICAL]
+            or power_state == PowerState.THROTTLED
         )
 
         # Battery status
@@ -211,18 +230,18 @@ class ThermalMonitor:
             thermal_state=thermal_state,
             power_state=power_state,
             is_throttling=is_throttling,
-            on_battery=on_battery
+            on_battery=on_battery,
         )
 
     def _get_cpu_temp(self) -> Optional[float]:
         """Get CPU temperature (if available)"""
         try:
             # psutil.sensors_temperatures() on Linux
-            if hasattr(psutil, 'sensors_temperatures'):
+            if hasattr(psutil, "sensors_temperatures"):
                 temps = psutil.sensors_temperatures()
 
                 # Try common sensors
-                for sensor_name in ['coretemp', 'k10temp', 'zenpower', 'cpu_thermal']:
+                for sensor_name in ["coretemp", "k10temp", "zenpower", "cpu_thermal"]:
                     if sensor_name in temps:
                         sensor_temps = temps[sensor_name]
                         if sensor_temps:
@@ -247,8 +266,9 @@ class ThermalMonitor:
         else:
             return ThermalState.CRITICAL
 
-    def _classify_power_state(self, power_watts: List[float],
-                             power_limits: List[float]) -> PowerState:
+    def _classify_power_state(
+        self, power_watts: List[float], power_limits: List[float]
+    ) -> PowerState:
         """Classify power state"""
         if not power_watts or not power_limits:
             return PowerState.UNLIMITED
@@ -259,7 +279,9 @@ class ThermalMonitor:
                 return PowerState.THROTTLED
 
         # Check power level
-        avg_utilization = sum(p / l for p, l in zip(power_watts, power_limits)) / len(power_watts)
+        avg_utilization = sum(p / l for p, l in zip(power_watts, power_limits)) / len(
+            power_watts
+        )
 
         if avg_utilization > 0.8:
             return PowerState.UNLIMITED
@@ -310,7 +332,10 @@ class ThermalMonitor:
         if self.last_snapshot.thermal_state == ThermalState.CRITICAL:
             return True
 
-        if self.last_snapshot.on_battery and self.last_snapshot.power_state != PowerState.POWER_SAVER:
+        if (
+            self.last_snapshot.on_battery
+            and self.last_snapshot.power_state != PowerState.POWER_SAVER
+        ):
             return True
 
         return False
@@ -346,35 +371,37 @@ class ThermalMonitor:
             return False
 
         return (
-            self.last_snapshot.on_battery or
-            self.last_snapshot.power_state == PowerState.POWER_SAVER
+            self.last_snapshot.on_battery
+            or self.last_snapshot.power_state == PowerState.POWER_SAVER
         )
 
     def get_stats_summary(self) -> Dict:
         """Get thermal/power statistics summary"""
         if not self.last_snapshot:
-            return {'available': False}
+            return {"available": False}
 
         snapshot = self.last_snapshot
 
         return {
-            'available': True,
-            'gpu_temps': snapshot.gpu_temps,
-            'gpu_max_temp': max(snapshot.gpu_temps) if snapshot.gpu_temps else None,
-            'cpu_temp': snapshot.cpu_temp,
-            'thermal_state': snapshot.thermal_state.value,
-            'power_state': snapshot.power_state.value,
-            'is_throttling': snapshot.is_throttling,
-            'throttle_count': self.throttle_count,
-            'on_battery': snapshot.on_battery,
-            'recommended_batch_scale': self.get_recommended_batch_scale(),
-            'power_efficiency_mode': self.get_power_efficiency_mode()
+            "available": True,
+            "gpu_temps": snapshot.gpu_temps,
+            "gpu_max_temp": max(snapshot.gpu_temps) if snapshot.gpu_temps else None,
+            "cpu_temp": snapshot.cpu_temp,
+            "thermal_state": snapshot.thermal_state.value,
+            "power_state": snapshot.power_state.value,
+            "is_throttling": snapshot.is_throttling,
+            "throttle_count": self.throttle_count,
+            "on_battery": snapshot.on_battery,
+            "recommended_batch_scale": self.get_recommended_batch_scale(),
+            "power_efficiency_mode": self.get_power_efficiency_mode(),
         }
 
     def get_thermal_history(self, minutes: int = 10) -> List[ThermalSnapshot]:
         """Get thermal history for last N minutes"""
         # Each snapshot is ~30s apart
-        num_snapshots = min(len(self.history), (minutes * 60) // int(self.check_interval))
+        num_snapshots = min(
+            len(self.history), (minutes * 60) // int(self.check_interval)
+        )
         return list(self.history)[-num_snapshots:]
 
 
@@ -411,7 +438,10 @@ class ThermalOptimizer:
         new_batch_size = int(self.initial_batch_size * scale)
 
         # Only adjust if change is significant (>10%)
-        if abs(new_batch_size - self.current_batch_size) > self.current_batch_size * 0.1:
+        if (
+            abs(new_batch_size - self.current_batch_size)
+            > self.current_batch_size * 0.1
+        ):
             self.current_batch_size = new_batch_size
             self.last_adjustment_time = current_time
             logger.info(f"♨️  Thermal adjustment: batch size {self.current_batch_size}")
@@ -428,10 +458,10 @@ def create_thermal_monitor(check_interval: float = 30.0) -> ThermalMonitor:
 
 # Export
 __all__ = [
-    'ThermalState',
-    'PowerState',
-    'ThermalSnapshot',
-    'ThermalMonitor',
-    'ThermalOptimizer',
-    'create_thermal_monitor'
+    "ThermalState",
+    "PowerState",
+    "ThermalSnapshot",
+    "ThermalMonitor",
+    "ThermalOptimizer",
+    "create_thermal_monitor",
 ]

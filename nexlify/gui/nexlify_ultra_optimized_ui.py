@@ -10,27 +10,24 @@ Adds GUI controls for Ultra-Optimized RL/ML features:
 - Real-time optimization statistics
 """
 
-import sys
 import logging
-from typing import Dict, Optional
+import sys
 from datetime import datetime
+from typing import Dict, Optional
 
-from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 
 logger = logging.getLogger(__name__)
 
 # Check if ultra-optimized components available
 ULTRA_OPTIMIZED_AVAILABLE = False
 try:
+    from nexlify.ml import (GPUOptimizer, OptimizationManager,
+                            OptimizationProfile, SentimentAnalyzer)
     from nexlify.strategies import UltraOptimizedDQNAgent
-    from nexlify.ml import (
-        OptimizationProfile,
-        OptimizationManager,
-        SentimentAnalyzer,
-        GPUOptimizer
-    )
+
     ULTRA_OPTIMIZED_AVAILABLE = True
 except ImportError:
     logger.warning("Ultra-optimized components not available (missing dependencies)")
@@ -76,7 +73,8 @@ class UltraOptimizedConfigDialog(QDialog):
         button_layout = QHBoxLayout()
 
         save_btn = QPushButton("💾 Save Configuration")
-        save_btn.setStyleSheet("""
+        save_btn.setStyleSheet(
+            """
             QPushButton {
                 background: #00ffff;
                 color: #000;
@@ -88,12 +86,14 @@ class UltraOptimizedConfigDialog(QDialog):
             QPushButton:hover {
                 background: #00dddd;
             }
-        """)
+        """
+        )
         save_btn.clicked.connect(self.save_configuration)
         button_layout.addWidget(save_btn)
 
         test_btn = QPushButton("🧪 Test Configuration")
-        test_btn.setStyleSheet("""
+        test_btn.setStyleSheet(
+            """
             QPushButton {
                 background: #333;
                 color: #00ffff;
@@ -104,12 +104,14 @@ class UltraOptimizedConfigDialog(QDialog):
             QPushButton:hover {
                 background: #444;
             }
-        """)
+        """
+        )
         test_btn.clicked.connect(self.test_configuration)
         button_layout.addWidget(test_btn)
 
         cancel_btn = QPushButton("Cancel")
-        cancel_btn.setStyleSheet("""
+        cancel_btn.setStyleSheet(
+            """
             QPushButton {
                 background: #555;
                 color: #fff;
@@ -119,7 +121,8 @@ class UltraOptimizedConfigDialog(QDialog):
             QPushButton:hover {
                 background: #666;
             }
-        """)
+        """
+        )
         cancel_btn.clicked.connect(self.reject)
         button_layout.addWidget(cancel_btn)
 
@@ -139,16 +142,31 @@ class UltraOptimizedConfigDialog(QDialog):
 
         if ULTRA_OPTIMIZED_AVAILABLE:
             profiles = [
-                ("AUTO", "Automatic (Recommended)",
-                 "Automatically benchmarks and enables best optimizations"),
-                ("ULTRA_LOW_OVERHEAD", "Ultra Low Overhead",
-                 "< 0.01% overhead - Only zero-cost optimizations"),
-                ("BALANCED", "Balanced (Default)",
-                 "< 0.02% overhead - Good balance of speed and efficiency"),
-                ("MAXIMUM_PERFORMANCE", "Maximum Performance",
-                 "< 0.1% overhead - All optimizations enabled"),
-                ("INFERENCE_ONLY", "Inference Only",
-                 "Optimized for deployed models, no training features"),
+                (
+                    "AUTO",
+                    "Automatic (Recommended)",
+                    "Automatically benchmarks and enables best optimizations",
+                ),
+                (
+                    "ULTRA_LOW_OVERHEAD",
+                    "Ultra Low Overhead",
+                    "< 0.01% overhead - Only zero-cost optimizations",
+                ),
+                (
+                    "BALANCED",
+                    "Balanced (Default)",
+                    "< 0.02% overhead - Good balance of speed and efficiency",
+                ),
+                (
+                    "MAXIMUM_PERFORMANCE",
+                    "Maximum Performance",
+                    "< 0.1% overhead - All optimizations enabled",
+                ),
+                (
+                    "INFERENCE_ONLY",
+                    "Inference Only",
+                    "Optimized for deployed models, no training features",
+                ),
             ]
         else:
             profiles = [("N/A", "Ultra-optimized components not available", "")]
@@ -164,14 +182,16 @@ class UltraOptimizedConfigDialog(QDialog):
         # Profile description
         self.profile_desc = QLabel()
         self.profile_desc.setWordWrap(True)
-        self.profile_desc.setStyleSheet("""
+        self.profile_desc.setStyleSheet(
+            """
             QLabel {
                 background: #1f1f1f;
                 padding: 10px;
                 border-radius: 5px;
                 color: #00ffff;
             }
-        """)
+        """
+        )
         profile_layout.addWidget(self.profile_desc)
 
         # Performance expectations
@@ -182,7 +202,8 @@ class UltraOptimizedConfigDialog(QDialog):
         self.perf_text = QTextEdit()
         self.perf_text.setReadOnly(True)
         self.perf_text.setMaximumHeight(150)
-        self.perf_text.setStyleSheet("""
+        self.perf_text.setStyleSheet(
+            """
             QTextEdit {
                 background: #0a0a0a;
                 color: #00ff00;
@@ -191,7 +212,8 @@ class UltraOptimizedConfigDialog(QDialog):
                 padding: 10px;
                 font-family: 'Consolas', 'Courier New', monospace;
             }
-        """)
+        """
+        )
         profile_layout.addWidget(self.perf_text)
 
         profile_group.setLayout(profile_layout)
@@ -218,7 +240,8 @@ class UltraOptimizedConfigDialog(QDialog):
 
         self.hw_info = QTextEdit()
         self.hw_info.setReadOnly(True)
-        self.hw_info.setStyleSheet("""
+        self.hw_info.setStyleSheet(
+            """
             QTextEdit {
                 background: #0a0a0a;
                 color: #00ffff;
@@ -227,7 +250,8 @@ class UltraOptimizedConfigDialog(QDialog):
                 padding: 10px;
                 font-family: 'Consolas', 'Courier New', monospace;
             }
-        """)
+        """
+        )
         hw_layout.addWidget(self.hw_info)
 
         hw_group.setLayout(hw_layout)
@@ -287,7 +311,8 @@ class UltraOptimizedConfigDialog(QDialog):
         self.sentiment_result = QTextEdit()
         self.sentiment_result.setReadOnly(True)
         self.sentiment_result.setMaximumHeight(150)
-        self.sentiment_result.setStyleSheet("""
+        self.sentiment_result.setStyleSheet(
+            """
             QTextEdit {
                 background: #0a0a0a;
                 color: #00ff00;
@@ -295,7 +320,8 @@ class UltraOptimizedConfigDialog(QDialog):
                 border-radius: 5px;
                 padding: 10px;
             }
-        """)
+        """
+        )
         layout.addWidget(self.sentiment_result)
 
         layout.addStretch()
@@ -391,7 +417,9 @@ class UltraOptimizedConfigDialog(QDialog):
     def _detect_hardware(self):
         """Detect hardware capabilities"""
         if not ULTRA_OPTIMIZED_AVAILABLE:
-            self.hw_info.setPlainText("❌ Ultra-optimized components not available.\nInstall dependencies: pip install -r requirements.txt")
+            self.hw_info.setPlainText(
+                "❌ Ultra-optimized components not available.\nInstall dependencies: pip install -r requirements.txt"
+            )
             return
 
         self.hw_info.setPlainText("🔍 Detecting hardware...\n")
@@ -399,9 +427,10 @@ class UltraOptimizedConfigDialog(QDialog):
 
         try:
             # Import here to avoid issues if not available
-            import torch
-            import psutil
             import platform
+
+            import psutil
+            import torch
 
             info = []
             info.append("═" * 60)
@@ -431,9 +460,15 @@ class UltraOptimizedConfigDialog(QDialog):
                     props = torch.cuda.get_device_properties(i)
                     info.append(f"\n   GPU {i}: {props.name}")
                     info.append(f"      VRAM: {props.total_memory / (1024**3):.1f} GB")
-                    info.append(f"      Compute Capability: {props.major}.{props.minor}")
-                    info.append(f"      Tensor Cores: {'Yes' if props.major >= 7 else 'No'}")
-                    info.append(f"      Multi-Processors: {props.multi_processor_count}")
+                    info.append(
+                        f"      Compute Capability: {props.major}.{props.minor}"
+                    )
+                    info.append(
+                        f"      Tensor Cores: {'Yes' if props.major >= 7 else 'No'}"
+                    )
+                    info.append(
+                        f"      Multi-Processors: {props.multi_processor_count}"
+                    )
             else:
                 info.append("   No CUDA GPUs detected")
                 info.append("   CPU-only mode will be used")
@@ -458,7 +493,9 @@ class UltraOptimizedConfigDialog(QDialog):
     def _test_sentiment(self):
         """Test sentiment analysis"""
         if not ULTRA_OPTIMIZED_AVAILABLE:
-            self.sentiment_result.setPlainText("❌ Ultra-optimized components not available")
+            self.sentiment_result.setPlainText(
+                "❌ Ultra-optimized components not available"
+            )
             return
 
         self.sentiment_result.setPlainText("🧪 Testing sentiment analysis...\n")
@@ -478,7 +515,7 @@ class UltraOptimizedConfigDialog(QDialog):
                 "Overall Sentiment: NEUTRAL (Score: 0.20)",
                 "",
                 "✅ Sentiment analysis is working correctly!",
-                "💡 API keys configured: 0/3 (using free tiers)"
+                "💡 API keys configured: 0/3 (using free tiers)",
             ]
 
             self.sentiment_result.setPlainText("\n".join(result))
@@ -497,29 +534,29 @@ class UltraOptimizedConfigDialog(QDialog):
             "2. Test hardware detection\n"
             "3. Verify sentiment analysis\n"
             "4. Check optimization availability\n\n"
-            "Results will be shown in the logs."
+            "Results will be shown in the logs.",
         )
 
     def save_configuration(self):
         """Save configuration"""
         config = {
-            'optimization_profile': self.profile_combo.currentData(),
-            'enable_sentiment': self.sentiment_enabled.isChecked(),
-            'state_size': self.state_size.value(),
-            'action_size': self.action_size.value(),
-            'learning_rate': self.learning_rate.value(),
-            'gamma': self.gamma.value(),
-            'sentiment_config': {
-                'cryptopanic_api_key': self.cryptopanic_key.text(),
-                'twitter_api_key': self.twitter_key.text(),
-                'reddit_client_id': self.reddit_client_id.text(),
+            "optimization_profile": self.profile_combo.currentData(),
+            "enable_sentiment": self.sentiment_enabled.isChecked(),
+            "state_size": self.state_size.value(),
+            "action_size": self.action_size.value(),
+            "learning_rate": self.learning_rate.value(),
+            "gamma": self.gamma.value(),
+            "sentiment_config": {
+                "cryptopanic_api_key": self.cryptopanic_key.text(),
+                "twitter_api_key": self.twitter_key.text(),
+                "reddit_client_id": self.reddit_client_id.text(),
             },
-            'features': {
-                'enable_cache': self.enable_cache.isChecked(),
-                'enable_thermal': self.enable_thermal.isChecked(),
-                'enable_compilation': self.enable_compilation.isChecked(),
-                'enable_quantization': self.enable_quantization.isChecked(),
-            }
+            "features": {
+                "enable_cache": self.enable_cache.isChecked(),
+                "enable_thermal": self.enable_thermal.isChecked(),
+                "enable_compilation": self.enable_compilation.isChecked(),
+                "enable_quantization": self.enable_quantization.isChecked(),
+            },
         }
 
         self.result_config = config
@@ -527,10 +564,12 @@ class UltraOptimizedConfigDialog(QDialog):
 
     def get_configuration(self) -> Dict:
         """Get saved configuration"""
-        return getattr(self, 'result_config', {})
+        return getattr(self, "result_config", {})
 
 
-def show_ultra_optimized_config(parent=None, current_config: Optional[Dict] = None) -> Optional[Dict]:
+def show_ultra_optimized_config(
+    parent=None, current_config: Optional[Dict] = None
+) -> Optional[Dict]:
     """
     Show Ultra-Optimized RL Agent configuration dialog
 
@@ -549,7 +588,7 @@ def show_ultra_optimized_config(parent=None, current_config: Optional[Dict] = No
 
 # Export
 __all__ = [
-    'UltraOptimizedConfigDialog',
-    'show_ultra_optimized_config',
-    'ULTRA_OPTIMIZED_AVAILABLE'
+    "UltraOptimizedConfigDialog",
+    "show_ultra_optimized_config",
+    "ULTRA_OPTIMIZED_AVAILABLE",
 ]

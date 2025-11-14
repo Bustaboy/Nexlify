@@ -13,34 +13,37 @@ Automatic detection and optimization for multiple GPUs:
 
 import logging
 import subprocess
-from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 
 class GPUInterconnect(Enum):
     """Types of GPU interconnects"""
+
     NVLINK = "nvlink"  # NVIDIA high-speed interconnect
-    PCIE = "pcie"      # PCIe bus
+    PCIE = "pcie"  # PCIe bus
     INFINITY_FABRIC = "infinity_fabric"  # AMD high-speed interconnect
     UNKNOWN = "unknown"
 
 
 class ParallelStrategy(Enum):
     """Parallelization strategies"""
-    SINGLE_GPU = "single_gpu"          # One GPU only
-    DATA_PARALLEL = "data_parallel"    # Replicate model, split data
+
+    SINGLE_GPU = "single_gpu"  # One GPU only
+    DATA_PARALLEL = "data_parallel"  # Replicate model, split data
     MODEL_PARALLEL = "model_parallel"  # Split model across GPUs
-    PIPELINE_PARALLEL = "pipeline"     # Pipeline model stages
-    TENSOR_PARALLEL = "tensor"         # Split tensors across GPUs
-    HYBRID = "hybrid"                  # Combination of strategies
+    PIPELINE_PARALLEL = "pipeline"  # Pipeline model stages
+    TENSOR_PARALLEL = "tensor"  # Split tensors across GPUs
+    HYBRID = "hybrid"  # Combination of strategies
 
 
 @dataclass
 class GPUDevice:
     """Information about a single GPU device"""
+
     device_id: int
     name: str
     vram_total_gb: float
@@ -56,9 +59,12 @@ class GPUDevice:
 @dataclass
 class GPUTopology:
     """Multi-GPU topology information"""
+
     num_gpus: int
     devices: List[GPUDevice]
-    interconnects: Dict[Tuple[int, int], GPUInterconnect]  # (gpu_i, gpu_j) -> interconnect
+    interconnects: Dict[
+        Tuple[int, int], GPUInterconnect
+    ]  # (gpu_i, gpu_j) -> interconnect
     homogeneous: bool  # All GPUs are the same model
     total_vram_gb: float
     min_vram_gb: float
@@ -68,6 +74,7 @@ class GPUTopology:
 @dataclass
 class ParallelConfig:
     """Configuration for parallel training"""
+
     strategy: ParallelStrategy
     num_gpus: int
     primary_gpu: int
@@ -101,11 +108,15 @@ class MultiGPUManager:
         self.topology = self._detect_gpu_topology()
 
         if self.topology and self.topology.num_gpus > 0:
-            logger.info(f"🎮 Multi-GPU Manager initialized: {self.topology.num_gpus} GPUs detected")
+            logger.info(
+                f"🎮 Multi-GPU Manager initialized: {self.topology.num_gpus} GPUs detected"
+            )
 
             for device in self.topology.devices:
-                logger.info(f"   GPU {device.device_id}: {device.name} "
-                           f"({device.vram_total_gb:.1f} GB VRAM)")
+                logger.info(
+                    f"   GPU {device.device_id}: {device.name} "
+                    f"({device.vram_total_gb:.1f} GB VRAM)"
+                )
 
             if self.topology.num_gpus > 1:
                 if self.topology.homogeneous:
@@ -114,8 +125,10 @@ class MultiGPUManager:
                     logger.info("   ⚠️  Heterogeneous configuration (mixed GPUs)")
 
                 # Check for high-speed interconnects
-                has_nvlink = any(ic == GPUInterconnect.NVLINK
-                               for ic in self.topology.interconnects.values())
+                has_nvlink = any(
+                    ic == GPUInterconnect.NVLINK
+                    for ic in self.topology.interconnects.values()
+                )
                 if has_nvlink:
                     logger.info("   ✓ NVLink detected (high-speed GPU-to-GPU)")
         else:
@@ -161,18 +174,20 @@ class MultiGPUManager:
                 sm_count = props.multi_processor_count
 
                 # Performance relative to fastest GPU (determined later)
-                devices.append(GPUDevice(
-                    device_id=i,
-                    name=name,
-                    vram_total_gb=vram_total,
-                    vram_free_gb=vram_free,
-                    compute_capability=compute_capability,
-                    pci_bus_id=pci_bus_id,
-                    uuid=uuid,
-                    memory_bandwidth_gbps=bandwidth,
-                    sm_count=sm_count,
-                    relative_performance=1.0  # Will be normalized
-                ))
+                devices.append(
+                    GPUDevice(
+                        device_id=i,
+                        name=name,
+                        vram_total_gb=vram_total,
+                        vram_free_gb=vram_free,
+                        compute_capability=compute_capability,
+                        pci_bus_id=pci_bus_id,
+                        uuid=uuid,
+                        memory_bandwidth_gbps=bandwidth,
+                        sm_count=sm_count,
+                        relative_performance=1.0,  # Will be normalized
+                    )
+                )
 
             # Normalize performance scores
             self._calculate_relative_performance(devices)
@@ -195,7 +210,7 @@ class MultiGPUManager:
                 homogeneous=homogeneous,
                 total_vram_gb=total_vram,
                 min_vram_gb=min_vram,
-                max_vram_gb=max_vram
+                max_vram_gb=max_vram,
             )
 
         except Exception as e:
@@ -206,8 +221,16 @@ class MultiGPUManager:
         """Get GPU UUID via nvidia-smi"""
         try:
             result = subprocess.run(
-                ['nvidia-smi', '-i', str(device_id), '--query-gpu=uuid', '--format=csv,noheader'],
-                capture_output=True, text=True, timeout=1
+                [
+                    "nvidia-smi",
+                    "-i",
+                    str(device_id),
+                    "--query-gpu=uuid",
+                    "--format=csv,noheader",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=1,
             )
             if result.returncode == 0:
                 return result.stdout.strip()
@@ -219,8 +242,16 @@ class MultiGPUManager:
         """Get PCI bus ID via nvidia-smi"""
         try:
             result = subprocess.run(
-                ['nvidia-smi', '-i', str(device_id), '--query-gpu=pci.bus_id', '--format=csv,noheader'],
-                capture_output=True, text=True, timeout=1
+                [
+                    "nvidia-smi",
+                    "-i",
+                    str(device_id),
+                    "--query-gpu=pci.bus_id",
+                    "--format=csv,noheader",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=1,
             )
             if result.returncode == 0:
                 return result.stdout.strip()
@@ -233,49 +264,49 @@ class MultiGPUManager:
         name_lower = name.lower()
 
         # High-end datacenter
-        if 'h100' in name_lower:
+        if "h100" in name_lower:
             return 3350.0
-        elif 'a100' in name_lower:
+        elif "a100" in name_lower:
             return 2000.0 if vram_gb >= 80 else 1555.0
-        elif 'v100' in name_lower:
+        elif "v100" in name_lower:
             return 900.0
 
         # RTX 40 series
-        elif '4090' in name_lower:
+        elif "4090" in name_lower:
             return 1008.0
-        elif '4080' in name_lower:
+        elif "4080" in name_lower:
             return 716.8
-        elif '4070' in name_lower:
+        elif "4070" in name_lower:
             return 504.2
 
         # RTX 30 series
-        elif '3090' in name_lower:
+        elif "3090" in name_lower:
             return 936.0
-        elif '3080' in name_lower:
+        elif "3080" in name_lower:
             return 760.0
-        elif '3070' in name_lower:
+        elif "3070" in name_lower:
             return 448.0
-        elif '3060' in name_lower:
+        elif "3060" in name_lower:
             return 360.0
 
         # RTX 20 series
-        elif '2080' in name_lower:
+        elif "2080" in name_lower:
             return 616.0
-        elif '2070' in name_lower:
+        elif "2070" in name_lower:
             return 448.0
-        elif '2060' in name_lower:
+        elif "2060" in name_lower:
             return 336.0
 
         # AMD
-        elif 'mi300' in name_lower:
+        elif "mi300" in name_lower:
             return 5300.0
-        elif 'mi250' in name_lower:
+        elif "mi250" in name_lower:
             return 3277.0
-        elif 'mi200' in name_lower:
+        elif "mi200" in name_lower:
             return 1638.0
-        elif '7900 xtx' in name_lower:
+        elif "7900 xtx" in name_lower:
             return 960.0
-        elif '6900' in name_lower:
+        elif "6900" in name_lower:
             return 512.0
 
         return None
@@ -303,7 +334,9 @@ class MultiGPUManager:
         for device, score in zip(devices, scores):
             device.relative_performance = score / max_score
 
-    def _detect_interconnects(self, num_gpus: int) -> Dict[Tuple[int, int], GPUInterconnect]:
+    def _detect_interconnects(
+        self, num_gpus: int
+    ) -> Dict[Tuple[int, int], GPUInterconnect]:
         """Detect GPU-to-GPU interconnects"""
         interconnects = {}
 
@@ -313,13 +346,12 @@ class MultiGPUManager:
         # Try nvidia-smi topo for NVLink detection
         try:
             result = subprocess.run(
-                ['nvidia-smi', 'topo', '-m'],
-                capture_output=True, text=True, timeout=2
+                ["nvidia-smi", "topo", "-m"], capture_output=True, text=True, timeout=2
             )
 
             if result.returncode == 0:
                 # Parse topology matrix
-                lines = result.stdout.strip().split('\n')
+                lines = result.stdout.strip().split("\n")
 
                 for i in range(num_gpus):
                     for j in range(i + 1, num_gpus):
@@ -332,8 +364,8 @@ class MultiGPUManager:
 
                         # Simple heuristic: if both GPUs are high-end, assume NVLink possibility
                         for line in lines:
-                            if f'GPU{i}' in line or f'GPU{j}' in line:
-                                if 'NV' in line and not 'NODE' in line:
+                            if f"GPU{i}" in line or f"GPU{j}" in line:
+                                if "NV" in line and not "NODE" in line:
                                     interconnect = GPUInterconnect.NVLINK
                                     break
 
@@ -351,10 +383,12 @@ class MultiGPUManager:
 
         return interconnects
 
-    def create_parallel_config(self,
-                              total_batch_size: int,
-                              model_size_mb: float = 100.0,
-                              prefer_strategy: Optional[ParallelStrategy] = None) -> Optional[ParallelConfig]:
+    def create_parallel_config(
+        self,
+        total_batch_size: int,
+        model_size_mb: float = 100.0,
+        prefer_strategy: Optional[ParallelStrategy] = None,
+    ) -> Optional[ParallelConfig]:
         """
         Create optimal parallel configuration
 
@@ -384,7 +418,9 @@ class MultiGPUManager:
                 batch_size_per_gpu = total_batch_size // num_gpus
             else:
                 # Load balance by relative performance
-                batch_size_per_gpu = self._calculate_balanced_batch_sizes(total_batch_size)
+                batch_size_per_gpu = self._calculate_balanced_batch_sizes(
+                    total_batch_size
+                )
         else:
             # Model parallel: full batch on each GPU
             batch_size_per_gpu = total_batch_size
@@ -394,15 +430,17 @@ class MultiGPUManager:
         gradient_accumulation_steps = 1 + (remainder // (batch_size_per_gpu * num_gpus))
 
         # Select primary GPU (fastest one)
-        primary_gpu = max(range(num_gpus),
-                         key=lambda i: self.topology.devices[i].relative_performance)
+        primary_gpu = max(
+            range(num_gpus), key=lambda i: self.topology.devices[i].relative_performance
+        )
 
         # Device IDs
         device_ids = list(range(num_gpus))
 
         # Mixed precision (use if any GPU supports it)
         use_mixed_precision = any(
-            device.compute_capability and float(device.compute_capability.split('.')[0]) >= 7
+            device.compute_capability
+            and float(device.compute_capability.split(".")[0]) >= 7
             for device in self.topology.devices
         )
 
@@ -420,7 +458,7 @@ class MultiGPUManager:
             sync_batch_norm=sync_batch_norm,
             find_unused_parameters=False,  # Set True if model has unused params
             broadcast_buffers=True,
-            topology=self.topology
+            topology=self.topology,
         )
 
     def _select_strategy(self, model_size_mb: float) -> ParallelStrategy:
@@ -455,8 +493,7 @@ class MultiGPUManager:
 
         # Distribute proportionally
         batch_sizes = [
-            int(total_batch_size * (perf / total_perf))
-            for perf in performances
+            int(total_batch_size * (perf / total_perf)) for perf in performances
         ]
 
         # Handle rounding - assign remainder to fastest GPU
@@ -492,12 +529,14 @@ class MultiGPUManager:
                 return model
 
             # Move model to primary GPU
-            model = model.to(f'cuda:{config.primary_gpu}')
+            model = model.to(f"cuda:{config.primary_gpu}")
 
             if config.strategy == ParallelStrategy.DATA_PARALLEL:
                 # Use DataParallel (simple but less efficient)
                 if len(config.device_ids) > 1:
-                    logger.info(f"Wrapping model with DataParallel on GPUs: {config.device_ids}")
+                    logger.info(
+                        f"Wrapping model with DataParallel on GPUs: {config.device_ids}"
+                    )
                     model = nn.DataParallel(model, device_ids=config.device_ids)
 
             # For DDP, user should use torch.distributed.launch
@@ -509,8 +548,9 @@ class MultiGPUManager:
             logger.error(f"Failed to wrap model: {e}")
             return model
 
-    def get_device_for_component(self, component_name: str, num_components: int,
-                                 component_idx: int) -> str:
+    def get_device_for_component(
+        self, component_name: str, num_components: int, component_idx: int
+    ) -> str:
         """
         Get device string for a model component (for model parallelism)
 
@@ -523,12 +563,12 @@ class MultiGPUManager:
             Device string (e.g., 'cuda:0')
         """
         if not self.topology or self.topology.num_gpus <= 1:
-            return 'cuda:0' if self.topology else 'cpu'
+            return "cuda:0" if self.topology else "cpu"
 
         # Distribute components across GPUs
         gpu_id = (component_idx * self.topology.num_gpus) // num_components
 
-        return f'cuda:{gpu_id}'
+        return f"cuda:{gpu_id}"
 
     def get_load_balancing_weights(self) -> List[float]:
         """Get load balancing weights for data distribution"""
@@ -549,7 +589,9 @@ class MultiGPUManager:
 
         for device in self.topology.devices:
             print(f"\nGPU {device.device_id}: {device.name}")
-            print(f"  VRAM: {device.vram_total_gb:.1f} GB (Free: {device.vram_free_gb:.1f} GB)")
+            print(
+                f"  VRAM: {device.vram_total_gb:.1f} GB (Free: {device.vram_free_gb:.1f} GB)"
+            )
             if device.compute_capability:
                 print(f"  Compute Capability: {device.compute_capability}")
             if device.memory_bandwidth_gbps:
@@ -560,9 +602,13 @@ class MultiGPUManager:
             print(f"  PCI Bus: {device.pci_bus_id}")
 
         if self.topology.num_gpus > 1:
-            print(f"\n{'Homogeneous' if self.topology.homogeneous else 'Heterogeneous'} Configuration")
+            print(
+                f"\n{'Homogeneous' if self.topology.homogeneous else 'Heterogeneous'} Configuration"
+            )
             print(f"Total VRAM: {self.topology.total_vram_gb:.1f} GB")
-            print(f"VRAM Range: {self.topology.min_vram_gb:.1f} - {self.topology.max_vram_gb:.1f} GB")
+            print(
+                f"VRAM Range: {self.topology.min_vram_gb:.1f} - {self.topology.max_vram_gb:.1f} GB"
+            )
 
             print("\nInterconnects:")
             has_nvlink = False
@@ -573,9 +619,13 @@ class MultiGPUManager:
                         has_nvlink = True
 
             if has_nvlink:
-                print("\n✓ NVLink detected: High-speed GPU-to-GPU communication (50+ GB/s)")
+                print(
+                    "\n✓ NVLink detected: High-speed GPU-to-GPU communication (50+ GB/s)"
+                )
             else:
-                print("\n⚠️  PCIe only: Limited GPU-to-GPU bandwidth (~16 GB/s per direction)")
+                print(
+                    "\n⚠️  PCIe only: Limited GPU-to-GPU bandwidth (~16 GB/s per direction)"
+                )
 
 
 # Convenience functions
@@ -588,6 +638,7 @@ def get_num_gpus() -> int:
     """Get number of available GPUs"""
     try:
         import torch
+
         if torch.cuda.is_available():
             return torch.cuda.device_count()
     except:
@@ -597,12 +648,12 @@ def get_num_gpus() -> int:
 
 # Export
 __all__ = [
-    'GPUInterconnect',
-    'ParallelStrategy',
-    'GPUDevice',
-    'GPUTopology',
-    'ParallelConfig',
-    'MultiGPUManager',
-    'create_multi_gpu_manager',
-    'get_num_gpus'
+    "GPUInterconnect",
+    "ParallelStrategy",
+    "GPUDevice",
+    "GPUTopology",
+    "ParallelConfig",
+    "MultiGPUManager",
+    "create_multi_gpu_manager",
+    "get_num_gpus",
 ]

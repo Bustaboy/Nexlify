@@ -13,17 +13,18 @@ The agent dynamically selects model architecture, batch sizes, buffer sizes,
 and training strategies based on detected hardware capabilities.
 """
 
-import numpy as np
-import logging
-from typing import Dict, List, Tuple, Optional, Any
-from collections import deque
-import random
-from datetime import datetime
 import json
-from pathlib import Path
-import psutil
+import logging
+import random
 import threading
 import time
+from collections import deque
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
+import psutil
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 
@@ -50,10 +51,10 @@ class HardwareProfiler:
     def detect_hardware(self):
         """Detect all hardware with granular details"""
         self.profile = {
-            'cpu': self._detect_cpu(),
-            'ram': self._detect_ram(),
-            'gpu': self._detect_gpu(),
-            'storage': self._detect_storage()
+            "cpu": self._detect_cpu(),
+            "ram": self._detect_ram(),
+            "gpu": self._detect_gpu(),
+            "storage": self._detect_storage(),
         }
 
     def _detect_cpu(self) -> Dict:
@@ -61,29 +62,29 @@ class HardwareProfiler:
         import platform
 
         cpu_info = {
-            'cores_physical': psutil.cpu_count(logical=False) or 1,
-            'cores_logical': psutil.cpu_count(logical=True) or 1,
-            'frequency_mhz': psutil.cpu_freq().current if psutil.cpu_freq() else 2000,
-            'frequency_max_mhz': psutil.cpu_freq().max if psutil.cpu_freq() else 3000,
-            'architecture': platform.machine(),
-            'usage_percent': psutil.cpu_percent(interval=0.1),
-            'available_cores': psutil.cpu_count(logical=False) or 1
+            "cores_physical": psutil.cpu_count(logical=False) or 1,
+            "cores_logical": psutil.cpu_count(logical=True) or 1,
+            "frequency_mhz": psutil.cpu_freq().current if psutil.cpu_freq() else 2000,
+            "frequency_max_mhz": psutil.cpu_freq().max if psutil.cpu_freq() else 3000,
+            "architecture": platform.machine(),
+            "usage_percent": psutil.cpu_percent(interval=0.1),
+            "available_cores": psutil.cpu_count(logical=False) or 1,
         }
 
         # Estimate CPU tier based on cores and frequency
-        cores = cpu_info['cores_physical']
-        freq = cpu_info['frequency_max_mhz']
+        cores = cpu_info["cores_physical"]
+        freq = cpu_info["frequency_max_mhz"]
 
         if cores >= 16 or (cores >= 8 and freq >= 4000):
-            cpu_info['tier'] = 'high_end'  # Threadripper, i9, Ryzen 9
+            cpu_info["tier"] = "high_end"  # Threadripper, i9, Ryzen 9
         elif cores >= 8 or (cores >= 6 and freq >= 3500):
-            cpu_info['tier'] = 'mid_high'  # i7, Ryzen 7
+            cpu_info["tier"] = "mid_high"  # i7, Ryzen 7
         elif cores >= 6 or (cores >= 4 and freq >= 3000):
-            cpu_info['tier'] = 'mid'  # i5, Ryzen 5
+            cpu_info["tier"] = "mid"  # i5, Ryzen 5
         elif cores >= 4:
-            cpu_info['tier'] = 'low_mid'  # i3, older i5
+            cpu_info["tier"] = "low_mid"  # i3, older i5
         else:
-            cpu_info['tier'] = 'low'  # Dual core
+            cpu_info["tier"] = "low"  # Dual core
 
         logger.info(f"CPU: {cores} cores @ {freq:.0f} MHz ({cpu_info['tier']})")
         return cpu_info
@@ -93,43 +94,47 @@ class HardwareProfiler:
         mem = psutil.virtual_memory()
 
         ram_info = {
-            'total_gb': mem.total / (1024**3),
-            'available_gb': mem.available / (1024**3),
-            'used_gb': mem.used / (1024**3),
-            'percent_used': mem.percent,
-            'free_for_ml_gb': max(0, mem.available / (1024**3) - 2)  # Reserve 2GB for OS
+            "total_gb": mem.total / (1024**3),
+            "available_gb": mem.available / (1024**3),
+            "used_gb": mem.used / (1024**3),
+            "percent_used": mem.percent,
+            "free_for_ml_gb": max(
+                0, mem.available / (1024**3) - 2
+            ),  # Reserve 2GB for OS
         }
 
         # RAM tier
-        total_gb = ram_info['total_gb']
+        total_gb = ram_info["total_gb"]
         if total_gb >= 64:
-            ram_info['tier'] = 'ultra'  # 64GB+
+            ram_info["tier"] = "ultra"  # 64GB+
         elif total_gb >= 32:
-            ram_info['tier'] = 'high'  # 32-64GB
+            ram_info["tier"] = "high"  # 32-64GB
         elif total_gb >= 16:
-            ram_info['tier'] = 'mid_high'  # 16-32GB
+            ram_info["tier"] = "mid_high"  # 16-32GB
         elif total_gb >= 8:
-            ram_info['tier'] = 'mid'  # 8-16GB
+            ram_info["tier"] = "mid"  # 8-16GB
         elif total_gb >= 4:
-            ram_info['tier'] = 'low'  # 4-8GB
+            ram_info["tier"] = "low"  # 4-8GB
         else:
-            ram_info['tier'] = 'minimal'  # <4GB
+            ram_info["tier"] = "minimal"  # <4GB
 
-        logger.info(f"RAM: {total_gb:.1f} GB total, {ram_info['available_gb']:.1f} GB available ({ram_info['tier']})")
+        logger.info(
+            f"RAM: {total_gb:.1f} GB total, {ram_info['available_gb']:.1f} GB available ({ram_info['tier']})"
+        )
         return ram_info
 
     def _detect_gpu(self) -> Dict:
         """Detect GPU capabilities with VRAM and compute info"""
         gpu_info = {
-            'available': False,
-            'vendor': 'none',
-            'name': 'CPU Only',
-            'vram_gb': 0,
-            'compute_capability': None,
-            'cuda_cores': 0,
-            'tensor_cores': False,
-            'supports_fp16': False,
-            'tier': 'none'
+            "available": False,
+            "vendor": "none",
+            "name": "CPU Only",
+            "vram_gb": 0,
+            "compute_capability": None,
+            "cuda_cores": 0,
+            "tensor_cores": False,
+            "supports_fp16": False,
+            "tier": "none",
         }
 
         # Try PyTorch CUDA detection first (most reliable)
@@ -137,42 +142,64 @@ class HardwareProfiler:
             import torch
 
             if torch.cuda.is_available():
-                gpu_info['available'] = True
-                gpu_info['vendor'] = 'nvidia'
-                gpu_info['name'] = torch.cuda.get_device_name(0)
+                gpu_info["available"] = True
+                gpu_info["vendor"] = "nvidia"
+                gpu_info["name"] = torch.cuda.get_device_name(0)
 
                 # Get VRAM
                 vram_bytes = torch.cuda.get_device_properties(0).total_memory
-                gpu_info['vram_gb'] = vram_bytes / (1024**3)
+                gpu_info["vram_gb"] = vram_bytes / (1024**3)
 
                 # Get compute capability
                 compute_cap = torch.cuda.get_device_properties(0)
-                gpu_info['compute_capability'] = f"{compute_cap.major}.{compute_cap.minor}"
+                gpu_info["compute_capability"] = (
+                    f"{compute_cap.major}.{compute_cap.minor}"
+                )
 
                 # Tensor cores available on compute capability >= 7.0 (Volta+)
                 if compute_cap.major >= 7:
-                    gpu_info['tensor_cores'] = True
-                    gpu_info['supports_fp16'] = True
+                    gpu_info["tensor_cores"] = True
+                    gpu_info["supports_fp16"] = True
 
                 # Estimate CUDA cores (approximate)
-                gpu_info['cuda_cores'] = compute_cap.multi_processor_count * 128  # Rough estimate
+                gpu_info["cuda_cores"] = (
+                    compute_cap.multi_processor_count * 128
+                )  # Rough estimate
 
                 # Determine GPU tier based on name and VRAM
-                gpu_name_lower = gpu_info['name'].lower()
-                vram = gpu_info['vram_gb']
+                gpu_name_lower = gpu_info["name"].lower()
+                vram = gpu_info["vram_gb"]
 
-                if 'rtx 4090' in gpu_name_lower or 'rtx 4080' in gpu_name_lower or vram >= 20:
-                    gpu_info['tier'] = 'ultra'  # RTX 4090, 4080, A100
-                elif 'rtx 40' in gpu_name_lower or 'rtx 30' in gpu_name_lower or vram >= 10:
-                    gpu_info['tier'] = 'high'  # RTX 4070, 3080, 3090
-                elif 'rtx 20' in gpu_name_lower or 'gtx 1660' in gpu_name_lower or vram >= 6:
-                    gpu_info['tier'] = 'mid'  # RTX 2060, 2070, GTX 1660
-                elif 'gtx 16' in gpu_name_lower or 'gtx 10' in gpu_name_lower or vram >= 3:
-                    gpu_info['tier'] = 'low_mid'  # GTX 1050, 1060
+                if (
+                    "rtx 4090" in gpu_name_lower
+                    or "rtx 4080" in gpu_name_lower
+                    or vram >= 20
+                ):
+                    gpu_info["tier"] = "ultra"  # RTX 4090, 4080, A100
+                elif (
+                    "rtx 40" in gpu_name_lower
+                    or "rtx 30" in gpu_name_lower
+                    or vram >= 10
+                ):
+                    gpu_info["tier"] = "high"  # RTX 4070, 3080, 3090
+                elif (
+                    "rtx 20" in gpu_name_lower
+                    or "gtx 1660" in gpu_name_lower
+                    or vram >= 6
+                ):
+                    gpu_info["tier"] = "mid"  # RTX 2060, 2070, GTX 1660
+                elif (
+                    "gtx 16" in gpu_name_lower
+                    or "gtx 10" in gpu_name_lower
+                    or vram >= 3
+                ):
+                    gpu_info["tier"] = "low_mid"  # GTX 1050, 1060
                 else:
-                    gpu_info['tier'] = 'low'  # Older GPUs
+                    gpu_info["tier"] = "low"  # Older GPUs
 
-                logger.info(f"GPU: {gpu_info['name']} with {vram:.1f} GB VRAM ({gpu_info['tier']})")
+                logger.info(
+                    f"GPU: {gpu_info['name']} with {vram:.1f} GB VRAM ({gpu_info['tier']})"
+                )
 
         except ImportError:
             logger.warning("PyTorch not available - GPU detection limited")
@@ -180,143 +207,176 @@ class HardwareProfiler:
             logger.error(f"GPU detection error: {e}")
 
         # Fallback: Try nvidia-smi with compute capability query
-        if not gpu_info['available']:
+        if not gpu_info["available"]:
             try:
-                import subprocess
                 import re
+                import subprocess
 
                 # Try to get compute capability directly
                 result = subprocess.run(
-                    ['nvidia-smi', '--query-gpu=name,memory.total,compute_cap', '--format=csv,noheader'],
-                    capture_output=True, text=True, timeout=5
+                    [
+                        "nvidia-smi",
+                        "--query-gpu=name,memory.total,compute_cap",
+                        "--format=csv,noheader",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
 
                 if result.returncode == 0:
-                    lines = result.stdout.strip().split('\n')
+                    lines = result.stdout.strip().split("\n")
                     if lines:
-                        parts = lines[0].split(',')
-                        gpu_info['available'] = True
-                        gpu_info['vendor'] = 'nvidia'
-                        gpu_info['name'] = parts[0].strip()
+                        parts = lines[0].split(",")
+                        gpu_info["available"] = True
+                        gpu_info["vendor"] = "nvidia"
+                        gpu_info["name"] = parts[0].strip()
 
                         # Parse VRAM (format: "8192 MiB")
                         vram_str = parts[1].strip().split()[0]
-                        gpu_info['vram_gb'] = int(vram_str) / 1024
+                        gpu_info["vram_gb"] = int(vram_str) / 1024
 
                         # Try to get compute capability from nvidia-smi
                         if len(parts) >= 3:
                             try:
                                 compute_cap = parts[2].strip()
-                                if compute_cap and compute_cap != '[Not Supported]':
-                                    gpu_info['compute_capability'] = compute_cap
+                                if compute_cap and compute_cap != "[Not Supported]":
+                                    gpu_info["compute_capability"] = compute_cap
                             except:
                                 pass
 
                         # If we got compute capability, use it to determine features
-                        if gpu_info['compute_capability']:
+                        if gpu_info["compute_capability"]:
                             try:
-                                major = float(gpu_info['compute_capability'].split('.')[0])
+                                major = float(
+                                    gpu_info["compute_capability"].split(".")[0]
+                                )
                                 # Tensor cores available on compute capability >= 7.0 (Volta+)
                                 if major >= 7:
-                                    gpu_info['tensor_cores'] = True
-                                    gpu_info['has_tensor_cores'] = True
-                                    gpu_info['supports_fp16'] = True
+                                    gpu_info["tensor_cores"] = True
+                                    gpu_info["has_tensor_cores"] = True
+                                    gpu_info["supports_fp16"] = True
                                 elif major >= 6:
-                                    gpu_info['supports_fp16'] = True
+                                    gpu_info["supports_fp16"] = True
                             except:
                                 pass
 
                         # Fallback: Infer from GPU name using future-proof patterns
-                        if not gpu_info['compute_capability']:
-                            gpu_name_lower = gpu_info['name'].lower()
+                        if not gpu_info["compute_capability"]:
+                            gpu_name_lower = gpu_info["name"].lower()
 
                             # Extract RTX generation number (20, 30, 40, 50, etc.)
-                            rtx_match = re.search(r'rtx\s*(\d{2})\d{2}', gpu_name_lower)
-                            gtx_match = re.search(r'gtx\s*(\d{2})\d{2}', gpu_name_lower)
+                            rtx_match = re.search(r"rtx\s*(\d{2})\d{2}", gpu_name_lower)
+                            gtx_match = re.search(r"gtx\s*(\d{2})\d{2}", gpu_name_lower)
 
                             if rtx_match:
                                 generation = int(rtx_match.group(1))
                                 # RTX 20+ all have tensor cores
                                 # Future generations (50, 60, etc.) will likely have tensor cores
                                 if generation >= 40:
-                                    gpu_info['compute_capability'] = '8.9'  # Ada Lovelace (40 series)
+                                    gpu_info["compute_capability"] = (
+                                        "8.9"  # Ada Lovelace (40 series)
+                                    )
                                 elif generation >= 30:
-                                    gpu_info['compute_capability'] = '8.6'  # Ampere (30 series)
+                                    gpu_info["compute_capability"] = (
+                                        "8.6"  # Ampere (30 series)
+                                    )
                                 elif generation >= 20:
-                                    gpu_info['compute_capability'] = '7.5'  # Turing (20 series)
+                                    gpu_info["compute_capability"] = (
+                                        "7.5"  # Turing (20 series)
+                                    )
                                 else:
-                                    gpu_info['compute_capability'] = '8.9'  # Assume latest for unknown future gen
+                                    gpu_info["compute_capability"] = (
+                                        "8.9"  # Assume latest for unknown future gen
+                                    )
 
                                 # All RTX cards have tensor cores
-                                gpu_info['tensor_cores'] = True
-                                gpu_info['has_tensor_cores'] = True
-                                gpu_info['supports_fp16'] = True
+                                gpu_info["tensor_cores"] = True
+                                gpu_info["has_tensor_cores"] = True
+                                gpu_info["supports_fp16"] = True
 
                             elif gtx_match:
                                 generation = int(gtx_match.group(1))
                                 # GTX cards (no tensor cores until they become RTX)
                                 if generation >= 16:
-                                    gpu_info['compute_capability'] = '7.5'  # Turing
+                                    gpu_info["compute_capability"] = "7.5"  # Turing
                                 elif generation >= 10:
-                                    gpu_info['compute_capability'] = '6.1'  # Pascal
+                                    gpu_info["compute_capability"] = "6.1"  # Pascal
                                 else:
-                                    gpu_info['compute_capability'] = '6.0'  # Older
+                                    gpu_info["compute_capability"] = "6.0"  # Older
 
-                                gpu_info['tensor_cores'] = False
-                                gpu_info['has_tensor_cores'] = False
-                                gpu_info['supports_fp16'] = True
+                                gpu_info["tensor_cores"] = False
+                                gpu_info["has_tensor_cores"] = False
+                                gpu_info["supports_fp16"] = True
 
                             # Data center / professional cards
-                            elif any(x in gpu_name_lower for x in ['v100', 'a100', 'a40', 'a30', 'h100', 'h200']):
+                            elif any(
+                                x in gpu_name_lower
+                                for x in ["v100", "a100", "a40", "a30", "h100", "h200"]
+                            ):
                                 # Professional cards - assume latest features
-                                if 'h100' in gpu_name_lower or 'h200' in gpu_name_lower:
-                                    gpu_info['compute_capability'] = '9.0'  # Hopper
-                                elif 'a100' in gpu_name_lower or 'a40' in gpu_name_lower:
-                                    gpu_info['compute_capability'] = '8.0'  # Ampere
-                                elif 'v100' in gpu_name_lower:
-                                    gpu_info['compute_capability'] = '7.0'  # Volta
+                                if "h100" in gpu_name_lower or "h200" in gpu_name_lower:
+                                    gpu_info["compute_capability"] = "9.0"  # Hopper
+                                elif (
+                                    "a100" in gpu_name_lower or "a40" in gpu_name_lower
+                                ):
+                                    gpu_info["compute_capability"] = "8.0"  # Ampere
+                                elif "v100" in gpu_name_lower:
+                                    gpu_info["compute_capability"] = "7.0"  # Volta
                                 else:
-                                    gpu_info['compute_capability'] = '8.0'  # Conservative modern estimate
+                                    gpu_info["compute_capability"] = (
+                                        "8.0"  # Conservative modern estimate
+                                    )
 
-                                gpu_info['tensor_cores'] = True
-                                gpu_info['has_tensor_cores'] = True
-                                gpu_info['supports_fp16'] = True
+                                gpu_info["tensor_cores"] = True
+                                gpu_info["has_tensor_cores"] = True
+                                gpu_info["supports_fp16"] = True
 
                             # Unknown modern NVIDIA GPU - use conservative estimates
                             else:
-                                logger.warning(f"Unknown NVIDIA GPU: {gpu_info['name']}, using conservative estimates")
-                                gpu_info['compute_capability'] = '7.5'  # Conservative modern estimate
-                                gpu_info['supports_fp16'] = True
+                                logger.warning(
+                                    f"Unknown NVIDIA GPU: {gpu_info['name']}, using conservative estimates"
+                                )
+                                gpu_info["compute_capability"] = (
+                                    "7.5"  # Conservative modern estimate
+                                )
+                                gpu_info["supports_fp16"] = True
                                 # Assume tensor cores for GPUs with 6GB+ VRAM (likely modern)
-                                if gpu_info['vram_gb'] >= 6:
-                                    gpu_info['tensor_cores'] = True
-                                    gpu_info['has_tensor_cores'] = True
+                                if gpu_info["vram_gb"] >= 6:
+                                    gpu_info["tensor_cores"] = True
+                                    gpu_info["has_tensor_cores"] = True
                                 else:
-                                    gpu_info['tensor_cores'] = False
-                                    gpu_info['has_tensor_cores'] = False
+                                    gpu_info["tensor_cores"] = False
+                                    gpu_info["has_tensor_cores"] = False
 
                         # Determine GPU tier based on VRAM (future-proof)
-                        vram = gpu_info['vram_gb']
+                        vram = gpu_info["vram_gb"]
                         if vram >= 20:
-                            gpu_info['tier'] = 'ultra'  # 20GB+: RTX 4090, A100, H100
+                            gpu_info["tier"] = "ultra"  # 20GB+: RTX 4090, A100, H100
                         elif vram >= 12:
-                            gpu_info['tier'] = 'high'  # 12-20GB: RTX 4080, 3090, 4070 Ti
+                            gpu_info["tier"] = (
+                                "high"  # 12-20GB: RTX 4080, 3090, 4070 Ti
+                            )
                         elif vram >= 8:
-                            gpu_info['tier'] = 'mid_high'  # 8-12GB: RTX 4070, 3080, 4060 Ti
+                            gpu_info["tier"] = (
+                                "mid_high"  # 8-12GB: RTX 4070, 3080, 4060 Ti
+                            )
                         elif vram >= 6:
-                            gpu_info['tier'] = 'mid'  # 6-8GB: RTX 4060, 3060, 2060
+                            gpu_info["tier"] = "mid"  # 6-8GB: RTX 4060, 3060, 2060
                         elif vram >= 4:
-                            gpu_info['tier'] = 'low_mid'  # 4-6GB: GTX 1660, 1060
+                            gpu_info["tier"] = "low_mid"  # 4-6GB: GTX 1660, 1060
                         else:
-                            gpu_info['tier'] = 'low'  # <4GB: Older GPUs
+                            gpu_info["tier"] = "low"  # <4GB: Older GPUs
 
-                        logger.info(f"GPU: {gpu_info['name']} with {gpu_info['vram_gb']:.1f} GB VRAM (nvidia-smi)")
+                        logger.info(
+                            f"GPU: {gpu_info['name']} with {gpu_info['vram_gb']:.1f} GB VRAM (nvidia-smi)"
+                        )
 
             except Exception as e:
                 logger.debug(f"nvidia-smi detection failed: {e}")
                 pass
 
-        if not gpu_info['available']:
+        if not gpu_info["available"]:
             logger.info("No GPU detected - CPU-only mode will be used")
 
         return gpu_info
@@ -328,18 +388,19 @@ class HardwareProfiler:
         usage = psutil.disk_usage(os.getcwd())
 
         storage_info = {
-            'free_gb': usage.free / (1024**3),
-            'total_gb': usage.total / (1024**3),
-            'type': 'unknown'
+            "free_gb": usage.free / (1024**3),
+            "total_gb": usage.total / (1024**3),
+            "type": "unknown",
         }
 
         # Try to detect SSD vs HDD
         try:
             import platform
-            if platform.system() == 'Linux':
-                with open('/sys/block/sda/queue/rotational', 'r') as f:
-                    is_rotational = f.read().strip() == '1'
-                    storage_info['type'] = 'HDD' if is_rotational else 'SSD'
+
+            if platform.system() == "Linux":
+                with open("/sys/block/sda/queue/rotational", "r") as f:
+                    is_rotational = f.read().strip() == "1"
+                    storage_info["type"] = "HDD" if is_rotational else "SSD"
         except:
             pass
 
@@ -350,19 +411,24 @@ class HardwareProfiler:
         logger.info("⚡ Running performance benchmark...")
 
         benchmark_results = {
-            'cpu_gflops': self._benchmark_cpu(),
-            'gpu_gflops': self._benchmark_gpu() if self.profile['gpu']['available'] else 0,
-            'memory_bandwidth_gbps': self._benchmark_memory()
+            "cpu_gflops": self._benchmark_cpu(),
+            "gpu_gflops": (
+                self._benchmark_gpu() if self.profile["gpu"]["available"] else 0
+            ),
+            "memory_bandwidth_gbps": self._benchmark_memory(),
         }
 
-        self.profile['benchmark'] = benchmark_results
-        logger.info(f"Benchmark: CPU={benchmark_results['cpu_gflops']:.1f} GFLOPS, "
-                   f"GPU={benchmark_results['gpu_gflops']:.1f} GFLOPS")
+        self.profile["benchmark"] = benchmark_results
+        logger.info(
+            f"Benchmark: CPU={benchmark_results['cpu_gflops']:.1f} GFLOPS, "
+            f"GPU={benchmark_results['gpu_gflops']:.1f} GFLOPS"
+        )
 
     def _benchmark_cpu(self) -> float:
         """Benchmark CPU performance (GFLOPS)"""
         try:
             import numpy as np
+
             size = 512
             iterations = 10
 
@@ -375,7 +441,7 @@ class HardwareProfiler:
             end = time.time()
 
             # Calculate GFLOPS (2*n^3 operations per matmul)
-            ops = iterations * 2 * (size ** 3)
+            ops = iterations * 2 * (size**3)
             duration = end - start
             gflops = (ops / duration) / 1e9
 
@@ -393,7 +459,7 @@ class HardwareProfiler:
             if not torch.cuda.is_available():
                 return 0
 
-            device = torch.device('cuda')
+            device = torch.device("cuda")
             size = 2048
             iterations = 20
 
@@ -411,7 +477,7 @@ class HardwareProfiler:
             end = time.time()
 
             # Calculate GFLOPS
-            ops = iterations * 2 * (size ** 3)
+            ops = iterations * 2 * (size**3)
             duration = end - start
             gflops = (ops / duration) / 1e9
 
@@ -425,6 +491,7 @@ class HardwareProfiler:
         """Benchmark memory bandwidth (GB/s)"""
         try:
             import numpy as np
+
             size = 100_000_000  # 100M floats = 400MB
             iterations = 5
 
@@ -447,119 +514,125 @@ class HardwareProfiler:
 
     def calculate_optimal_config(self):
         """Calculate optimal model and training configuration"""
-        cpu = self.profile['cpu']
-        ram = self.profile['ram']
-        gpu = self.profile['gpu']
+        cpu = self.profile["cpu"]
+        ram = self.profile["ram"]
+        gpu = self.profile["gpu"]
 
         config = {
-            'model_size': 'medium',
-            'use_gpu': gpu['available'],
-            'use_mixed_precision': False,
-            'batch_size': 64,
-            'buffer_size': 100000,
-            'num_workers': 0,
-            'gradient_accumulation_steps': 1,
-            'checkpoint_compression': False,
-            'parallel_envs': 1,
-            'optimization_level': 'balanced'
+            "model_size": "medium",
+            "use_gpu": gpu["available"],
+            "use_mixed_precision": False,
+            "batch_size": 64,
+            "buffer_size": 100000,
+            "num_workers": 0,
+            "gradient_accumulation_steps": 1,
+            "checkpoint_compression": False,
+            "parallel_envs": 1,
+            "optimization_level": "balanced",
         }
 
         # Determine model size based on available resources
-        vram = gpu['vram_gb'] if gpu['available'] else 0
-        available_ram = ram['free_for_ml_gb']
+        vram = gpu["vram_gb"] if gpu["available"] else 0
+        available_ram = ram["free_for_ml_gb"]
 
         # Model size selection
-        if gpu['available'] and vram >= 12 and available_ram >= 16:
-            config['model_size'] = 'xlarge'
-        elif gpu['available'] and vram >= 8 and available_ram >= 8:
-            config['model_size'] = 'large'
-        elif gpu['available'] and vram >= 6 and available_ram >= 4:
-            config['model_size'] = 'medium'
-        elif (gpu['available'] and vram >= 3) or available_ram >= 8:
-            config['model_size'] = 'small'
+        if gpu["available"] and vram >= 12 and available_ram >= 16:
+            config["model_size"] = "xlarge"
+        elif gpu["available"] and vram >= 8 and available_ram >= 8:
+            config["model_size"] = "large"
+        elif gpu["available"] and vram >= 6 and available_ram >= 4:
+            config["model_size"] = "medium"
+        elif (gpu["available"] and vram >= 3) or available_ram >= 8:
+            config["model_size"] = "small"
         else:
-            config['model_size'] = 'tiny'
+            config["model_size"] = "tiny"
 
         # Mixed precision (if GPU supports it)
-        if gpu['available'] and gpu.get('supports_fp16', False):
-            config['use_mixed_precision'] = True
+        if gpu["available"] and gpu.get("supports_fp16", False):
+            config["use_mixed_precision"] = True
 
         # Batch size based on VRAM/RAM
-        if gpu['available']:
+        if gpu["available"]:
             # GPU memory limited
             if vram >= 12:
-                config['batch_size'] = 512
+                config["batch_size"] = 512
             elif vram >= 8:
-                config['batch_size'] = 256
+                config["batch_size"] = 256
             elif vram >= 6:
-                config['batch_size'] = 128
+                config["batch_size"] = 128
             elif vram >= 4:
-                config['batch_size'] = 64
+                config["batch_size"] = 64
             else:
-                config['batch_size'] = 32
+                config["batch_size"] = 32
         else:
             # CPU/RAM limited
             if available_ram >= 16:
-                config['batch_size'] = 128
+                config["batch_size"] = 128
             elif available_ram >= 8:
-                config['batch_size'] = 64
+                config["batch_size"] = 64
             elif available_ram >= 4:
-                config['batch_size'] = 32
+                config["batch_size"] = 32
             else:
-                config['batch_size'] = 16
+                config["batch_size"] = 16
 
         # Buffer size based on available RAM
         if available_ram >= 32:
-            config['buffer_size'] = 500000
+            config["buffer_size"] = 500000
         elif available_ram >= 16:
-            config['buffer_size'] = 250000
+            config["buffer_size"] = 250000
         elif available_ram >= 8:
-            config['buffer_size'] = 100000
+            config["buffer_size"] = 100000
         elif available_ram >= 4:
-            config['buffer_size'] = 50000
+            config["buffer_size"] = 50000
         else:
-            config['buffer_size'] = 25000
+            config["buffer_size"] = 25000
 
         # Gradient accumulation for low memory
-        if (gpu['available'] and vram < 4) or (not gpu['available'] and available_ram < 4):
-            config['gradient_accumulation_steps'] = 4
-            config['batch_size'] = config['batch_size'] // 4
+        if (gpu["available"] and vram < 4) or (
+            not gpu["available"] and available_ram < 4
+        ):
+            config["gradient_accumulation_steps"] = 4
+            config["batch_size"] = config["batch_size"] // 4
 
         # CPU parallelization
-        if not gpu['available'] or gpu['tier'] in ['low', 'low_mid']:
+        if not gpu["available"] or gpu["tier"] in ["low", "low_mid"]:
             # Leverage CPU when GPU is weak
-            config['num_workers'] = max(1, cpu['cores_physical'] - 2)
-            config['parallel_envs'] = min(4, cpu['cores_physical'])
+            config["num_workers"] = max(1, cpu["cores_physical"] - 2)
+            config["parallel_envs"] = min(4, cpu["cores_physical"])
 
         # Storage optimization
-        if self.profile['storage']['free_gb'] < 10:
-            config['checkpoint_compression'] = True
+        if self.profile["storage"]["free_gb"] < 10:
+            config["checkpoint_compression"] = True
 
         # Overall optimization level
-        if gpu['tier'] in ['ultra', 'high'] and ram['tier'] in ['ultra', 'high']:
-            config['optimization_level'] = 'max_performance'
-        elif gpu['tier'] in ['mid', 'mid_high'] or ram['tier'] in ['mid_high', 'high']:
-            config['optimization_level'] = 'balanced'
-        elif gpu['available'] and gpu['tier'] in ['low', 'low_mid']:
-            config['optimization_level'] = 'gpu_conserve'
+        if gpu["tier"] in ["ultra", "high"] and ram["tier"] in ["ultra", "high"]:
+            config["optimization_level"] = "max_performance"
+        elif gpu["tier"] in ["mid", "mid_high"] or ram["tier"] in ["mid_high", "high"]:
+            config["optimization_level"] = "balanced"
+        elif gpu["available"] and gpu["tier"] in ["low", "low_mid"]:
+            config["optimization_level"] = "gpu_conserve"
         else:
-            config['optimization_level'] = 'cpu_optimize'
+            config["optimization_level"] = "cpu_optimize"
 
         self.optimal_config = config
 
-        logger.info(f"✅ Optimal config: {config['model_size']} model, "
-                   f"batch={config['batch_size']}, buffer={config['buffer_size']}")
-        logger.info(f"   Optimization: {config['optimization_level']}, "
-                   f"Mixed Precision: {config['use_mixed_precision']}")
+        logger.info(
+            f"✅ Optimal config: {config['model_size']} model, "
+            f"batch={config['batch_size']}, buffer={config['buffer_size']}"
+        )
+        logger.info(
+            f"   Optimization: {config['optimization_level']}, "
+            f"Mixed Precision: {config['use_mixed_precision']}"
+        )
 
         return config
 
     def get_hardware_summary(self) -> Dict:
         """Get complete hardware summary"""
         return {
-            'profile': self.profile,
-            'optimal_config': self.optimal_config,
-            'timestamp': datetime.now().isoformat()
+            "profile": self.profile,
+            "optimal_config": self.optimal_config,
+            "timestamp": datetime.now().isoformat(),
         }
 
 
@@ -574,7 +647,9 @@ class AdaptiveReplayBuffer:
         self.buffer = deque(maxlen=capacity)
         self.priorities = deque(maxlen=capacity) if capacity < 200000 else None
 
-        logger.info(f"📦 Replay buffer initialized: capacity={capacity}, compression={compression}")
+        logger.info(
+            f"📦 Replay buffer initialized: capacity={capacity}, compression={compression}"
+        )
 
     def push(self, state, action, reward, next_state, done, priority: float = 1.0):
         """Add experience to buffer"""
@@ -594,7 +669,9 @@ class AdaptiveReplayBuffer:
             # Prioritized sampling
             priorities = np.array(self.priorities)
             probabilities = priorities / priorities.sum()
-            indices = np.random.choice(len(self.buffer), batch_size, p=probabilities, replace=False)
+            indices = np.random.choice(
+                len(self.buffer), batch_size, p=probabilities, replace=False
+            )
             return [self.buffer[i] for i in indices]
         else:
             # Uniform sampling
@@ -623,9 +700,13 @@ class AdaptiveDQNAgent:
     - Real-time performance monitoring
     """
 
-    def __init__(self, state_size: int, action_size: int,
-                 hardware_config: Optional[Dict] = None,
-                 custom_config: Optional[Dict] = None):
+    def __init__(
+        self,
+        state_size: int,
+        action_size: int,
+        hardware_config: Optional[Dict] = None,
+        custom_config: Optional[Dict] = None,
+    ):
         """
         Initialize adaptive DQN agent
 
@@ -645,7 +726,7 @@ class AdaptiveDQNAgent:
             self.config = profiler.optimal_config
         else:
             self.hardware_profile = hardware_config
-            self.config = hardware_config.get('optimal_config', {})
+            self.config = hardware_config.get("optimal_config", {})
 
         # Apply custom overrides
         if custom_config:
@@ -659,16 +740,18 @@ class AdaptiveDQNAgent:
         self.learning_rate = 0.001
 
         # Adaptive parameters from hardware config
-        self.batch_size = self.config.get('batch_size', 64)
-        self.buffer_capacity = self.config.get('buffer_size', 100000)
-        self.use_mixed_precision = self.config.get('use_mixed_precision', False)
-        self.gradient_accumulation_steps = self.config.get('gradient_accumulation_steps', 1)
-        self.num_workers = self.config.get('num_workers', 0)
+        self.batch_size = self.config.get("batch_size", 64)
+        self.buffer_capacity = self.config.get("buffer_size", 100000)
+        self.use_mixed_precision = self.config.get("use_mixed_precision", False)
+        self.gradient_accumulation_steps = self.config.get(
+            "gradient_accumulation_steps", 1
+        )
+        self.num_workers = self.config.get("num_workers", 0)
 
         # Experience replay
         self.memory = AdaptiveReplayBuffer(
             capacity=self.buffer_capacity,
-            compression=self.config.get('checkpoint_compression', False)
+            compression=self.config.get("checkpoint_compression", False),
         )
 
         # Device selection
@@ -682,20 +765,23 @@ class AdaptiveDQNAgent:
         # Training stats
         self.training_history = []
         self.performance_monitor = {
-            'batch_times': deque(maxlen=100),
-            'memory_usage': deque(maxlen=100),
-            'loss_values': deque(maxlen=1000)
+            "batch_times": deque(maxlen=100),
+            "memory_usage": deque(maxlen=100),
+            "loss_values": deque(maxlen=1000),
         }
 
         logger.info(f"🤖 Adaptive DQN Agent initialized")
-        logger.info(f"   Device: {self.device}, Model: {self.config.get('model_size', 'medium')}")
+        logger.info(
+            f"   Device: {self.device}, Model: {self.config.get('model_size', 'medium')}"
+        )
         logger.info(f"   Batch: {self.batch_size}, Buffer: {self.buffer_capacity}")
 
     def _get_device(self) -> str:
         """Detect and select compute device"""
-        if self.config.get('use_gpu', False):
+        if self.config.get("use_gpu", False):
             try:
                 import torch
+
                 if torch.cuda.is_available():
                     return "cuda"
             except ImportError:
@@ -708,18 +794,18 @@ class AdaptiveDQNAgent:
             import torch
             import torch.nn as nn
 
-            model_size = self.config.get('model_size', 'medium')
+            model_size = self.config.get("model_size", "medium")
 
             # Architecture definitions
             architectures = {
-                'tiny': [64, 32],  # 2-layer, small width
-                'small': [128, 64],  # 2-layer, medium width
-                'medium': [128, 128, 64],  # 3-layer (original)
-                'large': [256, 256, 128, 64],  # 4-layer, wide
-                'xlarge': [512, 512, 256, 128, 64]  # 5-layer, very wide
+                "tiny": [64, 32],  # 2-layer, small width
+                "small": [128, 64],  # 2-layer, medium width
+                "medium": [128, 128, 64],  # 3-layer (original)
+                "large": [256, 256, 128, 64],  # 4-layer, wide
+                "xlarge": [512, 512, 256, 128, 64],  # 5-layer, very wide
             }
 
-            hidden_layers = architectures.get(model_size, architectures['medium'])
+            hidden_layers = architectures.get(model_size, architectures["medium"])
 
             class AdaptiveDQNNetwork(nn.Module):
                 def __init__(self, state_size, action_size, hidden_layers):
@@ -732,7 +818,9 @@ class AdaptiveDQNAgent:
                     for hidden_size in hidden_layers:
                         layers.append(nn.Linear(input_size, hidden_size))
                         layers.append(nn.ReLU())
-                        layers.append(nn.Dropout(0.1))  # Light dropout for regularization
+                        layers.append(
+                            nn.Dropout(0.1)
+                        )  # Light dropout for regularization
                         input_size = hidden_size
 
                     # Output layer
@@ -743,8 +831,12 @@ class AdaptiveDQNAgent:
                 def forward(self, x):
                     return self.network(x)
 
-            self.model = AdaptiveDQNNetwork(self.state_size, self.action_size, hidden_layers)
-            self.target_model = AdaptiveDQNNetwork(self.state_size, self.action_size, hidden_layers)
+            self.model = AdaptiveDQNNetwork(
+                self.state_size, self.action_size, hidden_layers
+            )
+            self.target_model = AdaptiveDQNNetwork(
+                self.state_size, self.action_size, hidden_layers
+            )
 
             # Move to device
             if self.device == "cuda":
@@ -754,7 +846,9 @@ class AdaptiveDQNAgent:
             self.update_target_model()
 
             # Optimizer with gradient clipping
-            self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
+            self.optimizer = torch.optim.Adam(
+                self.model.parameters(), lr=self.learning_rate
+            )
             self.criterion = nn.MSELoss()
 
             # Mixed precision training
@@ -768,7 +862,9 @@ class AdaptiveDQNAgent:
 
             # Count parameters
             total_params = sum(p.numel() for p in self.model.parameters())
-            logger.info(f"✅ {model_size.upper()} model built: {len(hidden_layers)} layers, {total_params:,} parameters")
+            logger.info(
+                f"✅ {model_size.upper()} model built: {len(hidden_layers)} layers, {total_params:,} parameters"
+            )
 
         except ImportError:
             logger.error("PyTorch not available - cannot build model")
@@ -856,7 +952,9 @@ class AdaptiveDQNAgent:
                 if (iteration + 1) % self.gradient_accumulation_steps == 0:
                     # Gradient clipping
                     self.scaler.unscale_(self.optimizer)
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                    torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(), max_norm=1.0
+                    )
 
                     self.scaler.step(self.optimizer)
                     self.scaler.update()
@@ -877,18 +975,20 @@ class AdaptiveDQNAgent:
 
                 if (iteration + 1) % self.gradient_accumulation_steps == 0:
                     # Gradient clipping
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                    torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(), max_norm=1.0
+                    )
                     self.optimizer.step()
                     self.optimizer.zero_grad()
 
             # Performance monitoring
             batch_time = time.time() - batch_start
-            self.performance_monitor['batch_times'].append(batch_time)
-            self.performance_monitor['loss_values'].append(loss.item())
+            self.performance_monitor["batch_times"].append(batch_time)
+            self.performance_monitor["loss_values"].append(loss.item())
 
             if self.device == "cuda":
                 memory_used = torch.cuda.memory_allocated() / (1024**3)  # GB
-                self.performance_monitor['memory_usage'].append(memory_used)
+                self.performance_monitor["memory_usage"].append(memory_used)
 
             return loss.item()
 
@@ -904,21 +1004,27 @@ class AdaptiveDQNAgent:
     def get_performance_stats(self) -> Dict:
         """Get real-time performance statistics"""
         stats = {
-            'avg_batch_time_ms': 0,
-            'avg_memory_usage_gb': 0,
-            'recent_loss': 0,
-            'epsilon': self.epsilon,
-            'buffer_size': len(self.memory)
+            "avg_batch_time_ms": 0,
+            "avg_memory_usage_gb": 0,
+            "recent_loss": 0,
+            "epsilon": self.epsilon,
+            "buffer_size": len(self.memory),
         }
 
-        if self.performance_monitor['batch_times']:
-            stats['avg_batch_time_ms'] = np.mean(self.performance_monitor['batch_times']) * 1000
+        if self.performance_monitor["batch_times"]:
+            stats["avg_batch_time_ms"] = (
+                np.mean(self.performance_monitor["batch_times"]) * 1000
+            )
 
-        if self.performance_monitor['memory_usage']:
-            stats['avg_memory_usage_gb'] = np.mean(self.performance_monitor['memory_usage'])
+        if self.performance_monitor["memory_usage"]:
+            stats["avg_memory_usage_gb"] = np.mean(
+                self.performance_monitor["memory_usage"]
+            )
 
-        if self.performance_monitor['loss_values']:
-            stats['recent_loss'] = np.mean(list(self.performance_monitor['loss_values'])[-100:])
+        if self.performance_monitor["loss_values"]:
+            stats["recent_loss"] = np.mean(
+                list(self.performance_monitor["loss_values"])[-100:]
+            )
 
         return stats
 
@@ -928,17 +1034,17 @@ class AdaptiveDQNAgent:
             import torch
 
             save_data = {
-                'model_state_dict': self.model.state_dict(),
-                'target_model_state_dict': self.target_model.state_dict(),
-                'optimizer_state_dict': self.optimizer.state_dict(),
-                'epsilon': self.epsilon,
-                'training_history': self.training_history,
-                'hardware_config': self.config,
-                'model_size': self.config.get('model_size', 'medium')
+                "model_state_dict": self.model.state_dict(),
+                "target_model_state_dict": self.target_model.state_dict(),
+                "optimizer_state_dict": self.optimizer.state_dict(),
+                "epsilon": self.epsilon,
+                "training_history": self.training_history,
+                "hardware_config": self.config,
+                "model_size": self.config.get("model_size", "medium"),
             }
 
             # Compression for limited storage
-            if self.config.get('checkpoint_compression', False):
+            if self.config.get("checkpoint_compression", False):
                 torch.save(save_data, filepath, _use_new_zipfile_serialization=True)
             else:
                 torch.save(save_data, filepath)
@@ -955,22 +1061,27 @@ class AdaptiveDQNAgent:
 
             checkpoint = torch.load(filepath, map_location=self.device)
 
-            self.model.load_state_dict(checkpoint['model_state_dict'])
-            self.target_model.load_state_dict(checkpoint['target_model_state_dict'])
-            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            self.epsilon = checkpoint.get('epsilon', self.epsilon)
-            self.training_history = checkpoint.get('training_history', [])
+            self.model.load_state_dict(checkpoint["model_state_dict"])
+            self.target_model.load_state_dict(checkpoint["target_model_state_dict"])
+            self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            self.epsilon = checkpoint.get("epsilon", self.epsilon)
+            self.training_history = checkpoint.get("training_history", [])
 
             logger.info(f"✅ Model loaded from {filepath}")
-            logger.info(f"   Model size: {checkpoint.get('model_size', 'unknown')}, Epsilon: {self.epsilon:.3f}")
+            logger.info(
+                f"   Model size: {checkpoint.get('model_size', 'unknown')}, Epsilon: {self.epsilon:.3f}"
+            )
 
         except Exception as e:
             logger.error(f"Load error: {e}")
 
 
-def create_optimized_agent(state_size: int, action_size: int,
-                           auto_detect: bool = True,
-                           config_override: Optional[Dict] = None) -> AdaptiveDQNAgent:
+def create_optimized_agent(
+    state_size: int,
+    action_size: int,
+    auto_detect: bool = True,
+    config_override: Optional[Dict] = None,
+) -> AdaptiveDQNAgent:
     """
     Factory function to create hardware-optimized agent
 
@@ -992,13 +1103,13 @@ def create_optimized_agent(state_size: int, action_size: int,
             state_size=state_size,
             action_size=action_size,
             hardware_config=hardware_config,
-            custom_config=config_override
+            custom_config=config_override,
         )
     else:
         agent = AdaptiveDQNAgent(
             state_size=state_size,
             action_size=action_size,
-            custom_config=config_override
+            custom_config=config_override,
         )
 
     return agent
@@ -1006,8 +1117,8 @@ def create_optimized_agent(state_size: int, action_size: int,
 
 # Export main classes
 __all__ = [
-    'HardwareProfiler',
-    'AdaptiveReplayBuffer',
-    'AdaptiveDQNAgent',
-    'create_optimized_agent'
+    "HardwareProfiler",
+    "AdaptiveReplayBuffer",
+    "AdaptiveDQNAgent",
+    "create_optimized_agent",
 ]

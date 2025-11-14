@@ -495,6 +495,10 @@ class DQNAgent:
         """Alias for decay_epsilon() for backward compatibility"""
         self.decay_epsilon()
 
+    def update_epsilon(self):
+        """Alias for decay_epsilon() for backward compatibility"""
+        self.decay_epsilon()
+
     def save(self, filepath: str):
         """Save model to file"""
         try:

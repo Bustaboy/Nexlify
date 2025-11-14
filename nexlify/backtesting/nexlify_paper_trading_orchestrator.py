@@ -14,17 +14,19 @@ Features:
 """
 
 import asyncio
-import logging
-from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime, timedelta
-from dataclasses import dataclass, field
 import json
-from pathlib import Path
-import pandas as pd
-import numpy as np
+import logging
 from collections import defaultdict
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
-from nexlify.backtesting.nexlify_paper_trading import PaperTradingEngine, PaperTrade
+import numpy as np
+import pandas as pd
+
+from nexlify.backtesting.nexlify_paper_trading import (PaperTrade,
+                                                       PaperTradingEngine)
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 
 logger = logging.getLogger(__name__)
@@ -34,8 +36,11 @@ error_handler = get_error_handler()
 @dataclass
 class AgentConfig:
     """Configuration for a single trading agent"""
+
     agent_id: str
-    agent_type: str  # 'rl_basic', 'rl_adaptive', 'rl_ultra', 'ml_ensemble', 'rule_based'
+    agent_type: (
+        str  # 'rl_basic', 'rl_adaptive', 'rl_ultra', 'ml_ensemble', 'rule_based'
+    )
     name: str
     model_path: Optional[str] = None
     config: Dict = field(default_factory=dict)
@@ -45,6 +50,7 @@ class AgentConfig:
 @dataclass
 class PerformanceSnapshot:
     """Performance snapshot at a point in time"""
+
     timestamp: datetime
     agent_id: str
     balance: float
@@ -76,10 +82,10 @@ class PaperTradingOrchestrator:
         self.config = config or {}
 
         # Orchestrator settings
-        self.initial_balance = self.config.get('initial_balance', 10000.0)
-        self.fee_rate = self.config.get('fee_rate', 0.001)
-        self.slippage = self.config.get('slippage', 0.0005)
-        self.update_interval = self.config.get('update_interval', 60)  # seconds
+        self.initial_balance = self.config.get("initial_balance", 10000.0)
+        self.fee_rate = self.config.get("fee_rate", 0.001)
+        self.slippage = self.config.get("slippage", 0.0005)
+        self.update_interval = self.config.get("update_interval", 60)  # seconds
 
         # Agents
         self.agents: Dict[str, AgentConfig] = {}
@@ -87,7 +93,9 @@ class PaperTradingOrchestrator:
         self.agent_instances: Dict[str, Any] = {}  # Actual RL/ML agent instances
 
         # Performance tracking
-        self.performance_history: Dict[str, List[PerformanceSnapshot]] = defaultdict(list)
+        self.performance_history: Dict[str, List[PerformanceSnapshot]] = defaultdict(
+            list
+        )
         self.comparison_metrics: Dict[str, Any] = {}
 
         # State
@@ -107,18 +115,24 @@ class PaperTradingOrchestrator:
             agent_config: Agent configuration
         """
         if agent_config.agent_id in self.agents:
-            logger.warning(f"Agent {agent_config.agent_id} already registered, overwriting")
+            logger.warning(
+                f"Agent {agent_config.agent_id} already registered, overwriting"
+            )
 
         self.agents[agent_config.agent_id] = agent_config
 
         # Create paper trading engine for this agent
-        self.agent_engines[agent_config.agent_id] = PaperTradingEngine({
-            'paper_balance': self.initial_balance,
-            'fee_rate': self.fee_rate,
-            'slippage': self.slippage
-        })
+        self.agent_engines[agent_config.agent_id] = PaperTradingEngine(
+            {
+                "paper_balance": self.initial_balance,
+                "fee_rate": self.fee_rate,
+                "slippage": self.slippage,
+            }
+        )
 
-        logger.info(f"✅ Registered agent: {agent_config.name} ({agent_config.agent_type})")
+        logger.info(
+            f"✅ Registered agent: {agent_config.name} ({agent_config.agent_type})"
+        )
 
     def load_agent_model(self, agent_id: str, agent_instance: Any):
         """
@@ -142,7 +156,9 @@ class PaperTradingOrchestrator:
             duration_hours: Session duration in hours (None = run indefinitely)
         """
         if not self.agents:
-            raise ValueError("No agents registered. Register at least one agent before starting.")
+            raise ValueError(
+                "No agents registered. Register at least one agent before starting."
+            )
 
         self.is_running = True
         self.start_time = datetime.now()
@@ -150,11 +166,15 @@ class PaperTradingOrchestrator:
         end_time = None
         if duration_hours:
             end_time = self.start_time + timedelta(hours=duration_hours)
-            logger.info(f"🚀 Starting paper trading session (duration: {duration_hours:.1f}h)")
+            logger.info(
+                f"🚀 Starting paper trading session (duration: {duration_hours:.1f}h)"
+            )
         else:
             logger.info("🚀 Starting paper trading session (indefinite)")
 
-        logger.info(f"   Active agents: {len([a for a in self.agents.values() if a.enabled])}")
+        logger.info(
+            f"   Active agents: {len([a for a in self.agents.values() if a.enabled])}"
+        )
 
         try:
             while self.is_running:
@@ -198,14 +218,16 @@ class PaperTradingOrchestrator:
                     continue
 
                 # Agent makes decision
-                decision = await self._get_agent_decision(agent_id, agent_instance, market_data)
+                decision = await self._get_agent_decision(
+                    agent_id, agent_instance, market_data
+                )
 
                 # Execute decision in paper trading
                 await self._execute_decision(agent_id, decision, market_data)
 
                 # Update positions with current prices
                 paper_engine = self.agent_engines[agent_id]
-                await paper_engine.update_positions(market_data['prices'])
+                await paper_engine.update_positions(market_data["prices"])
 
                 # Record performance snapshot
                 self._record_performance_snapshot(agent_id)
@@ -233,8 +255,9 @@ class PaperTradingOrchestrator:
         # For now, return None to indicate no data available
         return None
 
-    async def _get_agent_decision(self, agent_id: str, agent_instance: Any,
-                                   market_data: Dict) -> Dict:
+    async def _get_agent_decision(
+        self, agent_id: str, agent_instance: Any, market_data: Dict
+    ) -> Dict:
         """
         Get trading decision from agent
 
@@ -253,14 +276,14 @@ class PaperTradingOrchestrator:
             state = self._prepare_state(agent_id, market_data)
 
             # Get action from agent based on type
-            if agent_config.agent_type.startswith('rl_'):
+            if agent_config.agent_type.startswith("rl_"):
                 # RL agent (has act method)
                 action = agent_instance.act(state, training=False)
 
                 # Convert action to decision
                 decision = self._action_to_decision(action, market_data)
 
-            elif agent_config.agent_type == 'ml_ensemble':
+            elif agent_config.agent_type == "ml_ensemble":
                 # ML ensemble prediction
                 prediction = agent_instance.predict(state)
                 decision = self._prediction_to_decision(prediction, market_data)
@@ -268,13 +291,13 @@ class PaperTradingOrchestrator:
             else:
                 # Unknown agent type
                 logger.warning(f"Unknown agent type: {agent_config.agent_type}")
-                decision = {'action': 'hold'}
+                decision = {"action": "hold"}
 
             return decision
 
         except Exception as e:
             logger.error(f"Error getting decision from agent {agent_id}: {e}")
-            return {'action': 'hold'}
+            return {"action": "hold"}
 
     def _prepare_state(self, agent_id: str, market_data: Dict) -> np.ndarray:
         """
@@ -291,16 +314,20 @@ class PaperTradingOrchestrator:
         paper_engine = self.agent_engines[agent_id]
 
         # Build state vector (8 features matching RL agent expectations)
-        state = np.array([
-            paper_engine.current_balance / paper_engine.initial_balance,  # Normalized balance
-            len(paper_engine.positions),  # Position size
-            1.0,  # Relative entry price (default)
-            market_data['prices'].get('BTC/USDT', 0) / paper_engine.initial_balance,  # Normalized price
-            market_data.get('price_change', 0),  # Price change
-            market_data.get('rsi', 50) / 100,  # RSI normalized
-            market_data.get('macd', 0),  # MACD
-            market_data.get('volume_ratio', 1.0)  # Volume ratio
-        ])
+        state = np.array(
+            [
+                paper_engine.current_balance
+                / paper_engine.initial_balance,  # Normalized balance
+                len(paper_engine.positions),  # Position size
+                1.0,  # Relative entry price (default)
+                market_data["prices"].get("BTC/USDT", 0)
+                / paper_engine.initial_balance,  # Normalized price
+                market_data.get("price_change", 0),  # Price change
+                market_data.get("rsi", 50) / 100,  # RSI normalized
+                market_data.get("macd", 0),  # MACD
+                market_data.get("volume_ratio", 1.0),  # Volume ratio
+            ]
+        )
 
         return state
 
@@ -317,20 +344,20 @@ class PaperTradingOrchestrator:
         """
         if action == 0:
             return {
-                'action': 'buy',
-                'symbol': 'BTC/USDT',
-                'amount': 0.01,  # Default amount
-                'price': market_data['prices']['BTC/USDT']
+                "action": "buy",
+                "symbol": "BTC/USDT",
+                "amount": 0.01,  # Default amount
+                "price": market_data["prices"]["BTC/USDT"],
             }
         elif action == 1:
             return {
-                'action': 'sell',
-                'symbol': 'BTC/USDT',
-                'amount': 0.01,
-                'price': market_data['prices']['BTC/USDT']
+                "action": "sell",
+                "symbol": "BTC/USDT",
+                "amount": 0.01,
+                "price": market_data["prices"]["BTC/USDT"],
             }
         else:
-            return {'action': 'hold'}
+            return {"action": "hold"}
 
     def _prediction_to_decision(self, prediction: float, market_data: Dict) -> Dict:
         """
@@ -345,20 +372,20 @@ class PaperTradingOrchestrator:
         """
         if prediction > 0.02:  # 2% predicted increase
             return {
-                'action': 'buy',
-                'symbol': 'BTC/USDT',
-                'amount': 0.01,
-                'price': market_data['prices']['BTC/USDT']
+                "action": "buy",
+                "symbol": "BTC/USDT",
+                "amount": 0.01,
+                "price": market_data["prices"]["BTC/USDT"],
             }
         elif prediction < -0.02:  # 2% predicted decrease
             return {
-                'action': 'sell',
-                'symbol': 'BTC/USDT',
-                'amount': 0.01,
-                'price': market_data['prices']['BTC/USDT']
+                "action": "sell",
+                "symbol": "BTC/USDT",
+                "amount": 0.01,
+                "price": market_data["prices"]["BTC/USDT"],
             }
         else:
-            return {'action': 'hold'}
+            return {"action": "hold"}
 
     async def _execute_decision(self, agent_id: str, decision: Dict, market_data: Dict):
         """
@@ -369,7 +396,7 @@ class PaperTradingOrchestrator:
             decision: Trading decision
             market_data: Current market data
         """
-        if decision['action'] == 'hold':
+        if decision["action"] == "hold":
             return
 
         paper_engine = self.agent_engines[agent_id]
@@ -377,17 +404,19 @@ class PaperTradingOrchestrator:
 
         try:
             result = await paper_engine.place_order(
-                symbol=decision.get('symbol', 'BTC/USDT'),
-                side=decision['action'],
-                amount=decision.get('amount', 0.01),
-                price=decision.get('price', market_data['prices']['BTC/USDT']),
-                strategy=agent_name
+                symbol=decision.get("symbol", "BTC/USDT"),
+                side=decision["action"],
+                amount=decision.get("amount", 0.01),
+                price=decision.get("price", market_data["prices"]["BTC/USDT"]),
+                strategy=agent_name,
             )
 
-            if result.get('success'):
+            if result.get("success"):
                 logger.debug(f"✅ {agent_name}: {decision['action'].upper()} executed")
             else:
-                logger.debug(f"❌ {agent_name}: {decision['action'].upper()} failed - {result.get('error')}")
+                logger.debug(
+                    f"❌ {agent_name}: {decision['action'].upper()} failed - {result.get('error')}"
+                )
 
         except Exception as e:
             logger.error(f"Error executing decision for {agent_name}: {e}")
@@ -403,9 +432,15 @@ class PaperTradingOrchestrator:
         # For daily data, this would overestimate Sharpe by ~5.9x
         # TODO: Make this configurable based on actual update frequency
         if len(paper_engine.equity_curve) > 1:
-            returns = np.diff(paper_engine.equity_curve) / paper_engine.equity_curve[:-1]
+            returns = (
+                np.diff(paper_engine.equity_curve) / paper_engine.equity_curve[:-1]
+            )
             periods_per_year = 8760  # Hourly updates (365 * 24)
-            sharpe = np.mean(returns) / np.std(returns) * np.sqrt(periods_per_year) if np.std(returns) > 0 else 0
+            sharpe = (
+                np.mean(returns) / np.std(returns) * np.sqrt(periods_per_year)
+                if np.std(returns) > 0
+                else 0
+            )
         else:
             sharpe = 0
 
@@ -418,15 +453,15 @@ class PaperTradingOrchestrator:
         snapshot = PerformanceSnapshot(
             timestamp=datetime.now(),
             agent_id=agent_id,
-            balance=stats['current_balance'],
-            equity=stats['total_equity'],
-            total_return=stats['total_return'],
-            total_return_percent=stats['total_return_percent'],
-            open_positions=stats['open_positions'],
-            total_trades=stats['total_trades'],
-            win_rate=stats['win_rate'],
+            balance=stats["current_balance"],
+            equity=stats["total_equity"],
+            total_return=stats["total_return"],
+            total_return_percent=stats["total_return_percent"],
+            open_positions=stats["open_positions"],
+            total_trades=stats["total_trades"],
+            win_rate=stats["win_rate"],
             sharpe_ratio=sharpe,
-            max_drawdown=max_drawdown
+            max_drawdown=max_drawdown,
         )
 
         self.performance_history[agent_id].append(snapshot)
@@ -436,10 +471,7 @@ class PaperTradingOrchestrator:
         if not self.performance_history:
             return
 
-        self.comparison_metrics = {
-            'timestamp': datetime.now(),
-            'agents': {}
-        }
+        self.comparison_metrics = {"timestamp": datetime.now(), "agents": {}}
 
         for agent_id, snapshots in self.performance_history.items():
             if not snapshots:
@@ -448,13 +480,13 @@ class PaperTradingOrchestrator:
             latest = snapshots[-1]
             agent_name = self.agents[agent_id].name
 
-            self.comparison_metrics['agents'][agent_name] = {
-                'total_return_percent': latest.total_return_percent,
-                'sharpe_ratio': latest.sharpe_ratio,
-                'max_drawdown': latest.max_drawdown,
-                'win_rate': latest.win_rate,
-                'total_trades': latest.total_trades,
-                'equity': latest.equity
+            self.comparison_metrics["agents"][agent_name] = {
+                "total_return_percent": latest.total_return_percent,
+                "sharpe_ratio": latest.sharpe_ratio,
+                "max_drawdown": latest.max_drawdown,
+                "win_rate": latest.win_rate,
+                "total_trades": latest.total_trades,
+                "equity": latest.equity,
             }
 
     def _log_progress(self):
@@ -468,7 +500,7 @@ class PaperTradingOrchestrator:
         logger.info(f"📊 Paper Trading Progress (Elapsed: {elapsed})")
         logger.info(f"{'='*80}")
 
-        for agent_name, metrics in self.comparison_metrics['agents'].items():
+        for agent_name, metrics in self.comparison_metrics["agents"].items():
             logger.info(f"\n{agent_name}:")
             logger.info(f"  Return: {metrics['total_return_percent']:>8.2f}%")
             logger.info(f"  Sharpe: {metrics['sharpe_ratio']:>8.2f}")
@@ -520,11 +552,11 @@ AGENT PERFORMANCE COMPARISON
 """
 
         # Sort agents by return
-        if self.comparison_metrics and 'agents' in self.comparison_metrics:
+        if self.comparison_metrics and "agents" in self.comparison_metrics:
             sorted_agents = sorted(
-                self.comparison_metrics['agents'].items(),
-                key=lambda x: x[1]['total_return_percent'],
-                reverse=True
+                self.comparison_metrics["agents"].items(),
+                key=lambda x: x[1]["total_return_percent"],
+                reverse=True,
             )
 
             for rank, (agent_name, metrics) in enumerate(sorted_agents, 1):
@@ -568,53 +600,55 @@ AGENT PERFORMANCE COMPARISON
 
             # Save session summary
             summary = {
-                'session_id': self.session_id,
-                'start_time': self.start_time.isoformat() if self.start_time else None,
-                'end_time': datetime.now().isoformat(),
-                'config': self.config,
-                'agents': {
+                "session_id": self.session_id,
+                "start_time": self.start_time.isoformat() if self.start_time else None,
+                "end_time": datetime.now().isoformat(),
+                "config": self.config,
+                "agents": {
                     agent_id: {
-                        'name': config.name,
-                        'type': config.agent_type,
-                        'enabled': config.enabled
+                        "name": config.name,
+                        "type": config.agent_type,
+                        "enabled": config.enabled,
                     }
                     for agent_id, config in self.agents.items()
                 },
-                'comparison_metrics': self.comparison_metrics
+                "comparison_metrics": self.comparison_metrics,
             }
 
-            with open(output_dir / 'session_summary.json', 'w') as f:
+            with open(output_dir / "session_summary.json", "w") as f:
                 json.dump(summary, f, indent=2, default=str)
 
             # Save individual agent data
             for agent_id, paper_engine in self.agent_engines.items():
-                agent_file = output_dir / f'agent_{agent_id}.json'
+                agent_file = output_dir / f"agent_{agent_id}.json"
                 paper_engine.save_session(str(agent_file))
 
             # Save performance history
             for agent_id, snapshots in self.performance_history.items():
-                df = pd.DataFrame([
-                    {
-                        'timestamp': s.timestamp,
-                        'balance': s.balance,
-                        'equity': s.equity,
-                        'total_return': s.total_return,
-                        'total_return_percent': s.total_return_percent,
-                        'open_positions': s.open_positions,
-                        'total_trades': s.total_trades,
-                        'win_rate': s.win_rate,
-                        'sharpe_ratio': s.sharpe_ratio,
-                        'max_drawdown': s.max_drawdown
-                    }
-                    for s in snapshots
-                ])
+                df = pd.DataFrame(
+                    [
+                        {
+                            "timestamp": s.timestamp,
+                            "balance": s.balance,
+                            "equity": s.equity,
+                            "total_return": s.total_return,
+                            "total_return_percent": s.total_return_percent,
+                            "open_positions": s.open_positions,
+                            "total_trades": s.total_trades,
+                            "win_rate": s.win_rate,
+                            "sharpe_ratio": s.sharpe_ratio,
+                            "max_drawdown": s.max_drawdown,
+                        }
+                        for s in snapshots
+                    ]
+                )
 
-                csv_file = output_dir / f'performance_{agent_id}.csv'
+                csv_file = output_dir / f"performance_{agent_id}.csv"
                 df.to_csv(csv_file, index=False)
 
             # Save final report
             report = self.generate_final_report()
-            with open(output_dir / 'final_report.txt', 'w') as f:
+            with open(output_dir / "final_report.txt", "w") as f:
                 f.write(report)
 
             logger.info(f"💾 Session data saved to: {output_dir}")
@@ -629,12 +663,12 @@ AGENT PERFORMANCE COMPARISON
         Returns:
             List of (agent_name, return_percent) tuples
         """
-        if not self.comparison_metrics or 'agents' not in self.comparison_metrics:
+        if not self.comparison_metrics or "agents" not in self.comparison_metrics:
             return []
 
         leaderboard = [
-            (name, metrics['total_return_percent'])
-            for name, metrics in self.comparison_metrics['agents'].items()
+            (name, metrics["total_return_percent"])
+            for name, metrics in self.comparison_metrics["agents"].items()
         ]
 
         return sorted(leaderboard, key=lambda x: x[1], reverse=True)
@@ -655,8 +689,8 @@ def create_orchestrator(config: Optional[Dict] = None) -> PaperTradingOrchestrat
 
 
 __all__ = [
-    'PaperTradingOrchestrator',
-    'AgentConfig',
-    'PerformanceSnapshot',
-    'create_orchestrator'
+    "PaperTradingOrchestrator",
+    "AgentConfig",
+    "PerformanceSnapshot",
+    "create_orchestrator",
 ]

@@ -18,22 +18,24 @@ Example scenarios:
 - Mixed bottlenecks → Dynamic rebalancing
 """
 
-import numpy as np
-import pandas as pd
-import psutil
+import logging
 import threading
 import time
-import logging
-from typing import Dict, List, Optional, Tuple, Any
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
+import pandas as pd
+import psutil
 
 logger = logging.getLogger(__name__)
 
 
 class Bottleneck(Enum):
     """Types of system bottlenecks"""
+
     CPU = "cpu"
     GPU = "gpu"
     RAM = "ram"
@@ -46,6 +48,7 @@ class Bottleneck(Enum):
 @dataclass
 class ResourceSnapshot:
     """Snapshot of system resources at a point in time"""
+
     timestamp: float
     cpu_percent: float
     cpu_cores_used: float
@@ -83,10 +86,10 @@ class DynamicResourceMonitor:
 
         # Running statistics
         self.running_stats = {
-            'cpu': deque(maxlen=50),
-            'ram': deque(maxlen=50),
-            'gpu': deque(maxlen=50),
-            'vram': deque(maxlen=50)
+            "cpu": deque(maxlen=50),
+            "ram": deque(maxlen=50),
+            "gpu": deque(maxlen=50),
+            "vram": deque(maxlen=50),
         }
 
         # Monitoring thread
@@ -104,7 +107,9 @@ class DynamicResourceMonitor:
         """Start background monitoring thread"""
         if not self.monitoring:
             self.monitoring = True
-            self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
+            self.monitor_thread = threading.Thread(
+                target=self._monitor_loop, daemon=True
+            )
             self.monitor_thread.start()
             logger.info("📊 Resource monitoring started")
 
@@ -122,10 +127,10 @@ class DynamicResourceMonitor:
             self.history.append(snapshot)
 
             # Update running stats
-            self.running_stats['cpu'].append(snapshot.cpu_percent)
-            self.running_stats['ram'].append(snapshot.ram_percent)
-            self.running_stats['gpu'].append(snapshot.gpu_percent)
-            self.running_stats['vram'].append(snapshot.gpu_memory_percent)
+            self.running_stats["cpu"].append(snapshot.cpu_percent)
+            self.running_stats["ram"].append(snapshot.ram_percent)
+            self.running_stats["gpu"].append(snapshot.gpu_percent)
+            self.running_stats["vram"].append(snapshot.gpu_memory_percent)
 
             time.sleep(self.sample_interval)
 
@@ -170,7 +175,7 @@ class DynamicResourceMonitor:
             gpu_memory_percent=gpu_memory_percent,
             disk_io_mb_per_sec=disk_io_mb_per_sec,
             bottleneck=bottleneck,
-            overhead_capacity=overhead
+            overhead_capacity=overhead,
         )
 
     def _get_gpu_stats(self) -> Tuple[float, float, float]:
@@ -182,14 +187,20 @@ class DynamicResourceMonitor:
                 # GPU utilization (requires nvidia-smi or similar)
                 try:
                     import subprocess
+
                     result = subprocess.run(
-                        ['nvidia-smi', '--query-gpu=utilization.gpu,memory.used,memory.total',
-                         '--format=csv,noheader,nounits'],
-                        capture_output=True, text=True, timeout=1
+                        [
+                            "nvidia-smi",
+                            "--query-gpu=utilization.gpu,memory.used,memory.total",
+                            "--format=csv,noheader,nounits",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=1,
                     )
 
                     if result.returncode == 0:
-                        parts = result.stdout.strip().split(',')
+                        parts = result.stdout.strip().split(",")
                         gpu_util = float(parts[0])
                         mem_used_mb = float(parts[1])
                         mem_total_mb = float(parts[2])
@@ -246,8 +257,13 @@ class DynamicResourceMonitor:
             logger.debug(f"Disk I/O error: {e}")
             return 0.0
 
-    def _detect_bottleneck(self, cpu_percent: float, ram_percent: float,
-                          gpu_percent: float, vram_percent: float) -> Bottleneck:
+    def _detect_bottleneck(
+        self,
+        cpu_percent: float,
+        ram_percent: float,
+        gpu_percent: float,
+        vram_percent: float,
+    ) -> Bottleneck:
         """
         Detect the primary bottleneck
 
@@ -274,18 +290,23 @@ class DynamicResourceMonitor:
 
         return Bottleneck.NONE
 
-    def _calculate_overhead(self, cpu_percent: float, ram_percent: float,
-                           gpu_percent: float, vram_percent: float) -> Dict[str, float]:
+    def _calculate_overhead(
+        self,
+        cpu_percent: float,
+        ram_percent: float,
+        gpu_percent: float,
+        vram_percent: float,
+    ) -> Dict[str, float]:
         """
         Calculate available overhead capacity for each component
 
         Returns percentage of available capacity (0-100)
         """
         return {
-            'cpu': max(0, 100 - cpu_percent),
-            'ram': max(0, 100 - ram_percent),
-            'gpu': max(0, 100 - gpu_percent),
-            'vram': max(0, 100 - vram_percent)
+            "cpu": max(0, 100 - cpu_percent),
+            "ram": max(0, 100 - ram_percent),
+            "gpu": max(0, 100 - gpu_percent),
+            "vram": max(0, 100 - vram_percent),
         }
 
     def get_current_bottleneck(self) -> Bottleneck:
@@ -298,7 +319,7 @@ class DynamicResourceMonitor:
         """Get current available overhead for each component"""
         if self.history:
             return self.history[-1].overhead_capacity
-        return {'cpu': 0, 'ram': 0, 'gpu': 0, 'vram': 0}
+        return {"cpu": 0, "ram": 0, "gpu": 0, "vram": 0}
 
     def get_average_usage(self, window: int = 10) -> Dict[str, float]:
         """Get average resource usage over last N samples"""
@@ -306,15 +327,15 @@ class DynamicResourceMonitor:
             window = len(self.history)
 
         if window == 0:
-            return {'cpu': 0, 'ram': 0, 'gpu': 0, 'vram': 0}
+            return {"cpu": 0, "ram": 0, "gpu": 0, "vram": 0}
 
         recent = list(self.history)[-window:]
 
         return {
-            'cpu': np.mean([s.cpu_percent for s in recent]),
-            'ram': np.mean([s.ram_percent for s in recent]),
-            'gpu': np.mean([s.gpu_percent for s in recent]),
-            'vram': np.mean([s.gpu_memory_percent for s in recent])
+            "cpu": np.mean([s.cpu_percent for s in recent]),
+            "ram": np.mean([s.ram_percent for s in recent]),
+            "gpu": np.mean([s.gpu_percent for s in recent]),
+            "vram": np.mean([s.gpu_memory_percent for s in recent]),
         }
 
 
@@ -333,12 +354,14 @@ class DynamicArchitectureBuilder:
         self.monitor = monitor
         logger.info("🏗️  Dynamic Architecture Builder initialized")
 
-    def build_adaptive_architecture(self,
-                                    input_size: int,
-                                    output_size: int,
-                                    target_params: Optional[int] = None,
-                                    min_params: int = 1000,
-                                    max_params: int = 1000000) -> List[int]:
+    def build_adaptive_architecture(
+        self,
+        input_size: int,
+        output_size: int,
+        target_params: Optional[int] = None,
+        min_params: int = 1000,
+        max_params: int = 1000000,
+    ) -> List[int]:
         """
         Build architecture dynamically based on current resources
 
@@ -357,14 +380,19 @@ class DynamicArchitectureBuilder:
         overhead = snapshot.overhead_capacity
 
         # Calculate affordable parameters based on available memory
-        available_ram_gb = overhead['ram'] / 100 * psutil.virtual_memory().total / (1024**3)
+        available_ram_gb = (
+            overhead["ram"] / 100 * psutil.virtual_memory().total / (1024**3)
+        )
         available_vram_gb = 0
 
         try:
             import torch
-            if torch.cuda.is_available() and overhead['vram'] > 0:
-                total_vram = torch.cuda.get_device_properties(0).total_memory / (1024**3)
-                available_vram_gb = overhead['vram'] / 100 * total_vram
+
+            if torch.cuda.is_available() and overhead["vram"] > 0:
+                total_vram = torch.cuda.get_device_properties(0).total_memory / (
+                    1024**3
+                )
+                available_vram_gb = overhead["vram"] / 100 * total_vram
         except:
             pass
 
@@ -384,16 +412,25 @@ class DynamicArchitectureBuilder:
             target_params = min(target_params, affordable_params)
 
         # Build architecture to match parameter budget
-        architecture = self._design_layers(input_size, output_size, target_params, overhead)
+        architecture = self._design_layers(
+            input_size, output_size, target_params, overhead
+        )
 
         logger.info(f"🏗️  Built dynamic architecture: {architecture}")
-        logger.info(f"   Target params: {target_params:,}, Affordable: {affordable_params:,}")
+        logger.info(
+            f"   Target params: {target_params:,}, Affordable: {affordable_params:,}"
+        )
         logger.info(f"   Bottleneck: {snapshot.bottleneck.value}")
 
         return architecture
 
-    def _design_layers(self, input_size: int, output_size: int,
-                       target_params: int, overhead: Dict[str, float]) -> List[int]:
+    def _design_layers(
+        self,
+        input_size: int,
+        output_size: int,
+        target_params: int,
+        overhead: Dict[str, float],
+    ) -> List[int]:
         """
         Design layer sizes to hit target parameter count
 
@@ -436,7 +473,9 @@ class DynamicArchitectureBuilder:
 
         for _ in range(20):  # Binary search iterations
             mid = (low + high) // 2
-            test_layers = self._generate_layers(mid, num_layers, layer_ratio, output_size)
+            test_layers = self._generate_layers(
+                mid, num_layers, layer_ratio, output_size
+            )
             test_params = self._count_params(input_size, test_layers, output_size)
 
             if abs(test_params - target_params) < target_params * 0.1:  # Within 10%
@@ -444,19 +483,25 @@ class DynamicArchitectureBuilder:
                 break
             elif test_params < target_params:
                 low = mid + 1
-                if best_layers is None or abs(test_params - target_params) < abs(self._count_params(input_size, best_layers, output_size) - target_params):
+                if best_layers is None or abs(test_params - target_params) < abs(
+                    self._count_params(input_size, best_layers, output_size)
+                    - target_params
+                ):
                     best_layers = test_layers
             else:
                 high = mid - 1
 
         if best_layers is None:
             # Fallback
-            best_layers = self._generate_layers(64, num_layers, layer_ratio, output_size)
+            best_layers = self._generate_layers(
+                64, num_layers, layer_ratio, output_size
+            )
 
         return best_layers
 
-    def _generate_layers(self, first_size: int, num_layers: int,
-                        ratio: float, output_size: int) -> List[int]:
+    def _generate_layers(
+        self, first_size: int, num_layers: int, ratio: float, output_size: int
+    ) -> List[int]:
         """Generate layer sizes with geometric decay"""
         layers = []
         current_size = first_size
@@ -469,8 +514,9 @@ class DynamicArchitectureBuilder:
 
         return layers
 
-    def _count_params(self, input_size: int, hidden_layers: List[int],
-                     output_size: int) -> int:
+    def _count_params(
+        self, input_size: int, hidden_layers: List[int], output_size: int
+    ) -> int:
         """Count total parameters in network"""
         total = 0
 
@@ -480,7 +526,7 @@ class DynamicArchitectureBuilder:
 
             # Hidden to hidden
             for i in range(len(hidden_layers) - 1):
-                total += hidden_layers[i] * hidden_layers[i+1] + hidden_layers[i+1]
+                total += hidden_layers[i] * hidden_layers[i + 1] + hidden_layers[i + 1]
 
             # Last hidden to output
             total += hidden_layers[-1] * output_size + output_size
@@ -528,53 +574,57 @@ class DynamicWorkloadDistributor:
         overhead = snapshot.overhead_capacity
 
         config = {
-            'gpu_batch_size': total_batch_size,
-            'cpu_workers': 0,
-            'pin_memory': True,
-            'prefetch_factor': 2,
-            'device_strategy': 'gpu_primary',
-            'split_batch': False
+            "gpu_batch_size": total_batch_size,
+            "cpu_workers": 0,
+            "pin_memory": True,
+            "prefetch_factor": 2,
+            "device_strategy": "gpu_primary",
+            "split_batch": False,
         }
 
         # GPU saturated, CPU has overhead
-        if bottleneck == Bottleneck.GPU and overhead['cpu'] > 30:
+        if bottleneck == Bottleneck.GPU and overhead["cpu"] > 30:
             # Offload preprocessing to CPU
             cpu_cores = psutil.cpu_count(logical=False)
-            config['cpu_workers'] = min(cpu_cores - 1, 8)
-            config['prefetch_factor'] = 4
-            config['gpu_batch_size'] = total_batch_size // 2  # Reduce GPU load
-            logger.info(f"⚠️  GPU bottleneck → Offloading to {config['cpu_workers']} CPU workers")
+            config["cpu_workers"] = min(cpu_cores - 1, 8)
+            config["prefetch_factor"] = 4
+            config["gpu_batch_size"] = total_batch_size // 2  # Reduce GPU load
+            logger.info(
+                f"⚠️  GPU bottleneck → Offloading to {config['cpu_workers']} CPU workers"
+            )
 
         # CPU saturated, GPU has overhead
-        elif bottleneck == Bottleneck.CPU and overhead['gpu'] > 30:
+        elif bottleneck == Bottleneck.CPU and overhead["gpu"] > 30:
             # Push more to GPU
-            config['cpu_workers'] = 0
-            config['gpu_batch_size'] = int(total_batch_size * 1.5)
-            config['device_strategy'] = 'gpu_aggressive'
-            logger.info(f"⚠️  CPU bottleneck → Increasing GPU batch to {config['gpu_batch_size']}")
+            config["cpu_workers"] = 0
+            config["gpu_batch_size"] = int(total_batch_size * 1.5)
+            config["device_strategy"] = "gpu_aggressive"
+            logger.info(
+                f"⚠️  CPU bottleneck → Increasing GPU batch to {config['gpu_batch_size']}"
+            )
 
         # RAM limited, VRAM ok
-        elif bottleneck == Bottleneck.RAM and overhead['vram'] > 40:
+        elif bottleneck == Bottleneck.RAM and overhead["vram"] > 40:
             # Keep more on GPU
-            config['device_strategy'] = 'gpu_primary'
-            config['pin_memory'] = False  # Save RAM
-            config['cpu_workers'] = 0
+            config["device_strategy"] = "gpu_primary"
+            config["pin_memory"] = False  # Save RAM
+            config["cpu_workers"] = 0
             logger.info(f"⚠️  RAM bottleneck → Keeping data on GPU")
 
         # VRAM limited, RAM ok
-        elif bottleneck == Bottleneck.VRAM and overhead['ram'] > 40:
+        elif bottleneck == Bottleneck.VRAM and overhead["ram"] > 40:
             # Use CPU memory
-            config['device_strategy'] = 'cpu_primary'
-            config['pin_memory'] = True
-            config['cpu_workers'] = 2
-            config['gpu_batch_size'] = total_batch_size // 2
+            config["device_strategy"] = "cpu_primary"
+            config["pin_memory"] = True
+            config["cpu_workers"] = 2
+            config["gpu_batch_size"] = total_batch_size // 2
             logger.info(f"⚠️  VRAM bottleneck → Using CPU memory")
 
         # Balanced - standard config
         else:
             cpu_cores = psutil.cpu_count(logical=False)
-            config['cpu_workers'] = min(cpu_cores // 2, 4)
-            config['gpu_batch_size'] = total_batch_size
+            config["cpu_workers"] = min(cpu_cores // 2, 4)
+            config["gpu_batch_size"] = total_batch_size
             logger.info(f"✅ Balanced → Standard config")
 
         return config
@@ -590,9 +640,9 @@ class DynamicWorkloadDistributor:
         overhead = snapshot.overhead_capacity
 
         # Only split if both have significant overhead
-        if overhead['cpu'] > 40 and overhead['gpu'] > 40:
+        if overhead["cpu"] > 40 and overhead["gpu"] > 40:
             # Split proportional to overhead
-            cpu_ratio = overhead['cpu'] / (overhead['cpu'] + overhead['gpu'])
+            cpu_ratio = overhead["cpu"] / (overhead["cpu"] + overhead["gpu"])
 
             cpu_portion = int(batch_size * cpu_ratio)
             gpu_portion = batch_size - cpu_portion
@@ -613,10 +663,13 @@ class DynamicBufferManager:
     - Compresses old experiences when needed
     """
 
-    def __init__(self, monitor: DynamicResourceMonitor,
-                 initial_capacity: int = 50000,
-                 min_capacity: int = 10000,
-                 max_capacity: int = 1000000):
+    def __init__(
+        self,
+        monitor: DynamicResourceMonitor,
+        initial_capacity: int = 50000,
+        min_capacity: int = 10000,
+        max_capacity: int = 1000000,
+    ):
         self.monitor = monitor
         self.capacity = initial_capacity
         self.min_capacity = min_capacity
@@ -626,7 +679,9 @@ class DynamicBufferManager:
         self.last_resize = time.time()
         self.resize_interval = 60  # Resize at most once per minute
 
-        logger.info(f"💾 Dynamic Buffer Manager initialized: {initial_capacity:,} capacity")
+        logger.info(
+            f"💾 Dynamic Buffer Manager initialized: {initial_capacity:,} capacity"
+        )
 
     def auto_resize(self):
         """Automatically resize buffer based on available RAM"""
@@ -635,7 +690,7 @@ class DynamicBufferManager:
             return
 
         snapshot = self.monitor.take_snapshot()
-        ram_overhead = snapshot.overhead_capacity['ram']
+        ram_overhead = snapshot.overhead_capacity["ram"]
 
         # Calculate target capacity based on available RAM
         if ram_overhead > 60:
@@ -664,8 +719,10 @@ class DynamicBufferManager:
 
             self.last_resize = time.time()
 
-            logger.info(f"📦 Buffer resized: {old_capacity:,} → {new_capacity:,} "
-                       f"(RAM overhead: {ram_overhead:.1f}%)")
+            logger.info(
+                f"📦 Buffer resized: {old_capacity:,} → {new_capacity:,} "
+                f"(RAM overhead: {ram_overhead:.1f}%)"
+            )
 
     def push(self, *args):
         """Add experience to buffer with auto-resize"""
@@ -679,15 +736,18 @@ class DynamicBufferManager:
         """Sample from buffer"""
         if len(self.buffer) < batch_size:
             return list(self.buffer)
-        return [self.buffer[i] for i in np.random.choice(len(self.buffer), batch_size, replace=False)]
+        return [
+            self.buffer[i]
+            for i in np.random.choice(len(self.buffer), batch_size, replace=False)
+        ]
 
 
 # Export
 __all__ = [
-    'Bottleneck',
-    'ResourceSnapshot',
-    'DynamicResourceMonitor',
-    'DynamicArchitectureBuilder',
-    'DynamicWorkloadDistributor',
-    'DynamicBufferManager'
+    "Bottleneck",
+    "ResourceSnapshot",
+    "DynamicResourceMonitor",
+    "DynamicArchitectureBuilder",
+    "DynamicWorkloadDistributor",
+    "DynamicBufferManager",
 ]

@@ -12,41 +12,44 @@ Reduce model size by 4x with minimal accuracy loss:
 MASSIVE SAVINGS: 4x less memory, 2-4x faster inference
 """
 
-import logging
 import copy
-from typing import Optional, Dict, Any, Callable, List
-from enum import Enum
+import logging
 from dataclasses import dataclass
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class QuantizationMethod(Enum):
     """Quantization methods"""
+
     NONE = "none"
-    DYNAMIC = "dynamic"              # Easy: quantize at runtime
-    STATIC = "static"                # Better: use calibration data
-    QAT = "qat"                      # Best: quantization-aware training
-    FP16 = "fp16"                    # Half precision (2x savings)
+    DYNAMIC = "dynamic"  # Easy: quantize at runtime
+    STATIC = "static"  # Better: use calibration data
+    QAT = "qat"  # Best: quantization-aware training
+    FP16 = "fp16"  # Half precision (2x savings)
 
 
 class QuantizationBackend(Enum):
     """Quantization backends"""
-    PYTORCH = "pytorch"              # PyTorch native
-    FBGEMM = "fbgemm"               # x86 CPU (Intel/AMD)
-    QNNPACK = "qnnpack"             # ARM CPU (mobile)
-    TENSORRT = "tensorrt"           # NVIDIA GPU
+
+    PYTORCH = "pytorch"  # PyTorch native
+    FBGEMM = "fbgemm"  # x86 CPU (Intel/AMD)
+    QNNPACK = "qnnpack"  # ARM CPU (mobile)
+    TENSORRT = "tensorrt"  # NVIDIA GPU
 
 
 @dataclass
 class QuantizationConfig:
     """Quantization configuration"""
+
     method: QuantizationMethod
     backend: QuantizationBackend
-    per_channel: bool                # Better accuracy
-    symmetric: bool                  # Symmetric quantization
-    reduce_range: bool               # For older CPUs
-    calibration_batches: int         # For static quantization
+    per_channel: bool  # Better accuracy
+    symmetric: bool  # Symmetric quantization
+    reduce_range: bool  # For older CPUs
+    calibration_batches: int  # For static quantization
 
 
 class AutoQuantizer:
@@ -66,7 +69,9 @@ class AutoQuantizer:
         self._check_backends()
 
         logger.info("📦 Auto Quantizer initialized")
-        logger.info(f"   Available backends: {[b.value for b in self.available_backends]}")
+        logger.info(
+            f"   Available backends: {[b.value for b in self.available_backends]}"
+        )
 
     def _check_backends(self):
         """Check available quantization backends"""
@@ -77,11 +82,17 @@ class AutoQuantizer:
             self.torch_version = torch.__version__
 
             # FBGEMM for x86
-            if hasattr(torch.backends, 'fbgemm') and torch.backends.fbgemm.is_available():
+            if (
+                hasattr(torch.backends, "fbgemm")
+                and torch.backends.fbgemm.is_available()
+            ):
                 self.available_backends.append(QuantizationBackend.FBGEMM)
 
             # QNNPACK for ARM
-            if hasattr(torch.backends, 'qnnpack') and torch.backends.qnnpack.is_available():
+            if (
+                hasattr(torch.backends, "qnnpack")
+                and torch.backends.qnnpack.is_available()
+            ):
                 self.available_backends.append(QuantizationBackend.QNNPACK)
 
             # PyTorch native always available
@@ -90,11 +101,13 @@ class AutoQuantizer:
         except ImportError:
             logger.warning("PyTorch not available")
 
-    def quantize(self,
-                model,
-                method: QuantizationMethod = QuantizationMethod.DYNAMIC,
-                calibration_data: Optional[Any] = None,
-                backend: Optional[QuantizationBackend] = None) -> Any:
+    def quantize(
+        self,
+        model,
+        method: QuantizationMethod = QuantizationMethod.DYNAMIC,
+        calibration_data: Optional[Any] = None,
+        backend: Optional[QuantizationBackend] = None,
+    ) -> Any:
         """
         Quantize model automatically
 
@@ -112,7 +125,9 @@ class AutoQuantizer:
         if backend is None:
             backend = self._select_backend()
 
-        logger.info(f"📦 Quantizing model (method: {method.value}, backend: {backend.value})...")
+        logger.info(
+            f"📦 Quantizing model (method: {method.value}, backend: {backend.value})..."
+        )
 
         try:
             if method == QuantizationMethod.DYNAMIC:
@@ -120,7 +135,9 @@ class AutoQuantizer:
 
             elif method == QuantizationMethod.STATIC:
                 if calibration_data is None:
-                    logger.warning("Static quantization needs calibration data, falling back to dynamic")
+                    logger.warning(
+                        "Static quantization needs calibration data, falling back to dynamic"
+                    )
                     quantized = self._quantize_dynamic(model, backend)
                 else:
                     quantized = self._quantize_static(model, calibration_data, backend)
@@ -182,20 +199,22 @@ class AutoQuantizer:
 
         # Set backend
         if backend == QuantizationBackend.FBGEMM:
-            torch.backends.quantized.engine = 'fbgemm'
+            torch.backends.quantized.engine = "fbgemm"
         elif backend == QuantizationBackend.QNNPACK:
-            torch.backends.quantized.engine = 'qnnpack'
+            torch.backends.quantized.engine = "qnnpack"
 
         # Quantize
         quantized = quantize_dynamic(
             model,
             {torch.nn.Linear, torch.nn.LSTM, torch.nn.GRU},  # Quantize these layers
-            dtype=torch.qint8
+            dtype=torch.qint8,
         )
 
         return quantized
 
-    def _quantize_static(self, model, calibration_data, backend: QuantizationBackend) -> Any:
+    def _quantize_static(
+        self, model, calibration_data, backend: QuantizationBackend
+    ) -> Any:
         """
         Static quantization (better accuracy than dynamic)
 
@@ -204,17 +223,17 @@ class AutoQuantizer:
         Speedup: 3-4x on CPU
         """
         import torch
-        from torch.quantization import get_default_qconfig, prepare, convert
+        from torch.quantization import convert, get_default_qconfig, prepare
 
         logger.info("   Using static quantization (with calibration)")
 
         # Set backend
         if backend == QuantizationBackend.FBGEMM:
-            torch.backends.quantized.engine = 'fbgemm'
-            qconfig = torch.quantization.get_default_qconfig('fbgemm')
+            torch.backends.quantized.engine = "fbgemm"
+            qconfig = torch.quantization.get_default_qconfig("fbgemm")
         elif backend == QuantizationBackend.QNNPACK:
-            torch.backends.quantized.engine = 'qnnpack'
-            qconfig = torch.quantization.get_default_qconfig('qnnpack')
+            torch.backends.quantized.engine = "qnnpack"
+            qconfig = torch.quantization.get_default_qconfig("qnnpack")
         else:
             qconfig = torch.quantization.default_qconfig
 
@@ -225,7 +244,7 @@ class AutoQuantizer:
         # Fuse layers (important for accuracy!)
         # e.g., Conv + BN + ReLU → single fused layer
         try:
-            model = torch.quantization.fuse_modules(model, [['conv', 'bn', 'relu']])
+            model = torch.quantization.fuse_modules(model, [["conv", "bn", "relu"]])
             logger.info("      Fused layers for better accuracy")
         except:
             pass
@@ -263,11 +282,11 @@ class AutoQuantizer:
 
         # Set backend
         if backend == QuantizationBackend.FBGEMM:
-            torch.backends.quantized.engine = 'fbgemm'
-            qconfig = torch.quantization.get_default_qat_qconfig('fbgemm')
+            torch.backends.quantized.engine = "fbgemm"
+            qconfig = torch.quantization.get_default_qat_qconfig("fbgemm")
         elif backend == QuantizationBackend.QNNPACK:
-            torch.backends.quantized.engine = 'qnnpack'
-            qconfig = torch.quantization.get_default_qat_qconfig('qnnpack')
+            torch.backends.quantized.engine = "qnnpack"
+            qconfig = torch.quantization.get_default_qat_qconfig("qnnpack")
         else:
             qconfig = torch.quantization.default_qat_qconfig
 
@@ -275,7 +294,7 @@ class AutoQuantizer:
 
         # Fuse layers
         try:
-            model = torch.quantization.fuse_modules(model, [['conv', 'bn', 'relu']])
+            model = torch.quantization.fuse_modules(model, [["conv", "bn", "relu"]])
         except:
             pass
 
@@ -314,13 +333,12 @@ class AutoQuantizer:
         for buffer in model.buffers():
             total_params += buffer.numel() * buffer.element_size()
 
-        size_mb = total_params / (1024 ** 2)
+        size_mb = total_params / (1024**2)
         return size_mb
 
-    def compare_quantization_methods(self,
-                                    model,
-                                    example_input,
-                                    calibration_data: Optional[Any] = None) -> Dict:
+    def compare_quantization_methods(
+        self, model, example_input, calibration_data: Optional[Any] = None
+    ) -> Dict:
         """
         Compare different quantization methods
 
@@ -332,8 +350,9 @@ class AutoQuantizer:
         Returns:
             Comparison results
         """
-        import torch
         import time
+
+        import torch
 
         logger.info("🔍 Comparing quantization methods...")
 
@@ -344,14 +363,16 @@ class AutoQuantizer:
         original_size = self._get_model_size(model)
         original_time = self._benchmark_inference(model, example_input)
 
-        results['original'] = {
-            'size_mb': original_size,
-            'inference_time_ms': original_time * 1000,
-            'speedup': 1.0,
-            'size_reduction': 1.0
+        results["original"] = {
+            "size_mb": original_size,
+            "inference_time_ms": original_time * 1000,
+            "speedup": 1.0,
+            "size_reduction": 1.0,
         }
 
-        logger.info(f"      Size: {original_size:.1f} MB, Time: {original_time*1000:.2f}ms")
+        logger.info(
+            f"      Size: {original_size:.1f} MB, Time: {original_time*1000:.2f}ms"
+        )
 
         # Dynamic quantization
         logger.info("   Testing dynamic quantization...")
@@ -360,15 +381,19 @@ class AutoQuantizer:
             dynamic_size = self._get_model_size(dynamic_model)
             dynamic_time = self._benchmark_inference(dynamic_model, example_input)
 
-            results['dynamic'] = {
-                'size_mb': dynamic_size,
-                'inference_time_ms': dynamic_time * 1000,
-                'speedup': original_time / dynamic_time,
-                'size_reduction': original_size / dynamic_size
+            results["dynamic"] = {
+                "size_mb": dynamic_size,
+                "inference_time_ms": dynamic_time * 1000,
+                "speedup": original_time / dynamic_time,
+                "size_reduction": original_size / dynamic_size,
             }
 
-            logger.info(f"      Size: {dynamic_size:.1f} MB ({original_size/dynamic_size:.1f}x smaller)")
-            logger.info(f"      Time: {dynamic_time*1000:.2f}ms ({original_time/dynamic_time:.1f}x faster)")
+            logger.info(
+                f"      Size: {dynamic_size:.1f} MB ({original_size/dynamic_size:.1f}x smaller)"
+            )
+            logger.info(
+                f"      Time: {dynamic_time*1000:.2f}ms ({original_time/dynamic_time:.1f}x faster)"
+            )
 
         except Exception as e:
             logger.warning(f"      Dynamic quantization failed: {e}")
@@ -377,19 +402,25 @@ class AutoQuantizer:
         if calibration_data is not None:
             logger.info("   Testing static quantization...")
             try:
-                static_model = self.quantize(model, QuantizationMethod.STATIC, calibration_data)
+                static_model = self.quantize(
+                    model, QuantizationMethod.STATIC, calibration_data
+                )
                 static_size = self._get_model_size(static_model)
                 static_time = self._benchmark_inference(static_model, example_input)
 
-                results['static'] = {
-                    'size_mb': static_size,
-                    'inference_time_ms': static_time * 1000,
-                    'speedup': original_time / static_time,
-                    'size_reduction': original_size / static_size
+                results["static"] = {
+                    "size_mb": static_size,
+                    "inference_time_ms": static_time * 1000,
+                    "speedup": original_time / static_time,
+                    "size_reduction": original_size / static_size,
                 }
 
-                logger.info(f"      Size: {static_size:.1f} MB ({original_size/static_size:.1f}x smaller)")
-                logger.info(f"      Time: {static_time*1000:.2f}ms ({original_time/static_time:.1f}x faster)")
+                logger.info(
+                    f"      Size: {static_size:.1f} MB ({original_size/static_size:.1f}x smaller)"
+                )
+                logger.info(
+                    f"      Time: {static_time*1000:.2f}ms ({original_time/static_time:.1f}x faster)"
+                )
 
             except Exception as e:
                 logger.warning(f"      Static quantization failed: {e}")
@@ -406,21 +437,27 @@ class AutoQuantizer:
                 example_input_gpu = example_input.cuda().half()
                 fp16_time = self._benchmark_inference(fp16_model, example_input_gpu)
 
-                results['fp16'] = {
-                    'size_mb': fp16_size,
-                    'inference_time_ms': fp16_time * 1000,
-                    'speedup': original_time / fp16_time,
-                    'size_reduction': original_size / fp16_size
+                results["fp16"] = {
+                    "size_mb": fp16_size,
+                    "inference_time_ms": fp16_time * 1000,
+                    "speedup": original_time / fp16_time,
+                    "size_reduction": original_size / fp16_size,
                 }
 
-                logger.info(f"      Size: {fp16_size:.1f} MB ({original_size/fp16_size:.1f}x smaller)")
-                logger.info(f"      Time: {fp16_time*1000:.2f}ms ({original_time/fp16_time:.1f}x faster)")
+                logger.info(
+                    f"      Size: {fp16_size:.1f} MB ({original_size/fp16_size:.1f}x smaller)"
+                )
+                logger.info(
+                    f"      Time: {fp16_time*1000:.2f}ms ({original_time/fp16_time:.1f}x faster)"
+                )
             else:
-                results['fp16'] = {
-                    'size_mb': fp16_size,
-                    'size_reduction': original_size / fp16_size
+                results["fp16"] = {
+                    "size_mb": fp16_size,
+                    "size_reduction": original_size / fp16_size,
                 }
-                logger.info(f"      Size: {fp16_size:.1f} MB ({original_size/fp16_size:.1f}x smaller)")
+                logger.info(
+                    f"      Size: {fp16_size:.1f} MB ({original_size/fp16_size:.1f}x smaller)"
+                )
                 logger.info(f"      (Skipped timing - no GPU)")
 
         except Exception as e:
@@ -434,8 +471,9 @@ class AutoQuantizer:
 
     def _benchmark_inference(self, model, example_input, num_runs: int = 100) -> float:
         """Benchmark model inference time"""
-        import torch
         import time
+
+        import torch
 
         model.eval()
 
@@ -459,16 +497,16 @@ class AutoQuantizer:
     def _recommend_method(self, results: Dict) -> str:
         """Recommend best quantization method"""
         # Prefer method with best speedup while keeping size reduction
-        best_method = 'original'
+        best_method = "original"
         best_score = 0
 
         for method, metrics in results.items():
-            if method == 'original':
+            if method == "original":
                 continue
 
             # Score = speedup * size_reduction
-            speedup = metrics.get('speedup', 1.0)
-            size_reduction = metrics.get('size_reduction', 1.0)
+            speedup = metrics.get("speedup", 1.0)
+            size_reduction = metrics.get("size_reduction", 1.0)
             score = speedup * size_reduction
 
             if score > best_score:
@@ -479,9 +517,11 @@ class AutoQuantizer:
 
 
 # Convenience functions
-def quantize_model(model,
-                  method: QuantizationMethod = QuantizationMethod.DYNAMIC,
-                  calibration_data: Optional[Any] = None) -> Any:
+def quantize_model(
+    model,
+    method: QuantizationMethod = QuantizationMethod.DYNAMIC,
+    calibration_data: Optional[Any] = None,
+) -> Any:
     """
     Quantize model for 4x memory savings and 2-4x speedup
 
@@ -499,9 +539,9 @@ def quantize_model(model,
 
 # Export
 __all__ = [
-    'QuantizationMethod',
-    'QuantizationBackend',
-    'QuantizationConfig',
-    'AutoQuantizer',
-    'quantize_model'
+    "QuantizationMethod",
+    "QuantizationBackend",
+    "QuantizationConfig",
+    "AutoQuantizer",
+    "quantize_model",
 ]
