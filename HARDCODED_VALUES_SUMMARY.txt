@@ -1,0 +1,193 @@
+================================================================================
+NEXLIFY HARDCODED VALUES AUDIT - EXECUTIVE SUMMARY
+================================================================================
+
+Generated: 2025-11-14
+Repository: https://github.com/Bustaboy/Nexlify
+Branch: claude/find-hardcoded-values-01XhCbcNfxFFuCDavzrw4f16
+
+================================================================================
+AUDIT STATISTICS
+================================================================================
+
+Total Hardcoded Values Found: 87
+
+Distribution by Category:
+  Risk Management & Trading Parameters    36 values (41%)
+  RL Agent Hyperparameters               16 values (18%)
+  Timeouts & Delays                      18 values (21%)
+  File Paths & Database Locations        11 values (13%)
+  Fees & DeFi Configuration               5 values (6%)
+  Other (Analysis, Balance, Volatility)   5 values (1%)
+
+Priority Distribution:
+  HIGH Priority (Action Required)        28 values
+  MEDIUM Priority (Should Configure)     38 values
+  LOW Priority (Optional)                21 values
+
+================================================================================
+HIGH PRIORITY ITEMS - MUST BE CONFIGURABLE
+================================================================================
+
+RISK MANAGEMENT (7 items):
+  1. Max Position Size: 0.05 (5%)
+  2. Max Daily Loss: 0.05 (5%)
+  3. Stop Loss Percentage: 0.02 (2%)
+  4. Take Profit Percentage: 0.05 (5%)
+  5. Max Concurrent Trades: 3
+  6. Circuit Breaker Failure Threshold: 3 consecutive failures
+  7. Circuit Breaker Timeout: 300 seconds
+
+FLASH CRASH PROTECTION (4 items):
+  1. Minor Threshold: -0.05 (-5% drop)
+  2. Major Threshold: -0.10 (-10% drop)
+  3. Critical Threshold: -0.15 (-15% drop)
+  4. Recovery Threshold: 0.20 (20% recovery)
+
+RL AGENT CORE HYPERPARAMETERS (6 items):
+  1. Discount Factor (Gamma): 0.99
+  2. Initial Epsilon: 1.0
+  3. Epsilon Minimum: 0.01
+  4. Epsilon Decay Rate: 0.995
+  5. Learning Rate: 0.001
+  6. Replay Buffer Size: 100,000
+
+EPSILON DECAY (2 items):
+  1. Default Epsilon End: 0.22 (22% - Crypto-specific)
+  2. Scheduled Milestones: {0: 1.0, 200: 0.65, 800: 0.35, 2000: 0.22}
+
+TRADING FEES & DeFi (3 items):
+  1. Paper Trading Fee Rate: 0.001 (0.1%)
+  2. Slippage: 0.0005 (0.05%)
+  3. DeFi Idle Threshold: $1,000 USD
+
+DATABASE PATHS (2 items):
+  1. Trading Database: data/trading.db
+  2. Config File: config/neural_config.json
+
+================================================================================
+TOP IMPACT RECOMMENDATIONS
+================================================================================
+
+1. RISK MANAGEMENT - Create hierarchical risk profiles
+   Current: Single hardcoded defaults for all trading scenarios
+   Solution: Define LOW, MEDIUM, HIGH, AGGRESSIVE profiles with preconfigured
+            thresholds that users can select or customize
+
+2. EPSILON DECAY - Implement crypto-aware defaults
+   Current: 0.22 (22%) minimum epsilon is hardcoded
+   Issue: This value assumes 24/7 markets; should be adjustable per market
+   Solution: Make epsilon_end configurable with market-specific presets
+
+3. TRADING INTERVALS - Make frequency user-configurable
+   Current: Multiple hardcoded 60-second check intervals
+   Impact: Slower detection = delayed trades; faster = higher resource usage
+   Solution: Expose as "scan_frequency" with LOW/MEDIUM/HIGH/CUSTOM options
+
+4. RL HYPERPARAMETERS - Add preset configurations
+   Current: Individual values scattered across multiple files
+   Solution: Create ConfigurationProfiles class with CONSERVATIVE, BALANCED,
+            AGGRESSIVE presets that adjust learning_rate, gamma, epsilon_decay
+
+5. DATABASE & PATHS - Support environment variables
+   Current: Hardcoded relative paths
+   Issue: Breaks in Docker/cloud deployments
+   Solution: Check ENV vars first: DATA_DIR, LOGS_DIR, DB_PATH before defaults
+
+================================================================================
+CRITICAL FILES AFFECTED
+================================================================================
+
+1. nexlify/risk/nexlify_risk_manager.py
+   - 7 hardcoded risk parameters
+   - Core to system safety
+
+2. nexlify/risk/nexlify_flash_crash_protection.py
+   - 9 hardcoded crash thresholds
+   - Market crash detection depends on these
+
+3. nexlify/strategies/nexlify_ultra_optimized_rl_agent.py
+   - 6 core hyperparameters
+   - AI trading performance depends on these
+
+4. nexlify/strategies/epsilon_decay.py
+   - 3 epsilon decay parameters
+   - Exploration/exploitation balance
+
+5. nexlify/core/nexlify_auto_trader.py
+   - Exit strategy parameters (TP/SL)
+   - Position management depends on these
+
+================================================================================
+CONFIGURATION MIGRATION ROADMAP
+================================================================================
+
+Phase 1: CRITICAL (Week 1)
+  - Migrate risk management thresholds
+  - Migrate RL core hyperparameters
+  - Migrate database paths
+
+Phase 2: IMPORTANT (Week 2)
+  - Migrate flash crash thresholds
+  - Migrate trading intervals
+  - Migrate DeFi parameters
+
+Phase 3: NICE-TO-HAVE (Week 3)
+  - Migrate cache/memory parameters
+  - Migrate GUI intervals
+  - Create preset profiles
+
+================================================================================
+SUGGESTED CONFIGURATION STRUCTURE
+================================================================================
+
+config/neural_config.json should include:
+
+  risk_management:
+    max_position_size: 0.05
+    max_daily_loss: 0.05
+    stop_loss_percent: 0.02
+    take_profit_percent: 0.05
+    kelly_fraction: 0.5
+    max_concurrent_trades: 3
+
+  flash_crash_protection:
+    minor_threshold: -0.05
+    major_threshold: -0.10
+    critical_threshold: -0.15
+    recovery_threshold: 0.20
+    check_interval: 30
+    volume_spike_threshold: 3.0
+
+  rl_agent:
+    discount_factor: 0.99
+    epsilon_start: 1.0
+    epsilon_min: 0.01
+    epsilon_decay: 0.995
+    learning_rate: 0.001
+    replay_buffer_size: 100000
+
+  circuit_breaker:
+    failure_threshold: 3
+    timeout_seconds: 300
+    half_open_max_calls: 1
+
+  paths:
+    data_dir: ${DATA_DIR:data}
+    logs_dir: ${LOGS_DIR:logs}
+    cache_dir: ${CACHE_DIR:cache}
+    trading_database: ${DB_PATH:data/trading.db}
+
+================================================================================
+FILE LOCATION
+================================================================================
+
+Detailed Report: /home/user/Nexlify/HARDCODED_VALUES_AUDIT.md (1,200+ lines)
+  - 87 items with exact file:line references
+  - Code snippets showing context
+  - Suggested configuration key names
+  - Priority classification for each item
+
+This Summary: /home/user/Nexlify/HARDCODED_VALUES_SUMMARY.txt
+
+================================================================================
