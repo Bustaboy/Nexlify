@@ -135,8 +135,13 @@ class ProfitManager:
 
     def __init__(self, config: Dict):
         """Initialize Profit Manager"""
-        self.config = config.get("profit_management", {})
+        # Handle both profit_management and profit_tracking config keys
+        self.config = config.get("profit_management", config.get("profit_tracking", {}))
         self.enabled = self.config.get("enabled", True)
+
+        # Test-specific config
+        self.target_profit_percent = self.config.get("target_profit_percent", 10.0)
+        self.stop_loss_percent = self.config.get("stop_loss_percent", 5.0)
 
         # Configuration
         self.min_operating_balance = Decimal(
@@ -169,6 +174,9 @@ class ProfitManager:
         self.realized_profit = Decimal("0")
         self.unrealized_profit = Decimal("0")
         self.withdrawn_profit = Decimal("0")
+
+        # Test-specific tracking
+        self.profit_records: List[Dict] = []
 
         # Initialize database
         self._init_database()
@@ -640,6 +648,95 @@ class ProfitManager:
                 sid: s.to_dict() for sid, s in self.withdrawal_schedules.items()
             },
             "recent_withdrawals": [r.to_dict() for r in self.withdrawal_history[:10]],
+        }
+
+    # Backward compatibility methods for tests
+
+    def calculate_profit(
+        self,
+        entry_price: float,
+        exit_price: float,
+        quantity: float,
+        side: str = "buy",
+        fee: float = 0.0,
+    ) -> float:
+        """
+        Calculate profit/loss for a trade
+
+        Args:
+            entry_price: Entry price
+            exit_price: Exit price
+            quantity: Trade quantity
+            side: Trade side (buy or sell)
+            fee: Trading fees
+
+        Returns:
+            Profit/loss amount
+        """
+        if side == "buy":
+            # Long position: profit when price goes up
+            profit = (exit_price - entry_price) * quantity
+        else:
+            # Short position: profit when price goes down
+            profit = (entry_price - exit_price) * quantity
+
+        return profit - fee
+
+    def should_take_profit(
+        self, current_price: float, entry_price: float, side: str = "buy"
+    ) -> bool:
+        """Check if profit target is reached"""
+        if entry_price == 0:
+            return False
+
+        if side == "buy":
+            price_change_percent = ((current_price - entry_price) / entry_price) * 100
+        else:
+            price_change_percent = ((entry_price - current_price) / entry_price) * 100
+
+        return price_change_percent >= self.target_profit_percent
+
+    def should_stop_loss(
+        self, current_price: float, entry_price: float, side: str = "buy"
+    ) -> bool:
+        """Check if stop loss is triggered"""
+        if entry_price == 0:
+            return False
+
+        if side == "buy":
+            price_change_percent = ((current_price - entry_price) / entry_price) * 100
+        else:
+            price_change_percent = ((entry_price - current_price) / entry_price) * 100
+
+        return price_change_percent <= -self.stop_loss_percent
+
+    def calculate_roi(self, profit: float, investment: float) -> float:
+        """Calculate return on investment percentage"""
+        if investment == 0:
+            return 0.0
+        return (profit / investment) * 100
+
+    def record_profit(self, profit: float, symbol: str, timestamp: datetime):
+        """Record a profit/loss event"""
+        self.profit_records.append(
+            {"profit": profit, "symbol": symbol, "timestamp": timestamp}
+        )
+
+        # Update totals
+        self.total_profit += Decimal(str(profit))
+        if profit > 0:
+            self.realized_profit += Decimal(str(profit))
+
+    def get_profit_summary(self) -> Dict:
+        """Get summary of profits"""
+        winning_trades = [r for r in self.profit_records if r["profit"] > 0]
+        losing_trades = [r for r in self.profit_records if r["profit"] < 0]
+
+        return {
+            "total_profit": float(self.total_profit),
+            "winning_trades": len(winning_trades),
+            "losing_trades": len(losing_trades),
+            "total_trades": len(self.profit_records),
         }
 
 
