@@ -4,6 +4,7 @@ from nexlify.strategies.nexlify_multi_strategy import MultiStrategyOptimizer
 from nexlify.strategies.nexlify_multi_timeframe import MultiTimeframeAnalyzer
 from nexlify.strategies.nexlify_predictive_features import PredictiveEngine
 from nexlify.strategies.nexlify_rl_agent import DQNAgent
+from nexlify.strategies.double_dqn_agent import DoubleDQNAgent
 from nexlify.strategies.epsilon_decay import (
     EpsilonDecayStrategy,
     LinearEpsilonDecay,
@@ -41,6 +42,7 @@ try:
         "PredictiveFeatures",
         "DQNAgent",
         "RLAgent",
+        "DoubleDQNAgent",  # Double DQN and Dueling DQN support
         "UltraOptimizedDQNAgent",  # Ultra-optimized version with all optimizations
         "EpsilonDecayStrategy",
         "LinearEpsilonDecay",
@@ -64,6 +66,7 @@ except ImportError:
         "PredictiveFeatures",
         "DQNAgent",
         "RLAgent",
+        "DoubleDQNAgent",  # Double DQN and Dueling DQN support
         "EpsilonDecayStrategy",
         "LinearEpsilonDecay",
         "ScheduledEpsilonDecay",

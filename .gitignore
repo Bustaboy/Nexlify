@@ -55,9 +55,13 @@ data/
 *.sqlite
 *.sqlite3
 
-# Models and ML
-models/
+# Models and ML (trained model files, not source code)
+# Ignore trained models in root directory only, not nexlify/models/ source code
+/models/
 *.pkl
+*.pth
+*.pt
+*.ckpt
 *.h5
 *.joblib
 *.model
