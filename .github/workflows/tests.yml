@@ -25,11 +25,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Quick smoke tests for every commit
+  # Quick smoke tests for every commit (but not if there's a PR)
   quick-tests:
     name: Quick Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    # Only run on push events, and skip if this is a PR branch
+    if: |
+      github.event_name == 'push' &&
+      !contains(github.event.head_commit.message, '[skip ci]')
     strategy:
       fail-fast: false
       matrix:
@@ -64,7 +67,7 @@ jobs:
 
     - name: Run unit tests only (no integration/slow tests)
       run: |
-        pytest tests/ -v -m "not slow and not integration" --tb=short -x
+        pytest tests/ -v -m "not slow and not integration" --tb=short
       timeout-minutes: 10
 
   # Full test suite for pull requests
@@ -216,15 +219,14 @@ jobs:
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [quick-tests, full-tests]
+    needs: [full-tests]
     if: always() && github.event_name == 'pull_request'
 
     steps:
     - name: Check test results
       run: |
-        echo "Quick tests: ${{ needs.quick-tests.result }}"
         echo "Full tests: ${{ needs.full-tests.result }}"
 
-        if [ "${{ needs.quick-tests.result }}" == "failure" ] || [ "${{ needs.full-tests.result }}" == "failure" ]; then
+        if [ "${{ needs.full-tests.result }}" == "failure" ]; then
           echo "::warning::Some tests failed. Please review the test results."
         fi

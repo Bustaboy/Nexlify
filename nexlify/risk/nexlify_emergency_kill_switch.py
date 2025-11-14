@@ -614,6 +614,14 @@ class EmergencyKillSwitch:
         self.is_active = True
         self.activation_time = datetime.now()
         self.activation_reason = reason
+
+        # Log the event
+        event = KillSwitchEvent(
+            trigger=KillSwitchTrigger.MANUAL,
+            reason=reason
+        )
+        self._log_event(event)
+
         self._save_state()
         logger.warning(f"🚨 Kill Switch activated: {reason}")
 
@@ -623,6 +631,15 @@ class EmergencyKillSwitch:
         self.activation_time = None
         self.activation_reason = None
         self.is_locked = False
+
+        # Log the deactivation
+        event = KillSwitchEvent(
+            trigger=KillSwitchTrigger.MANUAL,
+            reason=f"Deactivated: {reason}"
+        )
+        event.recovery_time = datetime.now()
+        self._log_event(event)
+
         self._save_state()
         logger.info(f"✅ Kill Switch deactivated: {reason}")
 

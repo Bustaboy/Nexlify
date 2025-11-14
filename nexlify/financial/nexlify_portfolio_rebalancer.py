@@ -242,6 +242,70 @@ class PortfolioRebalancer:
             "rebalance_count": self.rebalance_count,
         }
 
+    # Backward compatibility methods for tests
+
+    def calculate_current_allocation(self, portfolio: Dict) -> Dict:
+        """Calculate current portfolio allocation percentages"""
+        total_value = sum(asset.get("value", 0) for asset in portfolio.values())
+        if total_value == 0:
+            return {}
+
+        allocations = {}
+        for symbol, data in portfolio.items():
+            value = data.get("value", 0)
+            allocations[symbol] = (value / total_value) * 100
+        return allocations
+
+    def needs_rebalancing(self, current_allocation: Dict) -> bool:
+        """Check if rebalancing is needed"""
+        for symbol, current_pct in current_allocation.items():
+            target_pct = self.target_allocations.get(symbol, 0)
+            diff = abs(current_pct - target_pct)
+            if diff > self.rebalance_threshold:
+                return True
+        return False
+
+    def calculate_rebalance_trades(self, portfolio: Dict) -> List[Dict]:
+        """Calculate trades needed to rebalance"""
+        current_allocation = self.calculate_current_allocation(portfolio)
+        if not self.needs_rebalancing(current_allocation):
+            return []
+
+        trades = []
+        total_value = sum(asset.get("value", 0) for asset in portfolio.values())
+
+        for symbol, target_pct in self.target_allocations.items():
+            current_pct = current_allocation.get(symbol, 0)
+            diff_pct = target_pct - current_pct
+
+            if abs(diff_pct) > self.rebalance_threshold:
+                diff_value = (diff_pct / 100) * total_value
+                trades.append({
+                    "symbol": symbol,
+                    "action": "buy" if diff_value > 0 else "sell",
+                    "value": abs(diff_value)
+                })
+
+        return trades
+
+    def get_rebalancing_report(self, portfolio: Dict) -> Dict:
+        """Get rebalancing analysis report"""
+        current = self.calculate_current_allocation(portfolio)
+        needs_rebal = self.needs_rebalancing(current)
+        trades = self.calculate_rebalance_trades(portfolio) if needs_rebal else []
+
+        return {
+            "current_allocation": current,
+            "target_allocation": self.target_allocations,
+            "needs_rebalancing": needs_rebal,
+            "threshold_percent": self.rebalance_threshold,
+            "recommended_trades": trades
+        }
+
+    def calculate_rebalance(self, portfolio: Dict) -> Dict:
+        """Alias for get_rebalancing_report"""
+        return self.get_rebalancing_report(portfolio)
+
 
 if __name__ == "__main__":
     print("Nexlify Portfolio Rebalancer")

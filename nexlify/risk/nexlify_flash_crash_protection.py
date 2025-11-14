@@ -683,20 +683,39 @@ class FlashCrashProtection:
             logger.warning(f"⚠️ Trading halted for {symbol}")
         return True
 
-    def resume_trading(self, symbol: str) -> bool:
+    def resume_trading(self, symbol: str, reason: str = None) -> bool:
         """Resume trading for a specific symbol"""
         if symbol in self.halted_symbols:
             self.halted_symbols.remove(symbol)
-            logger.info(f"✅ Trading resumed for {symbol}")
+            logger.info(f"✅ Trading resumed for {symbol}: {reason or 'Manual resume'}")
         return True
 
     def get_protected_symbols(self) -> List[str]:
         """Get list of symbols with halted trading"""
         return self.halted_symbols.copy()
 
-    def check_recovery(self, symbol: str, current_price: float, crash_price: float) -> bool:
-        """Check if market has recovered from crash"""
-        if crash_price == 0:
+    def check_recovery(self, price_data_or_symbol, current_price: float = None, crash_price: float = None) -> bool:
+        """
+        Check if market has recovered from crash
+
+        Supports two modes:
+        1. check_recovery(price_data: Dict) - checks price_data dict
+        2. check_recovery(symbol: str, current_price: float, crash_price: float) - explicit values
+        """
+        # Mode 1: Dict with price data
+        if isinstance(price_data_or_symbol, dict):
+            price_data = price_data_or_symbol
+            previous_price = price_data.get("previous_price", 0)
+            current_price = price_data.get("current_price", 0)
+
+            if previous_price == 0:
+                return False
+
+            recovery_percent = ((current_price - previous_price) / previous_price) * 100
+            return recovery_percent >= (self.recovery_threshold * 100)
+
+        # Mode 2: Explicit values
+        if crash_price == 0 or current_price is None:
             return False
 
         recovery_percent = ((current_price - crash_price) / crash_price) * 100
