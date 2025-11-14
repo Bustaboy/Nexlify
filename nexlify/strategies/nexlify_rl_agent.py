@@ -20,6 +20,14 @@ from nexlify.strategies.gamma_selector import GammaSelector, get_recommended_gam
 from nexlify.config.crypto_trading_config import CRYPTO_24_7_CONFIG, FEATURE_PERIODS
 from nexlify.config.fee_providers import FeeProvider, FeeEstimate
 
+# Training optimization utilities
+try:
+    from nexlify.training.training_optimizers import GradientClipper, LRSchedulerManager
+    TRAINING_OPTIMIZERS_AVAILABLE = True
+except ImportError:
+    TRAINING_OPTIMIZERS_AVAILABLE = False
+    logger.warning("Training optimizers not available - gradient clipping and LR scheduling disabled")
+
 logger = logging.getLogger(__name__)
 error_handler = get_error_handler()
 
@@ -560,6 +568,11 @@ class DQNAgent:
         # Training stats
         self.training_history = []
 
+        # Training optimizations (gradient clipping + LR scheduling)
+        self.gradient_clipper = None
+        self.lr_scheduler = None
+        self._training_step_count = 0
+
         logger.info(f"🤖 DQN Agent initialized (device: {self.device})")
 
     def _create_epsilon_strategy(self) -> EpsilonDecayStrategy:
@@ -675,6 +688,10 @@ class DQNAgent:
             )
             self.criterion = nn.MSELoss()
 
+            # Initialize training optimizations (gradient clipping + LR scheduling)
+            if TRAINING_OPTIMIZERS_AVAILABLE:
+                self._init_training_optimizers()
+
             logger.info("✅ PyTorch DQN model built")
 
         except ImportError:
@@ -686,6 +703,37 @@ class DQNAgent:
         # Initialize random weights for simple linear model
         self.weights = np.random.randn(self.state_size, self.action_size) * 0.01
         logger.info("✅ NumPy fallback model built")
+
+    def _init_training_optimizers(self):
+        """Initialize gradient clipping and LR scheduling"""
+        if not TRAINING_OPTIMIZERS_AVAILABLE:
+            return
+
+        # Gradient clipping configuration
+        gradient_clip_norm = self.config.get('gradient_clip_norm', 1.0)
+        gradient_explosion_threshold = self.config.get('gradient_explosion_threshold', 10.0)
+        gradient_vanishing_threshold = self.config.get('gradient_vanishing_threshold', 1e-6)
+
+        self.gradient_clipper = GradientClipper(
+            max_norm=gradient_clip_norm,
+            explosion_threshold=gradient_explosion_threshold,
+            vanishing_threshold=gradient_vanishing_threshold,
+        )
+
+        # LR scheduling configuration
+        lr_scheduler_type = self.config.get('lr_scheduler_type', 'cosine')
+        lr_warmup_enabled = self.config.get('lr_warmup_enabled', True)
+        lr_warmup_steps = self.config.get('lr_warmup_steps', 1000)
+
+        self.lr_scheduler = LRSchedulerManager(
+            optimizer=self.optimizer,
+            scheduler_type=lr_scheduler_type,
+            config=self.config,
+            enable_warmup=lr_warmup_enabled,
+            warmup_steps=lr_warmup_steps,
+        )
+
+        logger.info("✅ Training optimizers initialized (gradient clipping + LR scheduling)")
 
     def update_target_model(self):
         """Copy weights from model to target model"""
@@ -725,7 +773,7 @@ class DQNAgent:
         self.memory.push(state, action, reward, next_state, done)
 
     def replay(self, batch_size: int = None):
-        """Train on batch from replay buffer"""
+        """Train on batch from replay buffer with gradient clipping and LR scheduling"""
         batch_size = batch_size or self.batch_size
         if len(self.memory) < batch_size:
             return 0.0  # Return 0 loss when insufficient data (test compatibility)
@@ -762,10 +810,49 @@ class DQNAgent:
             # Compute loss
             loss = self.criterion(current_q_values.squeeze(), target_q_values)
 
-            # Optimize
+            # Backpropagation
             self.optimizer.zero_grad()
             loss.backward()
+
+            # Gradient clipping (if enabled)
+            self._training_step_count += 1
+            gradient_norm_before = 0.0
+            gradient_norm_after = 0.0
+            gradient_clipped = False
+
+            if self.gradient_clipper is not None:
+                log_step = (self._training_step_count % 100 == 0)
+                gradient_norm_before, gradient_norm_after, gradient_clipped = \
+                    self.gradient_clipper.clip_gradients(self.model, log_step=log_step)
+
+            # Optimizer step
             self.optimizer.step()
+
+            # LR scheduling (if enabled)
+            current_lr = self.learning_rate
+            if self.lr_scheduler is not None:
+                log_step = (self._training_step_count % 100 == 0)
+                self.lr_scheduler.step(loss=loss.item(), log_step=log_step)
+                current_lr = self.lr_scheduler.get_current_lr()
+
+            # Track training metrics
+            if hasattr(self, 'training_history'):
+                training_info = {
+                    'step': self._training_step_count,
+                    'loss': loss.item(),
+                    'learning_rate': current_lr,
+                }
+
+                if self.gradient_clipper is not None:
+                    training_info.update({
+                        'gradient_norm_before': gradient_norm_before,
+                        'gradient_norm_after': gradient_norm_after,
+                        'gradient_clipped': gradient_clipped,
+                    })
+
+                # Only store every 10th step to avoid memory bloat
+                if self._training_step_count % 10 == 0:
+                    self.training_history.append(training_info)
 
             return loss.item()
 
@@ -801,6 +888,7 @@ class DQNAgent:
                 "epsilon_step": self.epsilon_decay_strategy.current_step,
                 "gamma": self.gamma,
                 "training_history": self.training_history,
+                "training_step_count": self._training_step_count,
             }
 
             torch.save(save_data, filepath)
@@ -812,8 +900,28 @@ class DQNAgent:
             )
             self.epsilon_decay_strategy.save_history(str(epsilon_path))
 
+            # Save training optimizer histories (gradient + LR)
+            if self.gradient_clipper is not None or self.lr_scheduler is not None:
+                self._save_training_optimizer_histories(filepath)
+
         except Exception as e:
             logger.error(f"Save error: {e}")
+
+    def _save_training_optimizer_histories(self, model_filepath: str):
+        """Save gradient and LR histories"""
+        output_dir = Path(model_filepath).parent / f"{Path(model_filepath).stem}_training"
+
+        try:
+            if self.gradient_clipper is not None:
+                gradient_path = output_dir / "gradient_history.json"
+                self.gradient_clipper.save_history(str(gradient_path))
+
+            if self.lr_scheduler is not None:
+                lr_path = output_dir / "lr_history.json"
+                self.lr_scheduler.save_history(str(lr_path))
+
+        except Exception as e:
+            logger.warning(f"Failed to save training optimizer histories: {e}")
 
     def load(self, filepath: str):
         """Load model from file"""
@@ -825,6 +933,7 @@ class DQNAgent:
             self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
             self.epsilon = checkpoint["epsilon"]
             self.training_history = checkpoint.get("training_history", [])
+            self._training_step_count = checkpoint.get("training_step_count", 0)
 
             # Restore epsilon decay strategy step
             if "epsilon_step" in checkpoint:
