@@ -191,16 +191,18 @@ class PINManager:
         # Encryption manager for storing PINs (double security)
         self.encryption_manager = encryption_manager
 
-        # State management
-        self.users_file = Path("config/pin_users.json")
+        # State management - use configurable paths for test isolation
+        users_file_path = pin_config.get("users_file", "config/pin_users.json")
+        self.users_file = Path(users_file_path)
         self.users_file.parent.mkdir(parents=True, exist_ok=True)
         self.users: Dict[str, Dict] = self._load_users()
 
         # Failed attempts tracking (internal dict)
         self._failed_attempts_by_user: Dict[str, list] = {}
 
-        # Audit log
-        self.audit_log_file = Path("data/auth_audit.jsonl")
+        # Audit log - use configurable path for test isolation
+        audit_log_path = pin_config.get("audit_log", "data/auth_audit.jsonl")
+        self.audit_log_file = Path(audit_log_path)
         self.audit_log_file.parent.mkdir(parents=True, exist_ok=True)
 
         logger.info("🔐 PIN Manager initialized")
@@ -469,9 +471,9 @@ class PINManager:
             )
             return False, "Authentication error"
 
-    def change_pin(self, old_pin: str, new_pin: str, username: str = "default") -> Tuple[bool, str]:
+    def _change_pin_detailed(self, old_pin: str, new_pin: str, username: str = "default") -> Tuple[bool, str]:
         """
-        Change user PIN
+        Change user PIN (internal method with detailed response)
 
         Args:
             old_pin: Current PIN
@@ -640,6 +642,10 @@ class PINManager:
         """Reset failed attempt count for user"""
         if username in self._failed_attempts_by_user:
             self._failed_attempts_by_user[username] = []
+        # Also reset in users dict
+        if username in self.users:
+            self.users[username]["failed_attempts"] = 0
+            self._save_users()
         logger.info(f"Reset attempts for {username}")
 
     def is_locked_out(self, username: str = "default") -> bool:
@@ -649,6 +655,11 @@ class PINManager:
     def verify_pin(self, pin: str, username: str = "default", ip_address: str = "") -> bool:
         """Verify PIN (backward compatibility - returns just bool instead of tuple)"""
         success, _ = self._verify_pin_detailed(pin, username, ip_address)
+        return success
+
+    def change_pin(self, old_pin: str, new_pin: str, username: str = "default") -> bool:
+        """Change PIN (backward compatibility - returns just bool instead of tuple)"""
+        success, _ = self._change_pin_detailed(old_pin, new_pin, username)
         return success
 
 

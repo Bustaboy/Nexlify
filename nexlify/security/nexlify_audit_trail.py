@@ -47,6 +47,7 @@ class AuditEvent:
             "event_id": self.event_id,
             "timestamp": self.timestamp.isoformat(),
             "event_type": self.event_type,
+            "action": self.event_type,  # Backward compatibility alias
             "severity": self.severity,
             "user": self.user,
             "ip_address": self.ip_address,
@@ -98,11 +99,10 @@ class AuditManager:
             # Convert dict to AuditEvent if needed
             if isinstance(event, dict):
                 audit_event = AuditEvent(
-                    timestamp=event.get("timestamp", datetime.now()),
-                    user=event.get("user", "unknown"),
                     event_type=event.get("event_type", event.get("action", "unknown")),
-                    details=event.get("details", {}),
                     severity=event.get("severity", "info"),
+                    user=event.get("user", "unknown"),
+                    details=event.get("details", {}),
                     ip_address=event.get("ip_address", "")
                 )
             else:
@@ -437,9 +437,32 @@ class AuditManager:
     # Backward compatibility methods for tests
     # enabled is set in __init__, no property needed
 
-    async def log_security_event(self, event_type: str, details: Dict = None):
-        """Log security event (backward compatibility)"""
-        return await self.audit_security_event("system", event_type, details or {})
+    def log_security_event(self, event):
+        """Log security event (backward compatibility - accepts dict or event_type)"""
+        # Handle dict input for backward compatibility
+        if isinstance(event, dict):
+            event_type = event.get("action", "unknown")
+            user = event.get("user", "system")
+            details = {k: v for k, v in event.items() if k not in ["action", "user"]}
+
+            # Create AuditEvent
+            audit_event = AuditEvent(
+                event_type=event_type,
+                severity=event.get("severity", "info"),
+                user=user,
+                details=details,
+                ip_address=event.get("ip_address", "")
+            )
+            return self.log_event(audit_event)
+        else:
+            # Legacy string input
+            return self.log_event(AuditEvent(
+                event_type=str(event),
+                severity="info",
+                user="system",
+                details={},
+                ip_address=""
+            ))
 
     def get_events(self, limit: int = 100) -> list:
         """Get recent events (backward compatibility)"""

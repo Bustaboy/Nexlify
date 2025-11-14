@@ -106,10 +106,11 @@ class TestPINManager:
                 "enabled": True,
                 "max_attempts": 3,
                 "lockout_duration": 300,
+                "users_file": str(tmp_path / "pin_users.json"),
+                "audit_log": str(tmp_path / "auth_audit.jsonl"),
             }
         }
         manager = PINManager(config)
-        manager.data_path = tmp_path
         return manager
 
     def test_initialization(self, pin_manager):
@@ -404,9 +405,16 @@ class TestEdgeCases:
         encrypted = security.encrypt("")
         assert isinstance(encrypted, str)
 
-    def test_verify_pin_before_set(self):
+    def test_verify_pin_before_set(self, tmp_path):
         """Test verifying PIN before setting it"""
-        config = {"pin_security": {"enabled": True, "max_attempts": 3}}
+        config = {
+            "pin_security": {
+                "enabled": True,
+                "max_attempts": 3,
+                "users_file": str(tmp_path / "pin_users.json"),
+                "audit_log": str(tmp_path / "auth_audit.jsonl"),
+            }
+        }
         pin_mgr = PINManager(config)
 
         result = pin_mgr.verify_pin("1234")
