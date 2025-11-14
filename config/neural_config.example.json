@@ -358,6 +358,59 @@
     "neural_net_update_interval_seconds": 60
   },
 
+  "training_dashboard": {
+    "enabled": true,
+    "port": 8050,
+    "update_interval_ms": 2000,
+    "theme": "cyberpunk",
+    "auto_start": false,
+    "metrics_logging": {
+      "enabled": true,
+      "output_dir": "training_logs",
+      "buffer_size": 100,
+      "auto_save_interval": 50,
+      "enable_async": true,
+      "save_formats": ["json", "csv"]
+    },
+    "alerts": {
+      "enabled": true,
+      "email": {
+        "enabled": false,
+        "smtp_host": "smtp.gmail.com",
+        "smtp_port": 587,
+        "username": "your@email.com",
+        "password": "your_password",
+        "from_addr": "nexlify@bot.com",
+        "to_addrs": ["recipient@email.com"]
+      },
+      "slack": {
+        "enabled": false,
+        "webhook_url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+      },
+      "thresholds": {
+        "no_improvement_episodes": 100,
+        "critical_loss_threshold": 1000.0,
+        "min_profit_warning": -500.0
+      },
+      "throttle_window_seconds": 300
+    },
+    "experiment_tracking": {
+      "enabled": true,
+      "experiments_dir": "experiments",
+      "auto_save": true,
+      "track_hyperparameters": true,
+      "leaderboard_size": 20
+    },
+    "diagnostics": {
+      "track_q_values": true,
+      "track_gradients": true,
+      "track_weights": true,
+      "track_activations": false,
+      "gradient_logging_interval": 10,
+      "weight_logging_interval": 50
+    }
+  },
+
   "cache": {
     "enabled": true,
     "ttl_seconds": 3600,
