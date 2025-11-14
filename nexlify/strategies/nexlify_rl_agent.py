@@ -16,6 +16,7 @@ import numpy as np
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 from nexlify.strategies.epsilon_decay import EpsilonDecayFactory, EpsilonDecayStrategy
+from nexlify.strategies.gamma_optimizer import GammaOptimizer, get_recommended_gamma
 from nexlify.config.crypto_trading_config import CRYPTO_24_7_CONFIG, FEATURE_PERIODS
 from nexlify.config.fee_providers import FeeProvider, FeeEstimate
 
@@ -529,7 +530,10 @@ class DQNAgent:
         self.config.update(kwargs)
 
         # Hyperparameters (pull from central config or override)
-        self.gamma = self.config.get("gamma", CRYPTO_24_7_CONFIG.gamma)
+        # Initialize gamma optimizer
+        self.gamma_optimizer = self._create_gamma_optimizer()
+        self.gamma = self.gamma_optimizer.get_gamma()
+
         self.learning_rate = self.config.get("learning_rate", CRYPTO_24_7_CONFIG.learning_rate)
         self.learning_rate_decay = self.config.get("learning_rate_decay", CRYPTO_24_7_CONFIG.learning_rate_decay)
         self.batch_size = self.config.get("batch_size", CRYPTO_24_7_CONFIG.batch_size)
@@ -593,6 +597,36 @@ class DQNAgent:
             epsilon_end=epsilon_end,
             schedule=schedule,
         )
+
+    def _create_gamma_optimizer(self) -> GammaOptimizer:
+        """Create gamma optimizer from config"""
+        # Check if auto_gamma is enabled (default: True)
+        auto_gamma = self.config.get("auto_gamma", True)
+
+        # Get manual gamma override if provided
+        manual_gamma = self.config.get("manual_gamma", None)
+
+        # If manual gamma is provided, disable auto-adjustment
+        if manual_gamma is not None:
+            auto_gamma = False
+            logger.info(f"📌 Using MANUAL gamma={manual_gamma:.3f} (auto-adjustment disabled)")
+
+        # Get timeframe from config (default: 1h)
+        timeframe = self.config.get("timeframe", "1h")
+
+        # Get adjustment interval (default: 100 episodes)
+        adjustment_interval = self.config.get("gamma_adjustment_interval", 100)
+
+        # Create optimizer
+        optimizer = GammaOptimizer(
+            timeframe=timeframe,
+            auto_adjust=auto_gamma,
+            manual_gamma=manual_gamma,
+            adjustment_interval=adjustment_interval,
+            config=self.config
+        )
+
+        return optimizer
 
     def _get_device(self) -> str:
         """Detect available compute device"""
@@ -749,6 +783,69 @@ class DQNAgent:
         """Alias for decay_epsilon() for backward compatibility"""
         self.decay_epsilon()
 
+    def update_gamma(self, episode: int) -> Tuple[bool, Optional[str]]:
+        """
+        Update gamma using the gamma optimizer
+
+        Args:
+            episode: Current training episode
+
+        Returns:
+            (adjusted, rationale) - Whether gamma was adjusted and why
+        """
+        adjusted, rationale = self.gamma_optimizer.update_gamma(episode)
+
+        if adjusted:
+            # Sync gamma value
+            self.gamma = self.gamma_optimizer.get_gamma()
+            logger.info(f"✅ Agent gamma updated to {self.gamma:.3f}")
+
+        return adjusted, rationale
+
+    def record_trade(
+        self,
+        entry_time: datetime,
+        exit_time: datetime,
+        profit: float,
+        volatility: Optional[float] = None
+    ):
+        """
+        Record a completed trade for gamma optimization
+
+        Args:
+            entry_time: Trade entry timestamp
+            exit_time: Trade exit timestamp
+            profit: Trade profit/loss
+            volatility: Market volatility during trade (optional)
+        """
+        self.gamma_optimizer.record_trade(entry_time, exit_time, profit, volatility)
+
+    def record_trade_from_steps(
+        self,
+        entry_step: int,
+        exit_step: int,
+        profit: float,
+        steps_per_hour: int = 1,
+        volatility: Optional[float] = None
+    ):
+        """
+        Record a trade using step counts instead of timestamps
+
+        Args:
+            entry_step: Step when trade entered
+            exit_step: Step when trade exited
+            profit: Trade profit/loss
+            steps_per_hour: How many steps represent 1 hour
+            volatility: Market volatility during trade (optional)
+        """
+        self.gamma_optimizer.record_trade_from_steps(
+            entry_step, exit_step, profit, steps_per_hour, volatility
+        )
+
+    def get_gamma_stats(self) -> Dict[str, Any]:
+        """Get gamma optimizer statistics"""
+        return self.gamma_optimizer.get_statistics()
+
     def save(self, filepath: str):
         """Save model to file"""
         try:
@@ -759,6 +856,7 @@ class DQNAgent:
                 "optimizer_state_dict": self.optimizer.state_dict(),
                 "epsilon": self.epsilon,
                 "epsilon_step": self.epsilon_decay_strategy.current_step,
+                "gamma": self.gamma,
                 "training_history": self.training_history,
             }
 
@@ -770,6 +868,12 @@ class DQNAgent:
                 Path(filepath).parent / f"{Path(filepath).stem}_epsilon_history.json"
             )
             self.epsilon_decay_strategy.save_history(str(epsilon_path))
+
+            # Save gamma optimizer history separately
+            gamma_path = (
+                Path(filepath).parent / f"{Path(filepath).stem}_gamma_history.json"
+            )
+            self.gamma_optimizer.save_history(str(gamma_path))
 
         except Exception as e:
             logger.error(f"Save error: {e}")
@@ -789,6 +893,17 @@ class DQNAgent:
             if "epsilon_step" in checkpoint:
                 self.epsilon_decay_strategy.current_step = checkpoint["epsilon_step"]
                 self.epsilon_decay_strategy.current_epsilon = self.epsilon
+
+            # Restore gamma if saved
+            if "gamma" in checkpoint:
+                self.gamma = checkpoint["gamma"]
+
+            # Try to load gamma optimizer history
+            gamma_path = (
+                Path(filepath).parent / f"{Path(filepath).stem}_gamma_history.json"
+            )
+            if gamma_path.exists():
+                self.gamma_optimizer.load_history(str(gamma_path))
 
             self.update_target_model()
 
@@ -819,6 +934,7 @@ class DQNAgent:
                 p.numel() for p in self.model.parameters() if p.requires_grad
             )
 
+            gamma_stats = self.gamma_optimizer.get_statistics()
             return (
                 f"DQN Agent Model Summary\n"
                 f"{'='*50}\n"
@@ -830,7 +946,8 @@ class DQNAgent:
                 f"Device: {self.device}\n"
                 f"Epsilon: {self.epsilon:.4f}\n"
                 f"Learning Rate: {self.learning_rate}\n"
-                f"Gamma: {self.gamma}\n"
+                f"Gamma: {self.gamma:.3f} (style: {gamma_stats.get('current_style', 'Unknown')})\n"
+                f"Gamma Auto-Adjust: {gamma_stats.get('auto_adjust', False)}\n"
             )
 
         except Exception as e:
