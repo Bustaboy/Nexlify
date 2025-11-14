@@ -521,8 +521,10 @@ def test_training_optimizer_multiple_steps(simple_model, optimizer_for_model, sa
         step_info = training_optimizer.step(loss=loss.item())
         lrs.append(step_info['learning_rate'])
 
-    # LR should have decreased after step 5
-    assert lrs[6] < lrs[4]
+    # LR should have decreased at step 5 (0-indexed step 4)
+    # So lrs[0-3] should be initial LR, lrs[4-9] should be decreased LR
+    assert lrs[4] < lrs[3]  # Step 5's LR < Step 4's LR
+    assert lrs[5] == lrs[4]  # Step 6's LR == Step 5's LR (same decreased value)
 
 
 @pytest.mark.unit
