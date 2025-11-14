@@ -115,7 +115,7 @@ class TestRiskManager:
 
     def test_should_trade_all_checks_pass(self, risk_manager):
         """Test should_trade when all checks pass"""
-        pair_data = {"profit_score": 1.5, "confidence": 0.8}
+        pair_data = {"profit_score": 1.5, "neural_confidence": 0.8}
 
         should_trade, reason = risk_manager.should_trade(
             pair_data=pair_data, balance=10000.0, active_trades=2
@@ -128,7 +128,7 @@ class TestRiskManager:
         """Test should_trade rejects when daily loss exceeded"""
         risk_manager.daily_profit = -150.0
 
-        pair_data = {"profit_score": 1.5, "confidence": 0.8}
+        pair_data = {"profit_score": 1.5, "neural_confidence": 0.8}
 
         should_trade, reason = risk_manager.should_trade(
             pair_data=pair_data, balance=10000.0, active_trades=2
@@ -139,7 +139,7 @@ class TestRiskManager:
 
     def test_should_trade_max_trades_reached(self, risk_manager):
         """Test should_trade rejects when max concurrent trades reached"""
-        pair_data = {"profit_score": 1.5, "confidence": 0.8}
+        pair_data = {"profit_score": 1.5, "neural_confidence": 0.8}
 
         should_trade, reason = risk_manager.should_trade(
             pair_data=pair_data, balance=10000.0, active_trades=5  # At limit
@@ -150,7 +150,7 @@ class TestRiskManager:
 
     def test_should_trade_low_profit_score(self, risk_manager):
         """Test should_trade rejects when profit score too low"""
-        pair_data = {"profit_score": 0.3, "confidence": 0.8}  # Below 0.5 threshold
+        pair_data = {"profit_score": 0.3, "neural_confidence": 0.8}  # Below 0.5 threshold
 
         should_trade, reason = risk_manager.should_trade(
             pair_data=pair_data, balance=10000.0, active_trades=2
@@ -161,7 +161,7 @@ class TestRiskManager:
 
     def test_should_trade_low_confidence(self, risk_manager):
         """Test should_trade rejects when confidence too low"""
-        pair_data = {"profit_score": 1.5, "confidence": 0.5}  # Below 0.7 threshold
+        pair_data = {"profit_score": 1.5, "neural_confidence": 0.5}  # Below 0.7 threshold
 
         should_trade, reason = risk_manager.should_trade(
             pair_data=pair_data, balance=10000.0, active_trades=2
