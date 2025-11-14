@@ -187,19 +187,25 @@ class AutoExecutionEngine:
     Main autonomous trading execution engine
     """
 
-    def __init__(self, neural_net, audit_manager=None, config: Dict = None):
+    def __init__(self, neural_net=None, audit_manager=None, config: Dict = None):
         self.neural_net = neural_net
         self.audit_manager = audit_manager
         self.config = config or {}
 
         # Initialize managers
-        self.risk_manager = RiskManager(self.config.get("trading", {}))
+        self.risk_manager = RiskManager(self.config.get("trading", {}) or self.config.get("risk_management", {}))
         self.position_manager = PositionManager(self.config.get("trading", {}))
 
         # State tracking
         self.active_trades: Dict[str, TradeExecution] = {}
         self.is_active = False
         self.auto_trade_enabled = self.config.get("auto_trade", False)
+
+        # Backward compatibility attributes for tests
+        self.enabled = self.config.get("enabled", True)
+        self.check_interval = self.config.get("check_interval", 60)
+        self.is_running = False  # Alias for is_active, updated by start/stop
+        self.exchanges = {}  # Exchange connections
 
         # Phase 1 & 2 Integration Manager (will be set by neural_net)
         self.integration_manager = None
@@ -283,6 +289,7 @@ class AutoExecutionEngine:
             return
 
         self.is_active = True
+        self.is_running = True  # Backward compatibility
         logger.info("🚀 Auto-Execution Engine started")
 
         # Start background tasks
@@ -295,6 +302,7 @@ class AutoExecutionEngine:
     async def stop(self):
         """Stop the auto-execution engine"""
         self.is_active = False
+        self.is_running = False  # Backward compatibility
         logger.info("🛑 Auto-Execution Engine stopped")
 
         # Close all open positions
@@ -682,6 +690,38 @@ class AutoExecutionEngine:
             "daily_profit": self.risk_manager.daily_profit,
             "auto_trade_enabled": self.auto_trade_enabled,
         }
+
+    async def get_account_balance(self, exchange: str) -> float:
+        """Get account balance for specified exchange"""
+        try:
+            if exchange not in self.exchanges:
+                logger.error(f"Exchange {exchange} not found")
+                return 0.0
+
+            balance_data = await self.exchanges[exchange].fetch_balance()
+            # Return USDT balance
+            usdt_balance = balance_data.get("USDT", {})
+            return usdt_balance.get("free", 0.0)
+        except Exception as e:
+            logger.error(f"Error fetching balance from {exchange}: {e}")
+            return 0.0
+
+    def get_active_trades_count(self) -> int:
+        """Get count of active trades"""
+        return len(self.active_trades)
+
+    def record_trade_profit(self, profit: float):
+        """Record trade profit/loss"""
+        self.risk_manager.daily_profit += profit
+        self.risk_manager.daily_trades += 1
+        self.total_profit += profit
+
+        if profit > 0:
+            self.winning_trades += 1
+        else:
+            self.losing_trades += 1
+
+        self.total_trades += 1
 
 
 # Alias for backward compatibility with tests
