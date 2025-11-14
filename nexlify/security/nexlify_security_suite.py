@@ -435,27 +435,41 @@ class SecuritySuite:
     # Backward compatibility methods for tests
     def encrypt(self, data: str) -> str:
         """Encrypt data using encryption manager"""
-        return self.encryption_manager.encrypt(data)
+        return self.encryption_manager.encrypt_data(data)
 
     def decrypt(self, encrypted_data: str) -> str:
         """Decrypt data using encryption manager"""
-        return self.encryption_manager.decrypt(encrypted_data)
+        return self.encryption_manager.decrypt_data(encrypted_data)
 
     def hash_data(self, data: str) -> str:
-        """Hash data using encryption manager"""
-        return self.encryption_manager.hash_data(data)
+        """Hash data using SHA-256"""
+        import hashlib
+        return hashlib.sha256(data.encode('utf-8')).hexdigest()
 
     def verify_hash(self, data: str, hash_value: str) -> bool:
-        """Verify data hash using encryption manager"""
-        return self.encryption_manager.verify_hash(data, hash_value)
+        """Verify data hash"""
+        return self.hash_data(data) == hash_value
 
     def generate_api_key(self, user: str = None) -> str:
-        """Generate API key using encryption manager"""
-        return self.encryption_manager.generate_api_key(user or self.authenticated_user or "default")
+        """Generate API key for user"""
+        import secrets
+        # Generate a secure random API key
+        api_key = secrets.token_urlsafe(32)
+        # Store it for validation (in production, this would be in a database)
+        if not hasattr(self, '_api_keys'):
+            self._api_keys = {}
+        username = user or self.authenticated_user or "default"
+        if username not in self._api_keys:
+            self._api_keys[username] = []
+        self._api_keys[username].append(api_key)
+        return api_key
 
     def validate_api_key(self, api_key: str, user: str = None) -> bool:
-        """Validate API key using encryption manager"""
-        return self.encryption_manager.validate_api_key(api_key, user or self.authenticated_user or "default")
+        """Validate API key for user"""
+        if not hasattr(self, '_api_keys'):
+            return False
+        username = user or self.authenticated_user or "default"
+        return username in self._api_keys and api_key in self._api_keys[username]
 
 
 # Usage example and testing

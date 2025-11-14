@@ -277,10 +277,10 @@ class IntegrityMonitor:
         """
         if file_path not in self.baseline:
             logger.debug(f"File not in baseline: {file_path}")
-            # For backward compatibility with tests: return False for nonexistent files
+            # For backward compatibility with tests: return tuple for nonexistent files
             current_info = self.get_file_info(file_path)
             if current_info is None:
-                return False  # File doesn't exist - return simple False for tests
+                return False, None  # File doesn't exist - return tuple
             return True, None
 
         baseline_info = self.baseline[file_path]

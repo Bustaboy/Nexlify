@@ -422,10 +422,7 @@ class AuditManager:
             logger.error(f"Error cleaning up old audits: {e}")
 
     # Backward compatibility methods for tests
-    @property
-    def enabled(self) -> bool:
-        """Check if audit trail is enabled (always True)"""
-        return True
+    # enabled is set in __init__, no property needed
 
     async def log_security_event(self, event_type: str, details: Dict = None):
         """Log security event (backward compatibility)"""

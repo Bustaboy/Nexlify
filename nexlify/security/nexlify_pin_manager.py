@@ -631,6 +631,10 @@ class PINManager:
             self.failed_attempts[username] = []
         logger.info(f"Reset attempts for {username}")
 
+    def is_locked_out(self, username: str = "default") -> bool:
+        """Check if user is locked out (backward compatibility wrapper for is_locked)"""
+        return self.is_locked(username)
+
 
 # Usage example
 if __name__ == "__main__":
