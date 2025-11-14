@@ -26,27 +26,33 @@ class PortfolioRebalancer:
     def __init__(self, config: Dict = None):
         self.config = config or {}
 
+        # Handle both top-level config and nested "rebalancing" config
+        rebalancing_config = self.config.get("rebalancing", self.config)
+
         # Target allocations (symbol: percentage)
-        self.target_allocations = self.config.get(
+        self.target_allocations = rebalancing_config.get(
             "target_allocations",
             {
-                "BTC/USDT": 0.50,  # 50% BTC
-                "ETH/USDT": 0.30,  # 30% ETH
-                "USDT": 0.20,  # 20% cash
+                "BTC/USDT": 50.0,  # 50% BTC
+                "ETH/USDT": 30.0,  # 30% ETH
+                "USDT": 20.0,  # 20% cash
             },
         )
 
-        # Rebalancing parameters
-        self.rebalance_threshold = self.config.get("rebalance_threshold", 0.05)  # 5%
-        self.rebalance_interval = self.config.get("rebalance_interval_hours", 24)
-        self.min_trade_size = self.config.get("min_trade_size", 10)  # $10 minimum
+        # Rebalancing parameters (support both decimal and percentage formats)
+        threshold = rebalancing_config.get("rebalance_threshold", rebalancing_config.get("threshold_percent", 5.0))
+        # Convert to percentage if it's a decimal
+        self.rebalance_threshold = threshold if threshold > 1 else threshold * 100
+
+        self.rebalance_interval = rebalancing_config.get("rebalance_interval_hours", 24)
+        self.min_trade_size = rebalancing_config.get("min_trade_size", 10)  # $10 minimum
 
         # State
         self.last_rebalance = None
         self.rebalance_count = 0
 
         logger.info(
-            f"⚖️ Portfolio Rebalancer initialized (threshold: {self.rebalance_threshold:.1%})"
+            f"⚖️ Portfolio Rebalancer initialized (threshold: {self.rebalance_threshold:.1f}%)"
         )
 
     @handle_errors("Portfolio Rebalancing", reraise=False)
