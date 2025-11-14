@@ -28,6 +28,14 @@ except ImportError:
     PER_AVAILABLE = False
     logger.warning("PrioritizedReplayBuffer not available - using standard replay buffer")
 
+# N-Step Returns
+try:
+    from nexlify.memory.nstep_replay_buffer import NStepReplayBuffer, MixedNStepReplayBuffer
+    NSTEP_AVAILABLE = True
+except ImportError:
+    NSTEP_AVAILABLE = False
+    logger.warning("NStepReplayBuffer not available - using standard replay buffer")
+
 # Training optimization utilities
 try:
     from nexlify.training.training_optimizers import GradientClipper, LRSchedulerManager
@@ -562,10 +570,40 @@ class DQNAgent:
         # Experience replay (optimized for regime adaptation)
         replay_buffer_size = self.config.get("replay_buffer_size", CRYPTO_24_7_CONFIG.replay_buffer_size)
 
+        # Check for N-Step Returns
+        use_nstep = self.config.get("use_nstep_returns", CRYPTO_24_7_CONFIG.use_nstep_returns)
+
         # Use Prioritized Experience Replay if enabled and available
         use_per = self.config.get("use_prioritized_replay", CRYPTO_24_7_CONFIG.use_prioritized_replay)
 
-        if use_per and PER_AVAILABLE:
+        # Initialize replay buffer based on configuration
+        # Priority: N-Step > PER > Standard
+        if use_nstep and NSTEP_AVAILABLE:
+            # N-Step Returns configuration
+            n_step = self.config.get("n_step", CRYPTO_24_7_CONFIG.n_step)
+            n_step_buffer_size = self.config.get("n_step_buffer_size", CRYPTO_24_7_CONFIG.n_step_buffer_size)
+            use_mixed = self.config.get("use_mixed_returns", CRYPTO_24_7_CONFIG.use_mixed_returns)
+            mixed_ratio = self.config.get("mixed_returns_ratio", CRYPTO_24_7_CONFIG.mixed_returns_ratio)
+
+            if use_mixed:
+                self.memory = MixedNStepReplayBuffer(
+                    capacity=n_step_buffer_size,
+                    n_step=n_step,
+                    gamma=self.gamma,
+                    n_step_ratio=mixed_ratio,
+                )
+                logger.info(f"🎯 Using Mixed N-Step Replay (n={n_step}, mix={mixed_ratio:.0%}, γ={self.gamma})")
+            else:
+                self.memory = NStepReplayBuffer(
+                    capacity=n_step_buffer_size,
+                    n_step=n_step,
+                    gamma=self.gamma,
+                )
+                logger.info(f"🎯 Using N-Step Replay (n={n_step}, γ={self.gamma})")
+
+            self.use_per = False
+            self.use_nstep = True
+        elif use_per and PER_AVAILABLE:
             per_alpha = self.config.get("per_alpha", CRYPTO_24_7_CONFIG.per_alpha)
             per_beta_start = self.config.get("per_beta_start", CRYPTO_24_7_CONFIG.per_beta_start)
             per_beta_end = self.config.get("per_beta_end", CRYPTO_24_7_CONFIG.per_beta_end)
@@ -585,12 +623,16 @@ class DQNAgent:
                 priority_clip=per_priority_clip,
             )
             self.use_per = True
+            self.use_nstep = False
             logger.info(f"✨ Using Prioritized Experience Replay (alpha={per_alpha}, beta={per_beta_start}→{per_beta_end})")
         else:
             self.memory = ReplayBuffer(capacity=replay_buffer_size)
             self.use_per = False
+            self.use_nstep = False
             if use_per and not PER_AVAILABLE:
                 logger.warning("⚠️  PER requested but not available - using standard replay buffer")
+            if use_nstep and not NSTEP_AVAILABLE:
+                logger.warning("⚠️  N-Step requested but not available - using standard replay buffer")
 
         # Neural network models
         self.model = None
@@ -818,8 +860,51 @@ class DQNAgent:
         try:
             import torch
 
-            # Sample batch (different for PER vs standard)
-            if self.use_per:
+            # Sample batch (different for PER vs standard vs N-Step)
+            if self.use_nstep:
+                # N-Step returns format: (state, action, n_step_return, next_state_n, done, actual_steps)
+                batch = self.memory.sample(batch_size)
+
+                # Unpack based on tuple length
+                if len(batch[0]) == 6:
+                    states, actions, n_step_returns, next_states, dones, actual_steps = zip(*batch)
+                else:
+                    # Fallback for compatibility
+                    states, actions, n_step_returns, next_states, dones = zip(*batch)
+                    actual_steps = [self.memory.n_step] * len(batch)
+
+                indices = None
+                is_weights = None
+
+                # Convert to tensors
+                states = torch.FloatTensor(np.array(states))
+                actions = torch.LongTensor(actions)
+                rewards = torch.FloatTensor(n_step_returns)  # Use pre-calculated n-step returns
+                next_states = torch.FloatTensor(np.array(next_states))
+                dones = torch.FloatTensor(dones)
+
+                if self.device == "cuda":
+                    states = states.cuda()
+                    actions = actions.cuda()
+                    rewards = rewards.cuda()
+                    next_states = next_states.cuda()
+                    dones = dones.cuda()
+
+                # For n-step, we need to add the bootstrapped value
+                # n_step_return already contains: r_t + γr_{t+1} + ... + γ^{n-1}r_{t+n-1}
+                # We just need to add: γ^n * max_a Q(s_{t+n}, a)
+                current_q_values = self.model(states).gather(1, actions.unsqueeze(1))
+
+                with torch.no_grad():
+                    next_q_values = self.target_model(next_states).max(1)[0]
+                    # Add bootstrapped value with appropriate gamma power
+                    # rewards already contains discounted sum, just add bootstrap
+                    gamma_n = torch.FloatTensor([self.gamma ** step for step in actual_steps])
+                    if self.device == "cuda":
+                        gamma_n = gamma_n.cuda()
+                    target_q_values = rewards + (1 - dones) * gamma_n * next_q_values
+
+            elif self.use_per:
                 batch, indices, is_weights = self.memory.sample(batch_size)
                 states, actions, rewards, next_states, dones = zip(*batch)
 
@@ -827,33 +912,56 @@ class DQNAgent:
                 is_weights = torch.FloatTensor(is_weights)
                 if self.device == "cuda":
                     is_weights = is_weights.cuda()
+
+                # Convert to tensors
+                states = torch.FloatTensor(np.array(states))
+                actions = torch.LongTensor(actions)
+                rewards = torch.FloatTensor(rewards)
+                next_states = torch.FloatTensor(np.array(next_states))
+                dones = torch.FloatTensor(dones)
+
+                if self.device == "cuda":
+                    states = states.cuda()
+                    actions = actions.cuda()
+                    rewards = rewards.cuda()
+                    next_states = next_states.cuda()
+                    dones = dones.cuda()
+
+                # Current Q values
+                current_q_values = self.model(states).gather(1, actions.unsqueeze(1))
+
+                # Next Q values from target network
+                with torch.no_grad():
+                    next_q_values = self.target_model(next_states).max(1)[0]
+                    target_q_values = rewards + (1 - dones) * self.gamma * next_q_values
             else:
+                # Standard replay buffer
                 batch = self.memory.sample(batch_size)
                 states, actions, rewards, next_states, dones = zip(*batch)
                 indices = None
                 is_weights = None
 
-            # Convert to tensors
-            states = torch.FloatTensor(np.array(states))
-            actions = torch.LongTensor(actions)
-            rewards = torch.FloatTensor(rewards)
-            next_states = torch.FloatTensor(np.array(next_states))
-            dones = torch.FloatTensor(dones)
+                # Convert to tensors
+                states = torch.FloatTensor(np.array(states))
+                actions = torch.LongTensor(actions)
+                rewards = torch.FloatTensor(rewards)
+                next_states = torch.FloatTensor(np.array(next_states))
+                dones = torch.FloatTensor(dones)
 
-            if self.device == "cuda":
-                states = states.cuda()
-                actions = actions.cuda()
-                rewards = rewards.cuda()
-                next_states = next_states.cuda()
-                dones = dones.cuda()
+                if self.device == "cuda":
+                    states = states.cuda()
+                    actions = actions.cuda()
+                    rewards = rewards.cuda()
+                    next_states = next_states.cuda()
+                    dones = dones.cuda()
 
-            # Current Q values
-            current_q_values = self.model(states).gather(1, actions.unsqueeze(1))
+                # Current Q values
+                current_q_values = self.model(states).gather(1, actions.unsqueeze(1))
 
-            # Next Q values from target network
-            with torch.no_grad():
-                next_q_values = self.target_model(next_states).max(1)[0]
-                target_q_values = rewards + (1 - dones) * self.gamma * next_q_values
+                # Next Q values from target network
+                with torch.no_grad():
+                    next_q_values = self.target_model(next_states).max(1)[0]
+                    target_q_values = rewards + (1 - dones) * self.gamma * next_q_values
 
             # Compute TD errors (for PER priority updates)
             # Ensure consistent shapes for TD error calculation

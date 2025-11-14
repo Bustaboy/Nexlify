@@ -86,6 +86,31 @@ class CryptoTradingConfig:
     per_priority_clip: Optional[float] = None
 
     # ========================================================================
+    # N-STEP RETURNS SETTINGS
+    # ========================================================================
+
+    # Enable N-Step Returns for better temporal credit assignment
+    # Helps propagate rewards through time more effectively
+    use_nstep_returns: bool = False
+
+    # Number of steps to look ahead (3-5 recommended for trading)
+    # Trade-off:
+    #   n=1: High bias, low variance (standard TD)
+    #   n=3-5: Good balance for trading (captures multi-step patterns)
+    #   n=∞: Low bias, high variance (Monte Carlo)
+    n_step: int = 5
+
+    # N-step buffer capacity
+    n_step_buffer_size: int = 100000
+
+    # Mix 1-step and n-step returns (recommended for stability)
+    use_mixed_returns: bool = True
+
+    # Ratio of n-step samples when mixing (0.0-1.0)
+    # 0.5 = 50% n-step, 50% 1-step
+    mixed_returns_ratio: float = 0.5
+
+    # ========================================================================
     # EPSILON DECAY SETTINGS
     # ========================================================================
 
