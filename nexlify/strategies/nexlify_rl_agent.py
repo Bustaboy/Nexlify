@@ -509,21 +509,6 @@ class DQNAgent:
         """Alias for decay_epsilon() for backward compatibility"""
         self.decay_epsilon()
 
-    @property
-    def epsilon_min(self):
-        """Backward compatibility: expose epsilon_end from strategy"""
-        return self.epsilon_decay_strategy.epsilon_end
-
-    @property
-    def epsilon_decay(self):
-        """Backward compatibility: return decay rate (approximated for linear strategy)"""
-        # For backward compatibility with tests
-        # Linear strategy doesn't use multiplicative decay, so we approximate
-        if hasattr(self.epsilon_decay_strategy, 'decay_rate'):
-            return self.epsilon_decay_strategy.decay_rate
-        # For linear decay, approximate with a value
-        return 0.995
-
     def save(self, filepath: str):
         """Save model to file"""
         try:

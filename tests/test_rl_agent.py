@@ -38,16 +38,17 @@ def trading_env(sample_price_data):
 
 @pytest.fixture
 def dqn_agent():
-    """Create DQN agent"""
-    return DQNAgent(
-        state_size=8,
-        action_size=3,
-        learning_rate=0.001,
-        gamma=0.95,
-        epsilon=1.0,
-        epsilon_decay=0.995,
-        epsilon_min=0.01,
-    )
+    """Create DQN agent with new epsilon decay system"""
+    config = {
+        'learning_rate': 0.001,
+        'gamma': 0.95,
+        'epsilon_decay_type': 'exponential',
+        'epsilon_start': 1.0,
+        'epsilon_end': 0.01,
+        'epsilon_decay_rate': 0.995,
+        'epsilon_decay_steps': 10000,
+    }
+    return DQNAgent(state_size=8, action_size=3, config=config)
 
 
 class TestTradingEnvironment:
@@ -204,8 +205,10 @@ class TestDQNAgent:
         assert dqn_agent.learning_rate == 0.001
         assert dqn_agent.gamma == 0.95
         assert dqn_agent.epsilon == 1.0
-        assert dqn_agent.epsilon_decay == 0.995
-        assert dqn_agent.epsilon_min == 0.01
+        # New epsilon decay system
+        assert dqn_agent.epsilon_decay_strategy is not None
+        assert dqn_agent.epsilon_decay_strategy.epsilon_start == 1.0
+        assert dqn_agent.epsilon_decay_strategy.epsilon_end == 0.01
         assert len(dqn_agent.memory) == 0
 
     def test_remember(self, dqn_agent):
@@ -247,17 +250,17 @@ class TestDQNAgent:
         dqn_agent.update_epsilon()
 
         assert dqn_agent.epsilon < initial_epsilon
-        assert dqn_agent.epsilon >= dqn_agent.epsilon_min
+        assert dqn_agent.epsilon >= dqn_agent.epsilon_decay_strategy.epsilon_end
 
     def test_epsilon_minimum(self, dqn_agent):
         """Test epsilon doesn't go below minimum"""
-        dqn_agent.epsilon = 0.05
+        epsilon_end = dqn_agent.epsilon_decay_strategy.epsilon_end
 
         # Decay many times
-        for _ in range(100):
+        for _ in range(1000):
             dqn_agent.update_epsilon()
 
-        assert dqn_agent.epsilon >= dqn_agent.epsilon_min
+        assert dqn_agent.epsilon >= epsilon_end
 
     def test_replay_insufficient_memory(self, dqn_agent):
         """Test replay with insufficient memory"""
