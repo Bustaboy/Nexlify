@@ -25,13 +25,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Quick smoke tests for every commit (but not if there's a PR)
+  # Quick smoke tests for direct pushes to main/develop only
   quick-tests:
     name: Quick Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
-    # Only run on push events, and skip if this is a PR branch
+    # Only run on push to main/develop branches (not PR branches)
     if: |
       github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') &&
       !contains(github.event.head_commit.message, '[skip ci]')
     strategy:
       fail-fast: false
