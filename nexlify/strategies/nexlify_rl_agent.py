@@ -608,6 +608,12 @@ class DQNAgent:
             manual_gamma = self.config["gamma"]
             logger.info(f"🔙 Legacy gamma={manual_gamma:.3f} detected")
 
+        # DEFAULT FOR CRYPTO 24/7 TRADING: If no gamma specified, use 0.89
+        # This provides backward compatibility and crypto-optimized default
+        if manual_gamma is None and "gamma" not in self.config and "manual_gamma" not in self.config:
+            manual_gamma = 0.89
+            logger.info(f"🔄 Using crypto 24/7 default gamma={manual_gamma:.3f}")
+
         # Get timeframe from config (default: 1h)
         timeframe = self.config.get("timeframe", "1h")
 

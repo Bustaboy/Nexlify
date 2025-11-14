@@ -439,7 +439,12 @@ class MultiGammaTrainer:
         self.enabled = False
 
         if enable_if_hardware_sufficient:
+            # Check hardware and enable only if sufficient
             self._check_hardware()
+        else:
+            # Force enable without hardware check (for testing or manual override)
+            self.enabled = True
+            self.hardware_sufficient = True
 
         # Agents
         self.agents: Dict[float, DQNAgent] = {}
