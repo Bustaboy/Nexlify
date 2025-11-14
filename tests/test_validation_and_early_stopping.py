@@ -154,17 +154,18 @@ class TestValidationMonitor:
         mock_env.total_trades = 10
         mock_env.winning_trades = 6
 
+        # Use a list to track step count (mutable reference)
+        step_counter = [0]
+
         # Override step to simulate episode
         def step_side_effect(*args, **kwargs):
             # Increment internal counter (simulate episode progress)
-            if not hasattr(mock_env, 'step_count'):
-                mock_env.step_count = 0
-            mock_env.step_count += 1
+            step_counter[0] += 1
 
             # End episode after 10 steps
-            done = mock_env.step_count >= 10
+            done = step_counter[0] >= 10
             if done:
-                mock_env.step_count = 0  # Reset for next episode
+                step_counter[0] = 0  # Reset for next episode
 
             return (
                 np.zeros(12),
@@ -388,18 +389,22 @@ class TestEarlyStopping:
             min_delta=0.01,
             mode='max',
             metric='val_sharpe',
-            min_episodes=0
+            min_episodes=0,
+            exploration_patience_multiplier=1.0,  # Disable adaptive patience for test
+            learning_patience_multiplier=1.0,
+            exploitation_patience_multiplier=1.0
         )
 
         early_stopping = EarlyStopping(config=config)
 
         # First update (set baseline)
-        early_stopping.update(metric_value=0.5, episode=1, epsilon=0.9)
+        early_stopping.update(metric_value=0.5, episode=1, epsilon=0.1)
 
         # No improvement for patience episodes
-        early_stopping.update(metric_value=0.49, episode=2, epsilon=0.8)
-        early_stopping.update(metric_value=0.48, episode=3, epsilon=0.7)
-        should_stop = early_stopping.update(metric_value=0.47, episode=4, epsilon=0.6)
+        early_stopping.update(metric_value=0.49, episode=2, epsilon=0.1)
+        early_stopping.update(metric_value=0.48, episode=3, epsilon=0.1)
+        early_stopping.update(metric_value=0.47, episode=4, epsilon=0.1)
+        should_stop = early_stopping.update(metric_value=0.47, episode=5, epsilon=0.1)
 
         assert should_stop is True
         assert early_stopping.stopped is True
