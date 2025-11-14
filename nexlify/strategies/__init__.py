@@ -1,9 +1,16 @@
 """Trading strategies and ML models."""
- 
+
 from nexlify.strategies.nexlify_multi_strategy import MultiStrategyOptimizer
 from nexlify.strategies.nexlify_multi_timeframe import MultiTimeframeAnalyzer
 from nexlify.strategies.nexlify_predictive_features import PredictiveEngine
 from nexlify.strategies.nexlify_rl_agent import DQNAgent
+from nexlify.strategies.epsilon_decay import (
+    EpsilonDecayStrategy,
+    LinearEpsilonDecay,
+    ScheduledEpsilonDecay,
+    ExponentialEpsilonDecay,
+    EpsilonDecayFactory
+)
  
 # Backward compatibility aliases
 MultiStrategy = MultiStrategyOptimizer
@@ -25,6 +32,11 @@ try:
         'DQNAgent',
         'RLAgent',
         'UltraOptimizedDQNAgent',  # Ultra-optimized version with all optimizations
+        'EpsilonDecayStrategy',
+        'LinearEpsilonDecay',
+        'ScheduledEpsilonDecay',
+        'ExponentialEpsilonDecay',
+        'EpsilonDecayFactory',
     ]
 except ImportError:
     # Ultra-optimized agent not available (missing dependencies)
@@ -37,4 +49,9 @@ except ImportError:
         'PredictiveFeatures',
         'DQNAgent',
         'RLAgent',
+        'EpsilonDecayStrategy',
+        'LinearEpsilonDecay',
+        'ScheduledEpsilonDecay',
+        'ExponentialEpsilonDecay',
+        'EpsilonDecayFactory',
     ]

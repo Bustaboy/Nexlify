@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
+from nexlify.strategies.epsilon_decay import EpsilonDecayFactory, EpsilonDecayStrategy
 
 logger = logging.getLogger(__name__)
 error_handler = get_error_handler()
@@ -257,11 +258,12 @@ class DQNAgent:
 
         # Hyperparameters
         self.gamma = self.config.get('gamma', 0.99)  # Discount factor
-        self.epsilon = self.config.get('epsilon', 1.0)  # Exploration rate
-        self.epsilon_min = self.config.get('epsilon_min', 0.01)
-        self.epsilon_decay = self.config.get('epsilon_decay', 0.995)
         self.learning_rate = self.config.get('learning_rate', 0.001)
         self.batch_size = self.config.get('batch_size', 64)
+
+        # Epsilon decay strategy (new advanced system)
+        self.epsilon_decay_strategy = self._create_epsilon_strategy()
+        self.epsilon = self.epsilon_decay_strategy.current_epsilon
 
         # Experience replay
         self.memory = ReplayBuffer(capacity=100000)
@@ -280,6 +282,26 @@ class DQNAgent:
         self.training_history = []
 
         logger.info(f"🤖 DQN Agent initialized (device: {self.device})")
+
+    def _create_epsilon_strategy(self) -> EpsilonDecayStrategy:
+        """Create epsilon decay strategy from config"""
+        # Check if using new config format
+        if 'epsilon_decay_type' in self.config or 'epsilon_decay_steps' in self.config:
+            return EpsilonDecayFactory.create_from_config(self.config)
+
+        # Legacy config support - convert old parameters to new system
+        epsilon_start = self.config.get('epsilon', 1.0)
+        epsilon_end = self.config.get('epsilon_min', 0.05)
+        decay_steps = self.config.get('epsilon_decay_steps', 2000)
+
+        logger.info(f"🔄 Converting legacy epsilon config to LinearEpsilonDecay")
+
+        return EpsilonDecayFactory.create(
+            'linear',
+            epsilon_start=epsilon_start,
+            epsilon_end=epsilon_end,
+            decay_steps=decay_steps
+        )
 
     def _get_device(self) -> str:
         """Detect available compute device"""
@@ -424,9 +446,8 @@ class DQNAgent:
             return None
 
     def decay_epsilon(self):
-        """Decay exploration rate"""
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
+        """Decay exploration rate using advanced strategy"""
+        self.epsilon = self.epsilon_decay_strategy.step()
 
     def save(self, filepath: str):
         """Save model to file"""
@@ -437,11 +458,16 @@ class DQNAgent:
                 'model_state_dict': self.model.state_dict(),
                 'optimizer_state_dict': self.optimizer.state_dict(),
                 'epsilon': self.epsilon,
+                'epsilon_step': self.epsilon_decay_strategy.current_step,
                 'training_history': self.training_history
             }
 
             torch.save(save_data, filepath)
             logger.info(f"✅ Model saved to {filepath}")
+
+            # Save epsilon history separately
+            epsilon_path = Path(filepath).parent / f"{Path(filepath).stem}_epsilon_history.json"
+            self.epsilon_decay_strategy.save_history(str(epsilon_path))
 
         except Exception as e:
             logger.error(f"Save error: {e}")
@@ -456,6 +482,11 @@ class DQNAgent:
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             self.epsilon = checkpoint['epsilon']
             self.training_history = checkpoint.get('training_history', [])
+
+            # Restore epsilon decay strategy step
+            if 'epsilon_step' in checkpoint:
+                self.epsilon_decay_strategy.current_step = checkpoint['epsilon_step']
+                self.epsilon_decay_strategy.current_epsilon = self.epsilon
 
             self.update_target_model()
 
