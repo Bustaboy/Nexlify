@@ -257,6 +257,10 @@ class AgentConfig:
     epsilon_end: float = 0.01
     epsilon_decay: float = 0.995
 
+    # NEW: Linear epsilon decay (better for trading)
+    use_linear_epsilon_decay: bool = False  # If True, use linear decay instead of multiplicative
+    epsilon_decay_steps: int = 2000  # Steps to decay from start to end (linear mode only)
+
     # Replay buffer
     buffer_size: int = 100000
     use_prioritized_replay: bool = True
@@ -600,8 +604,15 @@ class AdvancedDQNAgent:
             self.lr_scheduler.step()
 
         # Decay epsilon
-        self.epsilon = max(self.config.epsilon_end,
-                          self.epsilon * self.config.epsilon_decay)
+        if self.config.use_linear_epsilon_decay:
+            # Linear decay from start to end over epsilon_decay_steps
+            decay_rate = (self.config.epsilon_start - self.config.epsilon_end) / self.config.epsilon_decay_steps
+            self.epsilon = max(self.config.epsilon_end,
+                             self.config.epsilon_start - decay_rate * self.training_steps)
+        else:
+            # Multiplicative decay (original method)
+            self.epsilon = max(self.config.epsilon_end,
+                              self.epsilon * self.config.epsilon_decay)
 
         # Track metrics
         if self.config.track_metrics:
