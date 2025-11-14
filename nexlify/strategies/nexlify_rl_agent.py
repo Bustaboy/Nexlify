@@ -17,6 +17,7 @@ import numpy as np
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 from nexlify.strategies.epsilon_decay import EpsilonDecayFactory, EpsilonDecayStrategy
 from nexlify.config.crypto_trading_config import CRYPTO_24_7_CONFIG, FEATURE_PERIODS
+from nexlify.config.fee_providers import FeeProvider, FeeEstimate
 
 logger = logging.getLogger(__name__)
 error_handler = get_error_handler()
@@ -25,11 +26,37 @@ error_handler = get_error_handler()
 class TradingEnvironment:
     """
     Gym-style trading environment for RL training
+
+    Supports dynamic fee calculation based on network/exchange.
+    Fees are applied TWICE per round trip (buy + sell).
     """
 
-    def __init__(self, price_data: np.ndarray, initial_balance: float = 10000):
+    def __init__(self,
+                 price_data: np.ndarray,
+                 initial_balance: float = 10000,
+                 fee_provider: Optional[FeeProvider] = None,
+                 config: Optional[Dict] = None):
+        """
+        Initialize trading environment
+
+        Args:
+            price_data: Historical price data
+            initial_balance: Starting balance in USD
+            fee_provider: Fee provider instance (None = use from config or default)
+            config: Configuration dict (None = use CRYPTO_24_7_CONFIG)
+        """
         self.price_data = price_data
         self.initial_balance = initial_balance
+        self.config = config or {}
+
+        # Fee provider setup
+        if fee_provider is not None:
+            self.fee_provider = fee_provider
+        elif self.config.get("fee_provider"):
+            self.fee_provider = self.config["fee_provider"]
+        else:
+            # Use from global config if available
+            self.fee_provider = getattr(CRYPTO_24_7_CONFIG, 'fee_provider', None)
 
         # State variables
         self.current_step = 0
@@ -56,6 +83,45 @@ class TradingEnvironment:
         self.max_portfolio_value = initial_balance
 
         logger.info("🎮 Trading Environment initialized (Crypto-optimized)")
+        if self.fee_provider:
+            logger.info(f"   Fee provider: {self.fee_provider.get_network_name()}")
+
+    def _get_fee_estimate(self, trade_size_usd: float) -> FeeEstimate:
+        """
+        Get fee estimate for a trade
+
+        Args:
+            trade_size_usd: Size of trade in USD
+
+        Returns:
+            FeeEstimate with current fees
+
+        Raises:
+            RuntimeError: If strict mode enabled and fees cannot be retrieved
+        """
+        if self.fee_provider is not None:
+            return self.fee_provider.get_fee_estimate(trade_size_usd=trade_size_usd)
+        else:
+            # Check if we're in strict mode (from config)
+            strict_mode = self.config.get("strict_fee_mode", False)
+            trading_mode = self.config.get("trading_mode", "backtest")
+
+            if strict_mode or trading_mode == "live":
+                raise RuntimeError(
+                    "TRADING BLOCKED: Cannot retrieve real-time fees. "
+                    f"Trading mode: {trading_mode}, Strict mode: {strict_mode}. "
+                    "Fee provider must be configured for live/strict mode trading."
+                )
+
+            # Fallback to static 0.1% fee (ONLY for backtesting)
+            from nexlify.config.fee_providers import FeeEstimate
+            logger.warning("Using static fallback fees (0.1%) - only safe for backtesting!")
+            return FeeEstimate(
+                entry_fee_rate=0.001,
+                exit_fee_rate=0.001,
+                network="static_fallback",
+                fee_type="percentage"
+            )
 
     def reset(self) -> np.ndarray:
         """Reset environment to initial state"""
@@ -289,45 +355,62 @@ class TradingEnvironment:
         if action == 1:  # Buy
             if self.balance > 0 and self.position == 0:
                 # Buy with 95% of balance, accounting for fees
-                # Assume 0.1% fee rate (typical for crypto)
-                fee_rate = 0.001
-                amount_to_invest = self.balance * 0.95  # Leave room for fees
-                cost = amount_to_invest / (1 + fee_rate)  # Actual amount we can buy
-                fees = cost * fee_rate
+                amount_to_invest = self.balance * 0.95  # Leave room for fees/slippage
 
-                self.position = cost / current_price
+                # Get dynamic fee estimate for this trade size
+                fee_estimate = self._get_fee_estimate(amount_to_invest)
+
+                # Calculate entry costs (percentage fee + fixed cost like gas)
+                percentage_fee, fixed_fee = fee_estimate.calculate_entry_cost(amount_to_invest)
+                total_fees = percentage_fee + fixed_fee
+
+                # Calculate actual position size after fees
+                amount_after_fees = amount_to_invest - total_fees
+                self.position = amount_after_fees / current_price
                 self.position_price = current_price
-                self.balance -= (cost + fees)  # Deduct cost and fees
+                self.balance -= amount_to_invest  # Deduct total investment
 
                 info["action"] = "buy"
                 info["price"] = current_price
-                info["fees"] = fees
+                info["entry_fees_pct"] = percentage_fee
+                info["entry_fees_fixed"] = fixed_fee
+                info["total_entry_fees"] = total_fees
+                info["fee_network"] = fee_estimate.network
 
         elif action == 2:  # Sell
             if self.position > 0:
-                # Sell entire position with fee accounting
-                fee_rate = 0.001
+                # Sell entire position with dynamic fee accounting
                 sell_value = self.position * current_price
-                fees = sell_value * fee_rate
-                net_proceeds = sell_value - fees
 
-                # Calculate profit after fees
-                cost = self.position * self.position_price
-                profit = net_proceeds - cost
+                # Get dynamic fee estimate for exit
+                fee_estimate = self._get_fee_estimate(sell_value)
+
+                # Calculate exit costs (percentage fee + fixed cost like gas)
+                percentage_fee, fixed_fee = fee_estimate.calculate_exit_cost(sell_value)
+                total_exit_fees = percentage_fee + fixed_fee
+                net_proceeds = sell_value - total_exit_fees
+
+                # Calculate profit after BOTH entry and exit fees
+                # Entry cost = what we originally invested (already included entry fees)
+                original_investment = self.initial_balance - self.balance  # What we spent on entry
+                profit = net_proceeds - original_investment
 
                 self.balance = net_proceeds
 
-                # Reward based on RETURN not absolute profit
-                reward = profit / cost if cost > 0 else 0  # Return on investment
+                # Reward based on ROI (Return on Investment)
+                reward = profit / original_investment if original_investment > 0 else 0
 
-                # Track trade
+                # Track trade with full fee breakdown
                 self.trade_history.append(
                     {
                         "entry_price": self.position_price,
                         "exit_price": current_price,
                         "profit": profit,
                         "return": (current_price / self.position_price - 1) * 100,
-                        "fees": fees,
+                        "exit_fees_pct": percentage_fee,
+                        "exit_fees_fixed": fixed_fee,
+                        "total_exit_fees": total_exit_fees,
+                        "fee_network": fee_estimate.network,
                     }
                 )
 
@@ -335,7 +418,10 @@ class TradingEnvironment:
                 self.position_price = 0
                 info["action"] = "sell"
                 info["profit"] = profit
-                info["fees"] = fees
+                info["exit_fees_pct"] = percentage_fee
+                info["exit_fees_fixed"] = fixed_fee
+                info["total_exit_fees"] = total_exit_fees
+                info["fee_network"] = fee_estimate.network
         else:
             # Hold - no fixed penalty, let portfolio value change drive reward
             info["action"] = "hold"

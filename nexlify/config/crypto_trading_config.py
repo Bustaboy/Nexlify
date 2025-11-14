@@ -13,7 +13,8 @@ Author: Nexlify Team
 """
 
 from dataclasses import dataclass
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+from nexlify.config.fee_providers import FeeProvider, get_fee_provider
 
 
 # ============================================================================
@@ -85,11 +86,35 @@ class CryptoTradingConfig:
     # Initial balance
     initial_balance: float = 10000.0
 
-    # Trading fee rate (0.1%)
-    fee_rate: float = 0.001
+    # Network/Exchange for trading
+    # Options: 'binance', 'coinbase', 'ethereum', 'polygon', 'bsc', 'static'
+    # IMPORTANT: Set this based on your actual trading venue
+    # Default 'static' uses fixed 0.1% fees (conservative estimate)
+    trading_network: str = "static"
+
+    # Fee provider (None = auto-create from trading_network)
+    # Set explicitly to override trading_network selection
+    fee_provider: Optional[FeeProvider] = None
+
+    # DEPRECATED: Static fee rate (only used if fee_provider disabled)
+    # WARNING: Using static fees can cause 10-100x errors on ETH L1!
+    fee_rate: float = 0.001  # CEX default (Binance: 0.1%)
 
     # Slippage rate (0.05%)
     slippage: float = 0.0005
+
+    # Use dynamic fee provider (RECOMMENDED)
+    # If False, falls back to static fee_rate (ONLY for backtesting/simulation)
+    use_dynamic_fees: bool = True
+
+    # Strict fee mode (CRITICAL for live trading)
+    # If True, trading is BLOCKED when real fees cannot be retrieved
+    # MUST be True for live trading, False only for backtesting
+    strict_fee_mode: bool = False  # Default False for backward compatibility
+
+    # Trading mode: 'backtest', 'paper', 'live'
+    # In 'live' mode, strict_fee_mode is automatically enforced
+    trading_mode: str = "backtest"
 
     # Maximum steps per episode
     max_steps_per_episode: int = 1000
@@ -142,7 +167,7 @@ class CryptoTradingConfig:
     default_timeframe: str = "1h"
 
     def __post_init__(self):
-        """Initialize time period settings"""
+        """Initialize time period settings and fee provider"""
         if self.epsilon_schedule is None:
             self.epsilon_schedule = {
                 0: 1.0,
@@ -160,6 +185,20 @@ class CryptoTradingConfig:
                 "4h": 2190,     # 365 * 6
                 "1d": 365,      # 365
             }
+
+        # Initialize fee provider if not provided and dynamic fees enabled
+        if self.use_dynamic_fees and self.fee_provider is None:
+            self.fee_provider = get_fee_provider(self.trading_network)
+
+        # ENFORCE strict fee mode for live trading
+        if self.trading_mode == "live":
+            self.strict_fee_mode = True
+            if not self.use_dynamic_fees or self.fee_provider is None:
+                raise ValueError(
+                    "CRITICAL: Live trading REQUIRES dynamic fee provider. "
+                    "Set trading_network to your actual exchange/network and ensure "
+                    "use_dynamic_fees=True"
+                )
 
     # ========================================================================
     # RISK MANAGEMENT
@@ -182,6 +221,51 @@ class CryptoTradingConfig:
         """Get periods per year for given timeframe"""
         tf = timeframe or self.default_timeframe
         return self.periods_per_year.get(tf, self.periods_per_year["1h"])
+
+    def get_fee_estimate(self, trade_size_usd: float = 1000.0):
+        """
+        Get current fee estimate for a trade
+
+        Args:
+            trade_size_usd: Size of trade in USD
+
+        Returns:
+            FeeEstimate object with current fees
+
+        Raises:
+            RuntimeError: If strict_fee_mode=True and real fees cannot be retrieved
+
+        Examples:
+            >>> config = CryptoTradingConfig(trading_network="ethereum")
+            >>> estimate = config.get_fee_estimate(1000.0)
+            >>> print(f"Round trip cost: ${estimate.calculate_round_trip_cost(1000.0):.2f}")
+        """
+        if self.use_dynamic_fees and self.fee_provider is not None:
+            return self.fee_provider.get_fee_estimate(trade_size_usd=trade_size_usd)
+        else:
+            # Check if we're in strict mode
+            if self.strict_fee_mode or self.trading_mode == "live":
+                raise RuntimeError(
+                    "TRADING BLOCKED: Cannot retrieve real-time fees. "
+                    f"Trading mode: {self.trading_mode}, Strict fee mode: {self.strict_fee_mode}. "
+                    "Fee provider must be configured for live/strict mode trading. "
+                    "DO NOT trade without accurate fee information - this could cause losses!"
+                )
+
+            # Fallback to static fees (ONLY for backtesting/simulation)
+            from nexlify.config.fee_providers import FeeEstimate
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"Using static fallback fees ({self.fee_rate * 100:.2f}%) - "
+                "This is ONLY safe for backtesting/simulation!"
+            )
+            return FeeEstimate(
+                entry_fee_rate=self.fee_rate,
+                exit_fee_rate=self.fee_rate,
+                network="static_fallback",
+                fee_type="percentage"
+            )
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert config to dictionary"""

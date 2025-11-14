@@ -24,6 +24,8 @@ import pandas as pd
 
 from nexlify.backtesting.nexlify_paper_trading import PaperTradingEngine
 from nexlify.ml.nexlify_feature_engineering import FeatureEngineer
+from nexlify.config.fee_providers import FeeProvider, FeeEstimate
+from nexlify.config.crypto_trading_config import CRYPTO_24_7_CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +57,7 @@ class TradingEnvironment:
     def __init__(
         self,
         initial_balance: float = 10000.0,
-        fee_rate: float = 0.001,
+        fee_rate: float = 0.001,  # DEPRECATED: use fee_provider instead
         slippage: float = 0.0005,
         state_size: int = 12,  # Updated for crypto-specific features
         action_size: int = 3,
@@ -65,13 +67,14 @@ class TradingEnvironment:
         engineer_features: bool = False,
         timeframe: str = "1h",
         use_improved_rewards: bool = True,
+        fee_provider: Optional[FeeProvider] = None,  # NEW: dynamic fee support
     ):
         """
         Initialize trading environment
 
         Args:
             initial_balance: Starting balance
-            fee_rate: Trading fee rate (0.001 = 0.1%)
+            fee_rate: DEPRECATED - Static trading fee rate (use fee_provider instead)
             slippage: Slippage rate (0.0005 = 0.05%)
             state_size: Size of state vector
             action_size: Number of possible actions
@@ -84,12 +87,25 @@ class TradingEnvironment:
         """
         # Environment config
         self.initial_balance = initial_balance
-        self.fee_rate = fee_rate
+        self.fee_rate = fee_rate  # Kept for backward compatibility
         self.slippage = slippage
         self.state_size = state_size
         self.action_size = action_size
         self.max_steps = max_steps
         self.timeframe = timeframe
+
+        # Fee provider setup (dynamic fees)
+        if fee_provider is not None:
+            self.fee_provider = fee_provider
+        else:
+            # Use from global config if available
+            self.fee_provider = getattr(CRYPTO_24_7_CONFIG, 'fee_provider', None)
+
+        # Log fee configuration
+        if self.fee_provider:
+            logger.info(f"Using dynamic fees from: {self.fee_provider.get_network_name()}")
+        else:
+            logger.info(f"Using static fee rate: {self.fee_rate * 100:.2f}%")
 
         # Calculate periods per year for Sharpe ratio annualization
         # Crypto markets trade 24/7/365
@@ -162,6 +178,42 @@ class TradingEnvironment:
         logger.info(
             f"   Reward function: {'Improved (risk-adjusted)' if use_improved_rewards else 'Legacy'}"
         )
+
+    def _get_fee_estimate(self, trade_size_usd: float) -> FeeEstimate:
+        """
+        Get fee estimate for a trade
+
+        Args:
+            trade_size_usd: Size of trade in USD
+
+        Returns:
+            FeeEstimate with current fees
+
+        Raises:
+            RuntimeError: If strict mode enabled and fees cannot be retrieved
+        """
+        if self.fee_provider is not None:
+            return self.fee_provider.get_fee_estimate(trade_size_usd=trade_size_usd)
+        else:
+            # Check if we're in strict mode
+            strict_mode = getattr(self, 'strict_fee_mode', False)
+            trading_mode = getattr(self, 'trading_mode', 'backtest')
+
+            if strict_mode or trading_mode == "live":
+                raise RuntimeError(
+                    "TRADING BLOCKED: Cannot retrieve real-time fees. "
+                    f"Trading mode: {trading_mode}, Strict mode: {strict_mode}. "
+                    "Fee provider must be configured for live/strict mode trading."
+                )
+
+            # Fallback to static fee_rate (ONLY for backtesting)
+            logger.warning(f"Using static fallback fees ({self.fee_rate * 100:.2f}%) - only safe for backtesting!")
+            return FeeEstimate(
+                entry_fee_rate=self.fee_rate,
+                exit_fee_rate=self.fee_rate,
+                network="static_fallback",
+                fee_type="percentage"
+            )
 
     def _run_async_in_context(self, coro):
         """
