@@ -40,7 +40,7 @@ class NightCityErrorHandler:
         self.error_logger = self._setup_error_logger()
 
         # Track error counts for monitoring
-        self.error_counts = {"warning": 0, "error": 0, "critical": 0, "fatal": 0}
+        self.error_counts = {"info": 0, "warning": 0, "error": 0, "critical": 0, "fatal": 0}
 
         # Install exception hooks
         self._install_exception_hooks()
