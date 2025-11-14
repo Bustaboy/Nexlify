@@ -41,14 +41,20 @@ class TradingEnvironment:
         self.action_space_n = 3
 
         # State space: [balance, position, position_price, current_price,
-        #               price_change, RSI, MACD, volume_ratio]
-        self.state_space_n = 8
+        #               price_change, RSI, MACD, volatility, momentum, vol_clustering,
+        #               drawdown, sharpe]
+        self.state_space_n = 12  # Expanded for crypto-specific features
 
         # Tracking
         self.trade_history = []
         self.episode_reward = 0
 
-        logger.info("🎮 Trading Environment initialized")
+        # Risk-adjusted reward tracking
+        self.returns_history = []
+        self.portfolio_values = [initial_balance]
+        self.max_portfolio_value = initial_balance
+
+        logger.info("🎮 Trading Environment initialized (Crypto-optimized)")
 
     def reset(self) -> np.ndarray:
         """Reset environment to initial state"""
@@ -59,10 +65,15 @@ class TradingEnvironment:
         self.trade_history = []
         self.episode_reward = 0
 
+        # Reset risk tracking
+        self.returns_history = []
+        self.portfolio_values = [self.initial_balance]
+        self.max_portfolio_value = self.initial_balance
+
         return self._get_state()
 
     def _get_state(self) -> np.ndarray:
-        """Get current state representation"""
+        """Get current state representation with crypto-specific features"""
         current_price = self.price_data[self.current_step]
 
         # Calculate features
@@ -72,14 +83,16 @@ class TradingEnvironment:
                 current_price - self.price_data[self.current_step - 1]
             ) / current_price
 
-        # Simple RSI calculation (14 period)
+        # Technical indicators
         rsi = self._calculate_rsi(14)
-
-        # Simple MACD
         macd = self._calculate_macd()
+        volatility = self._calculate_volatility(10)
 
-        # Volume ratio (simplified - using price volatility as proxy)
-        volume_ratio = self._calculate_volatility(10)
+        # Crypto-specific features
+        momentum = self._calculate_momentum(20)  # 20-period momentum
+        vol_clustering = self._calculate_volatility_clustering()  # GARCH-like
+        drawdown = self._calculate_drawdown()  # Current drawdown from peak
+        sharpe = self._calculate_sharpe_ratio()  # Risk-adjusted returns
 
         state = np.array(
             [
@@ -92,7 +105,11 @@ class TradingEnvironment:
                 price_change,  # Price change
                 rsi,  # RSI
                 macd,  # MACD
-                volume_ratio,  # Volume ratio
+                volatility,  # Volatility
+                momentum,  # Momentum (NEW)
+                vol_clustering,  # Volatility clustering (NEW)
+                drawdown,  # Drawdown from peak (NEW)
+                sharpe,  # Sharpe ratio (NEW)
             ],
             dtype=np.float32,
         )
@@ -158,6 +175,91 @@ class TradingEnvironment:
         returns = np.diff(prices) / prices[:-1]
 
         return np.std(returns)
+
+    def _calculate_momentum(self, period: int = 20) -> float:
+        """
+        Calculate price momentum (rate of change)
+        Crypto markets show strong momentum effects
+        """
+        if self.current_step < period:
+            return 0
+
+        current_price = self.price_data[self.current_step]
+        past_price = self.price_data[max(0, self.current_step - period)]
+
+        if past_price == 0:
+            return 0
+
+        momentum = (current_price - past_price) / past_price
+        return np.clip(momentum, -1, 1)  # Clip to [-1, 1] range
+
+    def _calculate_volatility_clustering(self) -> float:
+        """
+        Calculate volatility clustering (GARCH-like effect)
+        Crypto exhibits strong volatility clustering - high vol follows high vol
+        """
+        if self.current_step < 30:
+            return 0
+
+        # Recent volatility (10 periods)
+        recent_vol = self._calculate_volatility(10)
+
+        # Historical volatility (30 periods)
+        if self.current_step < 30:
+            return 0
+
+        prices = self.price_data[max(0, self.current_step - 30): self.current_step + 1]
+        returns = np.diff(prices) / prices[:-1]
+        historical_vol = np.std(returns)
+
+        if historical_vol == 0:
+            return 0
+
+        # Ratio of recent to historical volatility
+        vol_ratio = recent_vol / historical_vol
+        return np.clip(vol_ratio - 1, -1, 1)  # Centered at 0, clipped to [-1, 1]
+
+    def _calculate_drawdown(self) -> float:
+        """
+        Calculate current drawdown from peak portfolio value
+        Important risk metric for crypto trading
+        """
+        current_value = self.balance
+        if self.position > 0:
+            current_price = self.price_data[self.current_step]
+            current_value += self.position * current_price
+
+        # Update max value
+        self.max_portfolio_value = max(self.max_portfolio_value, current_value)
+
+        if self.max_portfolio_value == 0:
+            return 0
+
+        drawdown = (self.max_portfolio_value - current_value) / self.max_portfolio_value
+        return np.clip(drawdown, 0, 1)
+
+    def _calculate_sharpe_ratio(self, window: int = 50) -> float:
+        """
+        Calculate rolling Sharpe ratio
+        Risk-adjusted return metric crucial for crypto
+        """
+        if len(self.returns_history) < 10:
+            return 0
+
+        recent_returns = self.returns_history[-window:] if len(self.returns_history) >= window else self.returns_history
+
+        if len(recent_returns) < 2:
+            return 0
+
+        mean_return = np.mean(recent_returns)
+        std_return = np.std(recent_returns)
+
+        if std_return == 0:
+            return 0
+
+        # Annualized Sharpe (assuming crypto trades 24/7, ~365*24 periods per year)
+        sharpe = (mean_return / std_return) * np.sqrt(len(recent_returns))
+        return np.clip(sharpe, -3, 3)  # Clip to reasonable range
 
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, Dict]:
         """
@@ -228,6 +330,24 @@ class TradingEnvironment:
         if self.position > 0:
             total_value += self.position * current_price
 
+        # Track portfolio value and returns for risk-adjusted rewards
+        self.portfolio_values.append(total_value)
+        if len(self.portfolio_values) > 1:
+            portfolio_return = (total_value - self.portfolio_values[-2]) / self.portfolio_values[-2]
+            self.returns_history.append(portfolio_return)
+
+        # Apply risk adjustment to reward (Sharpe-based)
+        # Encourage high returns with low volatility
+        if len(self.returns_history) >= 10:
+            sharpe = self._calculate_sharpe_ratio()
+            # Boost reward if Sharpe is positive (good risk-adjusted returns)
+            # Penalize if Sharpe is negative (poor risk-adjusted returns)
+            risk_adjustment = np.tanh(sharpe * 0.5)  # Smooth scaling
+            reward = reward * (1 + risk_adjustment)
+
+            info["sharpe_ratio"] = sharpe
+            info["risk_adjustment"] = risk_adjustment
+
         info["total_value"] = total_value
         info["step"] = self.current_step
 
@@ -294,17 +414,20 @@ class DQNAgent:
         # Merge kwargs into config for backward compatibility with tests
         self.config.update(kwargs)
 
-        # Hyperparameters
-        self.gamma = self.config.get("gamma", 0.99)  # Discount factor
-        self.learning_rate = self.config.get("learning_rate", 0.001)
+        # Hyperparameters (optimized for 24/7 crypto trading)
+        self.gamma = self.config.get("gamma", 0.89)  # Lower discount for fast crypto markets
+        self.learning_rate = self.config.get("learning_rate", 0.0015)  # Aggressive learning
+        self.learning_rate_decay = self.config.get("learning_rate_decay", 0.9998)
         self.batch_size = self.config.get("batch_size", 64)
+        self.target_update_freq = self.config.get("target_update_freq", 1200)  # Frequent updates
 
         # Epsilon decay strategy (new advanced system)
         self.epsilon_decay_strategy = self._create_epsilon_strategy()
         self.epsilon = self.epsilon_decay_strategy.current_epsilon
 
-        # Experience replay
-        self.memory = ReplayBuffer(capacity=100000)
+        # Experience replay (optimized for regime adaptation)
+        replay_buffer_size = self.config.get("replay_buffer_size", 60000)
+        self.memory = ReplayBuffer(capacity=replay_buffer_size)
 
         # Neural network models
         self.model = None
@@ -329,7 +452,7 @@ class DQNAgent:
 
         # Legacy config support - convert old parameters to new system
         epsilon_start = self.config.get("epsilon", 1.0)
-        epsilon_end = self.config.get("epsilon_min", 0.18)  # Crypto-optimized default
+        epsilon_end = self.config.get("epsilon_min", 0.22)  # Crypto-optimized default (24/7 trading)
 
         # If old-style epsilon_decay (multiplicative) is provided, use exponential decay
         if "epsilon_decay" in self.config and "epsilon_decay_steps" not in self.config:
@@ -344,15 +467,23 @@ class DQNAgent:
                 decay_steps=10000,  # Large value for exponential decay
             )
 
-        # Otherwise use linear decay
-        decay_steps = self.config.get("epsilon_decay_steps", 2000)
-        logger.info("🔄 Converting legacy epsilon config to LinearEpsilonDecay")
+        # Default: Use scheduled decay optimized for 24/7 crypto trading
+        # Aggressive schedule for continuous trading and regime adaptation
+        default_schedule = {
+            0: 1.0,      # Start with full exploration
+            200: 0.65,   # Learn basics quickly (24/7 = ~8 days)
+            800: 0.35,   # Start exploiting patterns (~1 month)
+            2000: 0.22,  # High ongoing exploration for regime changes (~2.5 months)
+        }
+        schedule = self.config.get("epsilon_schedule", default_schedule)
+
+        logger.info("🚀 Using ScheduledEpsilonDecay optimized for 24/7 crypto trading")
 
         return EpsilonDecayFactory.create(
-            "linear",
+            "scheduled",
             epsilon_start=epsilon_start,
             epsilon_end=epsilon_end,
-            decay_steps=decay_steps,
+            schedule=schedule,
         )
 
     def _get_device(self) -> str:
