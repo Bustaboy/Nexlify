@@ -119,13 +119,14 @@ class TestScheduledEpsilonDecay:
     """Test ScheduledEpsilonDecay strategy"""
 
     def test_default_schedule(self):
-        """Test default schedule"""
+        """Test default schedule (24/7 crypto optimized)"""
         strategy = ScheduledEpsilonDecay()
 
+        # New default schedule: {0: 1.0, 200: 0.65, 800: 0.35, 2000: 0.22}
         assert strategy.get_epsilon(0) == 1.0
-        assert abs(strategy.get_epsilon(300) - 0.7) < 0.01
-        assert abs(strategy.get_epsilon(1000) - 0.3) < 0.01
-        assert abs(strategy.get_epsilon(2000) - 0.05) < 0.01
+        assert abs(strategy.get_epsilon(200) - 0.65) < 0.01
+        assert abs(strategy.get_epsilon(800) - 0.35) < 0.01
+        assert abs(strategy.get_epsilon(2000) - 0.22) < 0.01
 
     def test_custom_schedule(self):
         """Test custom schedule"""
@@ -135,7 +136,8 @@ class TestScheduledEpsilonDecay:
             1000: 0.1
         }
 
-        strategy = ScheduledEpsilonDecay(schedule=schedule)
+        # Must set epsilon_end to match schedule's final value
+        strategy = ScheduledEpsilonDecay(schedule=schedule, epsilon_end=0.1)
 
         assert strategy.get_epsilon(0) == 1.0
         assert abs(strategy.get_epsilon(250) - 0.75) < 0.01  # Midpoint
