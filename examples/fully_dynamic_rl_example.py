@@ -144,10 +144,10 @@ def example_4_dynamic_buffer():
     # Add experiences
     for i in range(100):
         # Simulate experience
-        state = np.random.rand(8)
+        state = np.random.rand(12)
         action = np.random.randint(0, 3)
         reward = np.random.randn()
-        next_state = np.random.rand(8)
+        next_state = np.random.rand(12)
         done = False
 
         buffer.push(state, action, reward, next_state, done)

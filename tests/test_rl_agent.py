@@ -236,10 +236,10 @@ class TestDQNAgent:
 
     def test_remember(self, dqn_agent):
         """Test experience replay memory"""
-        state = np.random.randn(8)
+        state = np.random.randn(12)
         action = 1
         reward = 10.0
-        next_state = np.random.randn(8)
+        next_state = np.random.randn(12)
         done = False
 
         dqn_agent.remember(state, action, reward, next_state, done)
@@ -248,7 +248,7 @@ class TestDQNAgent:
 
     def test_act_exploration(self, dqn_agent):
         """Test action selection during exploration"""
-        state = np.random.randn(8)
+        state = np.random.randn(12)
 
         # With high epsilon, should explore randomly
         dqn_agent.epsilon = 1.0
@@ -258,7 +258,7 @@ class TestDQNAgent:
 
     def test_act_exploitation(self, dqn_agent):
         """Test action selection during exploitation"""
-        state = np.random.randn(8)
+        state = np.random.randn(12)
 
         # With low epsilon, should exploit
         dqn_agent.epsilon = 0.0
@@ -289,7 +289,7 @@ class TestDQNAgent:
         """Test replay with insufficient memory"""
         # Add only a few experiences
         for i in range(10):
-            state = np.random.randn(8)
+            state = np.random.randn(12)
             dqn_agent.remember(state, 1, 1.0, state, False)
 
         # Should handle gracefully with small batch
@@ -300,10 +300,10 @@ class TestDQNAgent:
         """Test replay training with sufficient memory"""
         # Fill memory
         for i in range(100):
-            state = np.random.randn(8)
+            state = np.random.randn(12)
             action = np.random.randint(0, 3)
             reward = np.random.randn()
-            next_state = np.random.randn(8)
+            next_state = np.random.randn(12)
             done = np.random.rand() > 0.9
 
             dqn_agent.remember(state, action, reward, next_state, done)
@@ -328,7 +328,7 @@ class TestDQNAgent:
         new_agent.load(str(model_path))
 
         # Models should produce similar outputs
-        state = np.random.randn(8)
+        state = np.random.randn(12)
         action1 = dqn_agent.act(state)
         action2 = new_agent.act(state)
 
@@ -359,10 +359,10 @@ class TestReplayBuffer:
         """Test adding experience to buffer"""
         buffer = ReplayBuffer(max_size=1000)
 
-        state = np.random.randn(8)
+        state = np.random.randn(12)
         action = 1
         reward = 10.0
-        next_state = np.random.randn(8)
+        next_state = np.random.randn(12)
         done = False
 
         buffer.add(state, action, reward, next_state, done)
@@ -375,7 +375,7 @@ class TestReplayBuffer:
 
         # Fill buffer beyond capacity
         for i in range(20):
-            state = np.random.randn(8)
+            state = np.random.randn(12)
             buffer.add(state, 0, 0.0, state, False)
 
         # Should maintain max size
@@ -387,7 +387,7 @@ class TestReplayBuffer:
 
         # Add experiences
         for i in range(100):
-            state = np.random.randn(8)
+            state = np.random.randn(12)
             buffer.add(state, 0, 0.0, state, False)
 
         # Sample
@@ -401,7 +401,7 @@ class TestReplayBuffer:
 
         # Add few experiences
         for i in range(10):
-            state = np.random.randn(8)
+            state = np.random.randn(12)
             buffer.add(state, 0, 0.0, state, False)
 
         # Sample more than available

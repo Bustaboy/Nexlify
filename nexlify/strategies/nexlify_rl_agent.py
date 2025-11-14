@@ -242,6 +242,7 @@ class TradingEnvironment:
         """
         Calculate rolling Sharpe ratio
         Risk-adjusted return metric crucial for crypto
+        Assumes hourly data (8760 periods/year) for annualization
         """
         if len(self.returns_history) < 10:
             return 0
@@ -257,8 +258,10 @@ class TradingEnvironment:
         if std_return == 0:
             return 0
 
-        # Annualized Sharpe (assuming crypto trades 24/7, ~365*24 periods per year)
-        sharpe = (mean_return / std_return) * np.sqrt(len(recent_returns))
+        # Annualized Sharpe (crypto trades 24/7, assuming hourly data = 8760 periods/year)
+        # This is a reasonable default for crypto trading environments
+        periods_per_year = 8760  # 365 * 24 hours
+        sharpe = (mean_return / std_return) * np.sqrt(periods_per_year)
         return np.clip(sharpe, -3, 3)  # Clip to reasonable range
 
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, Dict]:
