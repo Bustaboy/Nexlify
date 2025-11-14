@@ -100,6 +100,7 @@ class SecuritySuite:
         self.is_initialized = False
         self.authenticated_user: Optional[str] = None
         self.monitoring_active = False
+        self.enabled = True  # Security suite is enabled by default
 
         logger.info("=" * 80)
         logger.info("🛡️ SECURITY SUITE READY")

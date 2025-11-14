@@ -55,15 +55,15 @@ class NightCityErrorHandler:
     def _setup_error_logger(self) -> logging.Logger:
         """Setup dedicated error logger"""
         error_logger = logging.getLogger("NightCityErrors")
-        error_logger.setLevel(logging.WARNING)
+        error_logger.setLevel(logging.INFO)  # Capture INFO and above for tests
 
         # Propagate to root logger for test compatibility
         # Tests need to capture logs via pytest's caplog
         error_logger.propagate = True
 
-        # File handler for errors only
+        # File handler for warnings and above
         error_handler = logging.FileHandler(self.error_log_path, encoding="utf-8")
-        error_handler.setLevel(logging.WARNING)
+        error_handler.setLevel(logging.WARNING)  # File only gets WARNING+
 
         # Detailed formatter for errors
         error_formatter = logging.Formatter(
@@ -127,7 +127,9 @@ class NightCityErrorHandler:
         error_msg += f"Traceback:\n{traceback.format_exc()}"
 
         # Log based on severity
-        if severity == "warning":
+        if severity == "info":
+            self.error_logger.info(error_msg)
+        elif severity == "warning":
             self.error_logger.warning(error_msg)
         elif severity == "error":
             self.error_logger.error(error_msg)

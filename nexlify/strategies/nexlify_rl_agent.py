@@ -259,6 +259,10 @@ class ReplayBuffer:
         """Add experience to buffer"""
         self.buffer.append((state, action, reward, next_state, done))
 
+    def add(self, state, action, reward, next_state, done):
+        """Alias for push() for backward compatibility with tests"""
+        self.push(state, action, reward, next_state, done)
+
     def sample(self, batch_size: int) -> List:
         """Sample random batch from buffer"""
         return random.sample(self.buffer, batch_size)
@@ -274,6 +278,12 @@ class DQNAgent:
     """
 
     def __init__(self, state_size: int, action_size: int, config: Dict = None, **kwargs):
+        # Validate inputs
+        if state_size <= 0:
+            raise ValueError(f"state_size must be positive, got {state_size}")
+        if action_size <= 0:
+            raise ValueError(f"action_size must be positive, got {action_size}")
+
         self.state_size = state_size
         self.action_size = action_size
         self.config = config or {}
@@ -498,18 +508,21 @@ class DQNAgent:
         except Exception as e:
             logger.error(f"Load error: {e}")
 
-    def get_model_summary(self) -> Dict:
+    def get_model_summary(self) -> str:
         """Get summary of model architecture and parameters"""
         try:
             import torch
 
             if self.model is None:
-                return {
-                    "type": "numpy_fallback",
-                    "state_size": self.state_size,
-                    "action_size": self.action_size,
-                    "parameters": self.weights.size if hasattr(self, "weights") else 0,
-                }
+                param_count = self.weights.size if hasattr(self, "weights") else 0
+                return (
+                    f"DQN Agent Model Summary\n"
+                    f"{'='*50}\n"
+                    f"Type: NumPy Fallback\n"
+                    f"State Size: {self.state_size}\n"
+                    f"Action Size: {self.action_size}\n"
+                    f"Parameters: {param_count}\n"
+                )
 
             # Count parameters
             total_params = sum(p.numel() for p in self.model.parameters())
@@ -517,26 +530,29 @@ class DQNAgent:
                 p.numel() for p in self.model.parameters() if p.requires_grad
             )
 
-            return {
-                "type": "pytorch_dqn",
-                "state_size": self.state_size,
-                "action_size": self.action_size,
-                "total_parameters": total_params,
-                "trainable_parameters": trainable_params,
-                "device": self.device,
-                "epsilon": self.epsilon,
-                "learning_rate": self.learning_rate,
-                "gamma": self.gamma,
-            }
+            return (
+                f"DQN Agent Model Summary\n"
+                f"{'='*50}\n"
+                f"Type: PyTorch DQN\n"
+                f"State Size: {self.state_size}\n"
+                f"Action Size: {self.action_size}\n"
+                f"Total Parameters: {total_params:,}\n"
+                f"Trainable Parameters: {trainable_params:,}\n"
+                f"Device: {self.device}\n"
+                f"Epsilon: {self.epsilon:.4f}\n"
+                f"Learning Rate: {self.learning_rate}\n"
+                f"Gamma: {self.gamma}\n"
+            )
 
         except Exception as e:
             logger.error(f"Model summary error: {e}")
-            return {
-                "type": "error",
-                "state_size": self.state_size,
-                "action_size": self.action_size,
-                "error": str(e),
-            }
+            return (
+                f"DQN Agent Model Summary (Error)\n"
+                f"{'='*50}\n"
+                f"State Size: {self.state_size}\n"
+                f"Action Size: {self.action_size}\n"
+                f"Error: {str(e)}\n"
+            )
 
 
 # Export main classes
