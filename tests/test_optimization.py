@@ -398,8 +398,30 @@ def test_hyperparameter_tuner_optimize(sample_search_space, mock_train_function,
 
 @pytest.mark.integration
 @pytest.mark.skipif(not OPTUNA_AVAILABLE, reason="Optuna not available")
-def test_hyperparameter_tuner_with_timeout(sample_search_space, mock_train_function, tmp_path):
+def test_hyperparameter_tuner_with_timeout(sample_search_space, tmp_path):
     """Test optimization with timeout"""
+    import time
+
+    # Create a slower mock function to properly test timeout
+    def slow_train_func(params, train_data=None, val_data=None):
+        """Mock training with small delay to test timeout"""
+        time.sleep(0.01)  # 10ms per trial
+        sharpe = np.random.uniform(-1, 3)
+        returns = np.random.randn(50) * 0.02
+        balance_history = [10000]
+        for ret in returns:
+            balance_history.append(balance_history[-1] * (1 + ret))
+
+        return {
+            'sharpe_ratio': sharpe,
+            'total_return': np.random.uniform(-0.1, 0.3),
+            'max_drawdown': np.random.uniform(-0.3, -0.05),
+            'final_balance': balance_history[-1],
+            'initial_balance': 10000,
+            'returns': returns.tolist(),
+            'balance_history': balance_history,
+        }
+
     space = HyperparameterSpace(sample_search_space)
     objective = SharpeObjective()
 
@@ -407,7 +429,7 @@ def test_hyperparameter_tuner_with_timeout(sample_search_space, mock_train_funct
         objective=objective,
         search_space=space,
         n_trials=1000,  # Large number
-        timeout=2,  # But short timeout
+        timeout=2,  # But short timeout (with 10ms/trial, should get ~200 trials max)
         sampler='random',
         pruner='none',
         output_dir=str(tmp_path),
@@ -415,13 +437,13 @@ def test_hyperparameter_tuner_with_timeout(sample_search_space, mock_train_funct
     )
 
     results = tuner.optimize(
-        train_func=mock_train_function
+        train_func=slow_train_func
     )
 
-    # Should complete in ~2 seconds
-    # Number of trials should be less than 1000
-    assert len(results['optimization_history']) < 1000
-    assert results['elapsed_time'] < 5  # Some margin
+    # With 10ms per trial and 2s timeout, should complete 100-200 trials
+    # (accounting for Optuna overhead)
+    assert len(results['optimization_history']) < 500  # Much less than 1000
+    assert results['elapsed_time'] < 5  # Timeout respected (2s + margin)
 
 
 @pytest.mark.integration
