@@ -14,16 +14,8 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """
-    Create an instance of the default event loop for the test session.
-    Session-scoped to reuse across all tests for better performance.
-    """
-    policy = asyncio.get_event_loop_policy()
-    loop = policy.new_event_loop()
-    yield loop
-    loop.close()
+# Remove custom event_loop fixture - let pytest-asyncio handle it with asyncio_mode=auto
+# This is required for pytest-xdist (parallel execution) to work properly
 
 
 @pytest.fixture(scope="session")
