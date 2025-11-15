@@ -54,6 +54,12 @@ class TradingCapabilities:
     # Maximum concurrent trades
     max_concurrent_trades: int = 5
 
+    # DeFi capabilities
+    defi_protocols: List[str] = field(default_factory=list)  # uniswap, aave, pancakeswap
+    defi_networks: List[str] = field(default_factory=list)  # ethereum, polygon, bsc
+    defi_strategies: List[str] = field(default_factory=list)  # yield_farming, liquidity_provision, lending
+    defi_enabled: bool = False
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary"""
         data = asdict(self)
@@ -92,6 +98,18 @@ class TradingCapabilities:
     def can_trade_exchange(self, exchange: str) -> bool:
         """Check if model was trained on this exchange"""
         return exchange in self.exchanges
+
+    def can_use_defi_protocol(self, protocol: str) -> bool:
+        """Check if model can use this DeFi protocol"""
+        return self.defi_enabled and protocol.lower() in [p.lower() for p in self.defi_protocols]
+
+    def can_use_defi_network(self, network: str) -> bool:
+        """Check if model was trained on this DeFi network"""
+        return self.defi_enabled and network.lower() in [n.lower() for n in self.defi_networks]
+
+    def can_execute_defi_strategy(self, strategy: str) -> bool:
+        """Check if model can execute this DeFi strategy"""
+        return self.defi_enabled and strategy.lower() in [s.lower() for s in self.defi_strategies]
 
 
 @dataclass
@@ -229,10 +247,19 @@ class ModelManifest:
         self,
         symbol: str,
         timeframe: str,
-        exchange: Optional[str] = None
+        exchange: Optional[str] = None,
+        defi_protocol: Optional[str] = None,
+        defi_network: Optional[str] = None
     ) -> tuple[bool, str]:
         """
         Validate if this model can execute a trade
+
+        Args:
+            symbol: Trading symbol
+            timeframe: Timeframe
+            exchange: Optional exchange
+            defi_protocol: Optional DeFi protocol (uniswap, aave, etc.)
+            defi_network: Optional DeFi network (ethereum, polygon, etc.)
 
         Returns:
             (is_valid, reason)
@@ -248,6 +275,20 @@ class ModelManifest:
         # Check exchange
         if exchange and not self.capabilities.can_trade_exchange(exchange):
             return False, f"Model not trained on exchange {exchange}"
+
+        # Check DeFi protocol
+        if defi_protocol:
+            if not self.capabilities.defi_enabled:
+                return False, "Model not trained for DeFi trading"
+            if not self.capabilities.can_use_defi_protocol(defi_protocol):
+                return False, f"Model not trained on DeFi protocol {defi_protocol}"
+
+        # Check DeFi network
+        if defi_network:
+            if not self.capabilities.defi_enabled:
+                return False, "Model not trained for DeFi trading"
+            if not self.capabilities.can_use_defi_network(defi_network):
+                return False, f"Model not trained on DeFi network {defi_network}"
 
         # Check if approved for live trading
         if not self.approved_for_live:
@@ -383,10 +424,19 @@ class ModelManager:
         self,
         symbol: str,
         timeframe: str,
-        exchange: Optional[str] = None
+        exchange: Optional[str] = None,
+        defi_protocol: Optional[str] = None,
+        defi_network: Optional[str] = None
     ) -> tuple[bool, str]:
         """
         Validate trade against active model capabilities
+
+        Args:
+            symbol: Trading symbol
+            timeframe: Timeframe
+            exchange: Optional exchange
+            defi_protocol: Optional DeFi protocol
+            defi_network: Optional DeFi network
 
         Returns:
             (is_valid, reason)
@@ -395,7 +445,7 @@ class ModelManager:
         if not manifest:
             return False, "No active model selected"
 
-        return manifest.validate_trade(symbol, timeframe, exchange)
+        return manifest.validate_trade(symbol, timeframe, exchange, defi_protocol, defi_network)
 
     def find_models_for_symbol(
         self,

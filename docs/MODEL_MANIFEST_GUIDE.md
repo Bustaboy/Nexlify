@@ -36,6 +36,9 @@ The Model Manifest System ensures AI trading models only make trades they were t
 - Exchanges (binance, kraken, etc.)
 - Strategies (DQN, etc.)
 - Risk parameters
+- **DeFi Protocols** (Uniswap, Aave, PancakeSwap, etc.)
+- **DeFi Networks** (Ethereum, Polygon, BSC, etc.)
+- **DeFi Strategies** (yield farming, liquidity provision, lending, etc.)
 
 **Training Metadata:**
 - Walk-forward configuration
@@ -115,7 +118,11 @@ if best_model:
     "exchanges": ["binance"],
     "strategies": ["DQN", "walk_forward_validated"],
     "max_position_size": 0.1,
-    "min_confidence": 0.7
+    "min_confidence": 0.7,
+    "defi_enabled": true,
+    "defi_protocols": ["uniswap_v3", "aave"],
+    "defi_networks": ["ethereum", "polygon"],
+    "defi_strategies": ["yield_farming", "liquidity_provision", "lending", "auto_compound"]
   },
 
   "training": {
@@ -158,7 +165,25 @@ manifest.capabilities.can_trade_timeframe('1h')  # True
 manifest.capabilities.can_trade_timeframe('15m')  # False - not trained
 ```
 
-### 3. Performance Thresholds
+### 3. DeFi Protocol Validation
+```python
+manifest.capabilities.can_use_defi_protocol('uniswap_v3')  # True
+manifest.capabilities.can_use_defi_protocol('sushiswap')  # False - not trained
+```
+
+### 4. DeFi Network Validation
+```python
+manifest.capabilities.can_use_defi_network('ethereum')  # True
+manifest.capabilities.can_use_defi_network('arbitrum')  # False - not trained
+```
+
+### 5. DeFi Strategy Validation
+```python
+manifest.capabilities.can_execute_defi_strategy('yield_farming')  # True
+manifest.capabilities.can_execute_defi_strategy('flash_loans')  # False - not trained
+```
+
+### 6. Performance Thresholds
 ```python
 # Model must meet minimum requirements
 manifest.min_sharpe_ratio = 1.0

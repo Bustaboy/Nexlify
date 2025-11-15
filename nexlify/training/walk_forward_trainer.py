@@ -481,6 +481,33 @@ class WalkForwardTrainer:
                 base_currencies.add(parts[0])
                 quote_currencies.add(parts[1])
 
+        # Extract DeFi configuration if enabled
+        defi_config = self.config.get('defi_integration', {})
+        defi_enabled = defi_config.get('enabled', False)
+
+        defi_protocols = []
+        defi_networks = []
+        defi_strategies = []
+
+        if defi_enabled:
+            # Get enabled protocols
+            protocols = defi_config.get('protocols', {})
+            for protocol, settings in protocols.items():
+                if settings.get('enabled', False):
+                    defi_protocols.append(protocol)
+
+            # Get networks
+            defi_networks = defi_config.get('networks', [])
+
+            # Determine DeFi strategies based on config
+            if defi_config.get('auto_compound', False):
+                defi_strategies.append('auto_compound')
+            if defi_config.get('idle_threshold', 0) > 0:
+                defi_strategies.append('idle_fund_optimization')
+
+            # Add general strategies
+            defi_strategies.extend(['yield_farming', 'liquidity_provision', 'lending'])
+
         # Create trading capabilities
         capabilities = TradingCapabilities(
             symbols=symbols,
@@ -492,7 +519,11 @@ class WalkForwardTrainer:
             market_conditions=['bull', 'bear', 'sideways'],  # Trained on all
             max_position_size=self.config.get('risk_management', {}).get('max_position_size', 0.1),
             min_confidence=self.trading_config.get('min_confidence', 0.7),
-            max_concurrent_trades=self.trading_config.get('max_concurrent_trades', 5)
+            max_concurrent_trades=self.trading_config.get('max_concurrent_trades', 5),
+            defi_protocols=defi_protocols,
+            defi_networks=defi_networks,
+            defi_strategies=defi_strategies,
+            defi_enabled=defi_enabled
         )
 
         # Calculate training duration
