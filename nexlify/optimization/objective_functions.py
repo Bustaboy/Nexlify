@@ -103,7 +103,8 @@ class SharpeObjective(ObjectiveFunction):
         mean_return = np.mean(returns)
         std_return = np.std(returns)
 
-        if std_return == 0:
+        # Check for zero or near-zero std (use tolerance for numerical stability)
+        if std_return < 1e-10:
             logger.warning("Zero standard deviation in returns, returning -inf")
             return float('-inf')
 

@@ -33,7 +33,7 @@ from nexlify.optimization.objective_functions import (
     create_objective,
     SharpeObjective
 )
-from nexlify.utils.error_handler import get_error_handler, handle_errors
+from nexlify.utils.error_handler import get_error_handler
 
 logger = logging.getLogger(__name__)
 error_handler = get_error_handler()
@@ -187,8 +187,6 @@ class HyperparameterTuner:
             n_warmup_steps=interval,
             interval_steps=interval
         )
-
-    @handle_errors
     def optimize(
         self,
         train_func: Callable[[Dict[str, Any]], Dict[str, Any]],
