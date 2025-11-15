@@ -7,6 +7,8 @@ from nexlify.optimization.hyperparameter_tuner import HyperparameterTuner
 from nexlify.optimization.hyperparameter_space import (
     HyperparameterSpace,
     DEFAULT_SEARCH_SPACE,
+    COMPACT_SEARCH_SPACE,
+    ADVANCED_SEARCH_SPACE,
     create_custom_search_space,
     validate_hyperparameters
 )
@@ -32,6 +34,8 @@ __all__ = [
     'HyperparameterTuner',
     'HyperparameterSpace',
     'DEFAULT_SEARCH_SPACE',
+    'COMPACT_SEARCH_SPACE',
+    'ADVANCED_SEARCH_SPACE',
     'create_custom_search_space',
     'validate_hyperparameters',
 
