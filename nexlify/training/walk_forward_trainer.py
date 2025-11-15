@@ -6,7 +6,7 @@ Integrates walk-forward validation with RL agent training for robust model devel
 
 import logging
 import asyncio
-from typing import Dict, Any, Optional, Callable, List
+from typing import Dict, Any, Optional, Callable, List, TYPE_CHECKING
 from pathlib import Path
 import json
 import numpy as np
@@ -22,7 +22,8 @@ from nexlify.validation.walk_forward import (
     WalkForwardResults,
     calculate_performance_metrics
 )
-from nexlify.strategies.nexlify_rl_agent import NexlifyRLAgent
+# Lazy import to avoid circular dependency
+# from nexlify.strategies.nexlify_rl_agent import NexlifyRLAgent
 from nexlify.environments.nexlify_trading_env import TradingEnvironment
 from nexlify.utils.error_handler import get_error_handler
 from nexlify.models.model_manifest import (
@@ -30,6 +31,9 @@ from nexlify.models.model_manifest import (
     TradingCapabilities,
     TrainingMetadata
 )
+
+if TYPE_CHECKING:
+    from nexlify.strategies.nexlify_rl_agent import NexlifyRLAgent
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +107,7 @@ class WalkForwardTrainer:
         train_start: int,
         train_end: int,
         fold_id: int
-    ) -> NexlifyRLAgent:
+    ) -> "NexlifyRLAgent":
         """
         Train RL agent on specified episode range
 
@@ -115,6 +119,9 @@ class WalkForwardTrainer:
         Returns:
             Trained RL agent
         """
+        # Lazy import to avoid circular dependency
+        from nexlify.strategies.nexlify_rl_agent import NexlifyRLAgent
+
         self.current_fold = fold_id
         num_episodes = train_end - train_start
 
@@ -198,7 +205,7 @@ class WalkForwardTrainer:
 
     async def evaluate_fold(
         self,
-        agent: NexlifyRLAgent,
+        agent: "NexlifyRLAgent",
         test_start: int,
         test_end: int,
         fold_id: int
@@ -335,13 +342,13 @@ class WalkForwardTrainer:
         logger.info(f"Generated {self.total_folds} folds for validation")
 
         # Create wrapper functions that include fold_id
-        async def train_fn(train_start: int, train_end: int) -> NexlifyRLAgent:
+        async def train_fn(train_start: int, train_end: int) -> "NexlifyRLAgent":
             # Calculate fold_id from train_start
             fold_id = len(self.training_history)
             return await self.train_fold(train_start, train_end, fold_id)
 
         async def eval_fn(
-            agent: NexlifyRLAgent,
+            agent: "NexlifyRLAgent",
             test_start: int,
             test_end: int
         ) -> Dict[str, float]:
@@ -599,13 +606,16 @@ class WalkForwardTrainer:
 
         return manifest
 
-    def load_best_model(self) -> Optional[NexlifyRLAgent]:
+    def load_best_model(self) -> Optional["NexlifyRLAgent"]:
         """
         Load the best model from walk-forward validation
 
         Returns:
             Loaded RL agent or None if no best model available
         """
+        # Lazy import to avoid circular dependency
+        from nexlify.strategies.nexlify_rl_agent import NexlifyRLAgent
+
         if not self.best_model_path or not self.best_model_path.exists():
             logger.warning("No best model available to load")
             return None
