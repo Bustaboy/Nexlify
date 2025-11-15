@@ -416,5 +416,77 @@
     "ttl_seconds": 3600,
     "max_size_mb": 500,
     "compression_enabled": true
+  },
+
+  "hyperparameter_optimization": {
+    "enabled": false,
+    "n_trials": 100,
+    "timeout_seconds": 86400,
+    "objective": "sharpe",
+    "search_space": "default",
+    "sampler": "tpe",
+    "pruner": "median",
+    "pruner_warmup_trials": 10,
+    "pruner_interval_steps": 5,
+    "parallel_jobs": 1,
+    "output_dir": "./optimization_results",
+    "study_name": null,
+    "storage": null,
+    "load_if_exists": true,
+    "verbose": true,
+    "objectives": {
+      "sharpe": {
+        "enabled": true,
+        "risk_free_rate": 0.0,
+        "annualization_factor": 252.0
+      },
+      "return": {
+        "enabled": true,
+        "volatility_penalty": 0.0
+      },
+      "drawdown": {
+        "enabled": true
+      },
+      "multi": {
+        "enabled": true,
+        "weights": {
+          "sharpe": 0.4,
+          "return": 0.3,
+          "drawdown": 0.3
+        }
+      }
+    },
+    "search_spaces": {
+      "default": {
+        "gamma": {"type": "float", "min": 0.90, "max": 0.99},
+        "learning_rate": {"type": "loguniform", "min": 1e-5, "max": 1e-2},
+        "epsilon_decay_steps": {"type": "int", "min": 500, "max": 5000},
+        "batch_size": {"type": "categorical", "choices": [32, 64, 128, 256]},
+        "buffer_size": {"type": "int", "min": 10000, "max": 200000},
+        "n_step": {"type": "int", "min": 1, "max": 10}
+      },
+      "compact": {
+        "gamma": {"type": "float", "min": 0.95, "max": 0.99},
+        "learning_rate": {"type": "loguniform", "min": 1e-4, "max": 1e-2},
+        "batch_size": {"type": "categorical", "choices": [64, 128, 256]},
+        "buffer_size": {"type": "int", "min": 50000, "max": 150000}
+      }
+    },
+    "training": {
+      "data_years": 2,
+      "episodes_per_trial": 500,
+      "quick_test_episodes": 100,
+      "validation_split": 0.2,
+      "cache_training_data": true
+    },
+    "visualization": {
+      "generate_plots": true,
+      "plot_convergence": true,
+      "plot_importance": true,
+      "plot_parallel_coordinate": true,
+      "plot_distributions": true,
+      "save_format": "png",
+      "dpi": 300
+    }
   }
 }
