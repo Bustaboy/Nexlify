@@ -23,6 +23,7 @@ from PyQt5.QtWidgets import *
 from nexlify.analytics.nexlify_ai_companion import AITradingCompanion
 # Import our enhanced modules
 from nexlify.core.nexlify_neural_net import NexlifyNeuralNet
+from nexlify.gui.components import RateLimitedButton, VirtualTableModel, LogWidget
 from nexlify.gui.nexlify_cyberpunk_effects import (CyberpunkEffects,
                                                    SoundManager)
 # Import Phase 1 & 2 GUI integration
@@ -50,7 +51,6 @@ LOADING_TIMEOUT = 30000  # 30s timeout for async operations
 LOG_MAX_SIZE_MB = 25  # Maximum log size in MB
 SESSION_CHECK_INTERVAL = 60000  # Check session every 60s
 GRACE_PERIOD_MINUTES = 5  # Grace period before forcing re-auth
-
 
 @dataclass
 class GUIConfig:
@@ -82,171 +82,6 @@ class GUIConfig:
     # Animation
     animation_duration = 200
     glow_intensity = 0  # No glow effects for modern design
-
-
-class RateLimitedButton(QPushButton):
-    """Button with built-in rate limiting and loading states"""
-
-    def __init__(self, text: str, debounce_ms: int = DEBOUNCE_INSTANT):
-        super().__init__(text)
-        self.debounce_ms = debounce_ms
-        self.debounce_timer = QTimer()
-        self.debounce_timer.setSingleShot(True)
-        self.debounce_timer.timeout.connect(self._enable_button)
-        self.loading = False
-        self.original_text = text
-        self._setup_loading_animation()
-
-    def _setup_loading_animation(self):
-        """Setup loading spinner animation"""
-        # Use text-based loading animation (no external spinner file needed)
-        self.loading_timer = QTimer()
-        self.loading_timer.timeout.connect(self._update_loading_text)
-        self.loading_dots = 0
-        self.loading_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-        self.loading_frame_index = 0
-
-    def click_with_debounce(self):
-        """Handle click with debounce"""
-        if not self.isEnabled():
-            return
-
-        self.setEnabled(False)
-        self.debounce_timer.start(self.debounce_ms)
-
-        # Emit clicked signal
-        self.clicked.emit()
-
-    def _enable_button(self):
-        """Re-enable button after debounce"""
-        if not self.loading:
-            self.setEnabled(True)
-
-    def set_loading(self, loading: bool):
-        """Set loading state"""
-        self.loading = loading
-        if loading:
-            self.setEnabled(False)
-            self.loading_timer.start(500)  # Update every 500ms
-            self._update_loading_text()
-        else:
-            self.loading_timer.stop()
-            self.setText(self.original_text)
-            self.setEnabled(True)
-
-    def _update_loading_text(self):
-        """Update loading animation text"""
-        if hasattr(self, "loading_frames"):
-            # Use spinner animation
-            frame = self.loading_frames[
-                self.loading_frame_index % len(self.loading_frames)
-            ]
-            self.setText(f"{frame} {self.original_text}")
-            self.loading_frame_index += 1
-        else:
-            # Fallback to dots
-            dots = "." * (self.loading_dots % 4)
-            self.setText(f"{self.original_text}{dots}")
-            self.loading_dots += 1
-
-
-class VirtualTableModel(QAbstractTableModel):
-    """Virtual table model for high-performance data display"""
-
-    def __init__(self, columns: List[str]):
-        super().__init__()
-        self.columns = columns
-        self.data_cache = []
-        self.batch_updates = []
-        self.batch_timer = QTimer()
-        self.batch_timer.timeout.connect(self._apply_batch_updates)
-        self.batch_timer.start(100)  # Batch every 100ms
-
-    def add_batch_update(self, data: List[Dict]):
-        """Add data to batch update queue"""
-        self.batch_updates.extend(data)
-
-    def _apply_batch_updates(self):
-        """Apply batched updates"""
-        if not self.batch_updates:
-            return
-
-        self.beginResetModel()
-        self.data_cache = self.batch_updates[-1000:]  # Keep last 1000 items
-        self.batch_updates.clear()
-        self.endResetModel()
-
-    def rowCount(self, parent=QModelIndex()):
-        return len(self.data_cache)
-
-    def columnCount(self, parent=QModelIndex()):
-        return len(self.columns)
-
-    def data(self, index, role=Qt.DisplayRole):
-        if not index.isValid():
-            return None
-
-        if role == Qt.DisplayRole:
-            row = self.data_cache[index.row()]
-            col = self.columns[index.column()]
-            return str(row.get(col, ""))
-
-        return None
-
-    def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
-            return self.columns[section]
-        return None
-
-
-class LogWidget(QPlainTextEdit):
-    """Memory-efficient log widget with size-based rotation"""
-
-    def __init__(self, max_size_mb: float = LOG_MAX_SIZE_MB):
-        super().__init__()
-        self.max_size_bytes = max_size_mb * 1024 * 1024
-        self.setReadOnly(True)
-        self.setMaximumBlockCount(10000)  # Limit blocks
-        self.document().setMaximumBlockCount(10000)
-
-    def append_log(self, message: str, level: str = "INFO"):
-        """Append log with size checking"""
-        # Check document size
-        doc_size = len(self.toPlainText().encode("utf-8"))
-        if doc_size > self.max_size_bytes:
-            # Remove first 20% of content
-            cursor = self.textCursor()
-            cursor.movePosition(QTextCursor.Start)
-            cursor.movePosition(
-                QTextCursor.Down,
-                QTextCursor.KeepAnchor,
-                self.document().blockCount() // 5,
-            )
-            cursor.removeSelectedText()
-
-        # Add timestamp and format
-        timestamp = datetime.now().strftime("%H:%M:%S")
-
-        # Color based on level - Modern colors for light theme
-        colors = {
-            "INFO": "#10b981",  # Green
-            "WARNING": "#f59e0b",  # Amber
-            "ERROR": "#ef4444",  # Red
-            "DEBUG": "#2563eb",  # Blue
-        }
-        color = colors.get(level, "#1e293b")
-
-        # Append with HTML formatting
-        self.appendHtml(
-            f'<span style="color: #64748b">[{timestamp}]</span> '
-            f'<span style="color: {color}; font-weight: 600">[{level}]</span> '
-            f'<span style="color: #1e293b">{message}</span>'
-        )
-
-        # Auto-scroll to bottom
-        scrollbar = self.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
-
 
 class SessionManager(QObject):
     """Manages user sessions with security integration"""
@@ -310,7 +145,6 @@ class SessionManager(QObject):
         """Set new session token"""
         self.session_token = token
         self.last_activity = datetime.now()
-
 
 class CyberGUI(QMainWindow):
     """Main Cyberpunk Trading GUI with V3 improvements"""
@@ -684,6 +518,7 @@ class CyberGUI(QMainWindow):
         self.amount_input = QLineEdit()
         self.amount_input.setPlaceholderText("0.001")
         self.amount_input.setValidator(QDoubleValidator(0.00000001, 999999, 8))
+        self.amount_input.textChanged.connect(self._validate_amount_input)
         controls_layout.addWidget(self.amount_input, 1, 1)
 
         # Order type
@@ -697,13 +532,16 @@ class CyberGUI(QMainWindow):
         self.price_input = QLineEdit()
         self.price_input.setPlaceholderText("0.00")
         self.price_input.setValidator(QDoubleValidator(0.00000001, 999999999, 8))
+        self.price_input.textChanged.connect(self._validate_price_input)
         self.price_input.setEnabled(False)
         controls_layout.addWidget(self.price_input, 2, 1)
 
-        # Enable price input for limit orders
-        self.order_type_combo.currentTextChanged.connect(
-            lambda t: self.price_input.setEnabled(t != "Market")
-        )
+        # Enable price input for limit orders and trigger validation
+        def _on_order_type_changed(order_type: str):
+            self.price_input.setEnabled(order_type != "Market")
+            self._validate_price_input(self.price_input.text())
+
+        self.order_type_combo.currentTextChanged.connect(_on_order_type_changed)
 
         # Buy/Sell buttons with confirmation for critical actions
         self.buy_btn = RateLimitedButton("BUY")
@@ -1986,6 +1824,87 @@ class CyberGUI(QMainWindow):
                 f"border: 1px solid {self.config.accent_error};"
             )
 
+    def _validate_amount_input(self, text: str):
+        """Validate amount input in real-time"""
+        if not text:
+            self.amount_input.setStyleSheet("")
+            return
+
+        try:
+            amount = float(text)
+
+            # Check if amount is positive
+            if amount <= 0:
+                self.amount_input.setStyleSheet(
+                    f"border: 1px solid {self.config.accent_error};"
+                )
+                return
+
+            # Check if amount is too small (minimum 0.00000001)
+            if amount < 0.00000001:
+                self.amount_input.setStyleSheet(
+                    f"border: 1px solid {self.config.accent_error};"
+                )
+                return
+
+            # Check if amount is reasonable (warning for very large amounts)
+            if amount > 10000:
+                self.amount_input.setStyleSheet(
+                    f"border: 1px solid {self.config.accent_warning};"
+                )
+                return
+
+            # Valid amount
+            self.amount_input.setStyleSheet(
+                f"border: 1px solid {self.config.accent_success};"
+            )
+        except ValueError:
+            self.amount_input.setStyleSheet(
+                f"border: 1px solid {self.config.accent_error};"
+            )
+
+    def _validate_price_input(self, text: str):
+        """Validate price input in real-time"""
+        # Price is optional (only required for limit orders)
+        order_type = self.order_type_combo.currentText()
+        if order_type == "Market":
+            self.price_input.setStyleSheet("")
+            return
+
+        if not text:
+            # Empty is OK for market orders, warning for limit orders
+            if order_type != "Market":
+                self.price_input.setStyleSheet(
+                    f"border: 1px solid {self.config.accent_warning};"
+                )
+            return
+
+        try:
+            price = float(text)
+
+            # Check if price is positive
+            if price <= 0:
+                self.price_input.setStyleSheet(
+                    f"border: 1px solid {self.config.accent_error};"
+                )
+                return
+
+            # Check if price is too small (minimum 0.00000001)
+            if price < 0.00000001:
+                self.price_input.setStyleSheet(
+                    f"border: 1px solid {self.config.accent_error};"
+                )
+                return
+
+            # Valid price
+            self.price_input.setStyleSheet(
+                f"border: 1px solid {self.config.accent_success};"
+            )
+        except ValueError:
+            self.price_input.setStyleSheet(
+                f"border: 1px solid {self.config.accent_error};"
+            )
+
     def _validate_btc_address(self, address: str):
         """Validate BTC address in real-time"""
         if not address:
@@ -2369,15 +2288,44 @@ class CyberGUI(QMainWindow):
                 f"Executing {side} order: {amount} {pair} ({order_type})", "INFO"
             )
 
-            # Would execute through neural net
-            # result = await self.neural_net.execute_manual_trade(...)
+            # Check if neural net is initialized
+            if not self.neural_net:
+                raise ValueError("Neural network not initialized. Please authenticate first.")
 
-            # For now, simulate
-            await asyncio.sleep(1)
+            # Get selected exchange
+            exchange_id = self.exchange_combo.currentText().lower()
+            if not exchange_id:
+                raise ValueError("Please select an exchange")
+
+            # Execute trade through neural net
+            result = await self.neural_net.execute_manual_trade(
+                exchange_id=exchange_id,
+                symbol=pair,
+                side=side.lower(),
+                order_type=order_type.lower(),
+                amount=amount,
+                price=price
+            )
 
             self.log_widget.append_log(
-                f"Order executed successfully: {side} {amount} {pair}", "INFO"
+                f"✅ Order executed successfully: {side} {amount} {pair} (Order ID: {result.get('id', 'N/A')})", "INFO"
             )
+
+            # Log to audit trail
+            if self.audit_manager:
+                await self.audit_manager.log_event(
+                    event_type="MANUAL_TRADE",
+                    details={
+                        "exchange": exchange_id,
+                        "symbol": pair,
+                        "side": side,
+                        "amount": amount,
+                        "order_type": order_type,
+                        "price": price,
+                        "order_id": result.get('id')
+                    },
+                    severity="info"
+                )
 
             # Play sound
             if self.sound_manager:
@@ -2388,7 +2336,12 @@ class CyberGUI(QMainWindow):
 
         except Exception as e:
             error_handler.log_error(e, {"method": "_execute_trade_async"})
-            self.log_widget.append_log(f"Trade execution failed: {str(e)}", "ERROR")
+            self.log_widget.append_log(f"❌ Trade execution failed: {str(e)}", "ERROR")
+            QMessageBox.critical(
+                self,
+                "Trade Execution Failed",
+                f"Failed to execute trade:\n{str(e)}"
+            )
 
     def _withdraw_funds(self):
         """Withdraw funds with validation and confirmation"""
@@ -2457,26 +2410,51 @@ class CyberGUI(QMainWindow):
         try:
             self.withdraw_btn.set_loading(True)
 
-            # Would execute through neural net
-            # await self.neural_net.withdraw_profits_to_btc(amount)
-
-            # Simulate
-            await asyncio.sleep(2)
+            # Check if neural net is initialized
+            if not self.neural_net:
+                raise ValueError("Neural network not initialized. Please authenticate first.")
 
             self.log_widget.append_log(
-                f"Withdrawal initiated: ${amount} USDT to {address[:8]}...", "INFO"
+                f"Initiating withdrawal: ${amount} USDT to {address[:8]}...", "INFO"
             )
 
-            QMessageBox.information(
-                self,
-                "Withdrawal Initiated",
-                "Your withdrawal has been initiated.\n"
-                "You will receive a confirmation once processed.",
-            )
+            # Execute withdrawal through neural net
+            success = await self.neural_net.withdraw_profits_to_btc(amount)
+
+            if success:
+                self.log_widget.append_log(
+                    f"✅ Withdrawal successful: ${amount} USDT to {address[:8]}...", "INFO"
+                )
+
+                # Log to audit trail
+                if self.audit_manager:
+                    await self.audit_manager.log_event(
+                        event_type="WITHDRAWAL",
+                        details={
+                            "amount_usd": amount,
+                            "btc_address": address,
+                            "status": "success"
+                        },
+                        severity="info"
+                    )
+
+                QMessageBox.information(
+                    self,
+                    "Withdrawal Successful",
+                    f"Withdrawal of ${amount} USDT has been processed successfully.\n"
+                    f"Destination: {address[:12]}...",
+                )
+            else:
+                raise Exception("Withdrawal failed - check neural net logs for details")
 
         except Exception as e:
             error_handler.log_error(e, {"method": "_withdraw_funds_async"})
-            self.log_widget.append_log(f"Withdrawal failed: {str(e)}", "ERROR")
+            self.log_widget.append_log(f"❌ Withdrawal failed: {str(e)}", "ERROR")
+            QMessageBox.critical(
+                self,
+                "Withdrawal Failed",
+                f"Failed to process withdrawal:\n{str(e)}"
+            )
 
         finally:
             self.withdraw_btn.set_loading(False)
@@ -3167,7 +3145,6 @@ class CyberGUI(QMainWindow):
 
         event.accept()
 
-
 # Main application
 def main():
     """Main application entry point"""
@@ -3189,7 +3166,6 @@ def main():
     # Run event loop
     with loop:
         loop.run_forever()
-
 
 if __name__ == "__main__":
     main()

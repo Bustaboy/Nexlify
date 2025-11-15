@@ -147,6 +147,25 @@ class NexlifyNeuralNet:
                 raise ValueError(f"Unsupported order type: {order_type}")
 
             logger.info(f"✅ Trade executed: {side} {amount} {symbol} on {exchange_id}")
+
+            # Record trade in performance tracker (integration with AI/trainer)
+            if hasattr(self.engine, "performance_tracker"):
+                try:
+                    trade_id = self.engine.performance_tracker.record_trade(
+                        exchange=exchange_id,
+                        symbol=symbol,
+                        side=side.lower(),
+                        quantity=amount,
+                        entry_price=order.get("price", price or 0),
+                        exit_price=None,  # Still open
+                        fee=order.get("fee", {}).get("cost", 0),
+                        strategy="manual",
+                        notes=f"Manual trade via GUI - Order type: {order_type}",
+                    )
+                    logger.info(f"📊 Manual trade recorded in performance tracker (ID: {trade_id})")
+                except Exception as track_err:
+                    logger.warning(f"Failed to record manual trade in tracker: {track_err}")
+
             return order
 
         except Exception as e:
