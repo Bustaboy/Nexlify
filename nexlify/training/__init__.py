@@ -27,6 +27,11 @@ from nexlify.training.early_stopping import (
     OverfittingDetector,
 )
 
+from nexlify.training.walk_forward_trainer import (
+    WalkForwardTrainer,
+    train_with_walk_forward,
+)
+
 __all__ = [
     # Training optimizers
     "GradientClipper",
@@ -44,4 +49,7 @@ __all__ = [
     "TrainingPhaseDetector",
     "TrainingPhase",
     "OverfittingDetector",
+    # Walk-forward training
+    "WalkForwardTrainer",
+    "train_with_walk_forward",
 ]
