@@ -194,7 +194,8 @@ class TestTradingEnvironment:
         pnl = final_equity - initial_equity
 
         # P&L should be calculated (could be positive or negative)
-        assert isinstance(pnl, (int, float))
+        # Accept both Python types and numpy types (np.float32, np.float64, etc.)
+        assert isinstance(pnl, (int, float, np.number))
 
 
 class TestDQNAgent:
