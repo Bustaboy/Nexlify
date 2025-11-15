@@ -78,8 +78,19 @@ jobs:
         # Run tests in parallel with pytest-xdist (2-4x faster)
         # -n auto: use all available CPU cores
         # --maxfail=3: stop after 3 failures for faster feedback
-        pytest tests/ -n auto -v -m "not slow and not integration" --tb=short --maxfail=3
+        pytest tests/ -n auto -v -m "not slow and not integration" --tb=short --maxfail=3 \
+          --cov=nexlify --cov-report=xml --cov-report=term-missing
       timeout-minutes: 5  # Reduced from 10 (tests should be 2-4x faster)
+
+    - name: Upload coverage to Codecov (Quick Tests)
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage.xml
+        flags: quick-tests,python-3.12
+        name: quick-tests-py3.12
+        fail_ci_if_error: false
+        verbose: true
 
   # Full test suite for pull requests
   full-tests:
@@ -139,13 +150,15 @@ jobs:
           -m "not slow" --timeout=30 --maxfail=5
       timeout-minutes: 8  # Reduced from 15 (tests should be 2x faster)
 
-    - name: Upload coverage to Codecov
+    - name: Upload coverage to Codecov (Full Tests)
       uses: codecov/codecov-action@v4
       with:
-        file: ./coverage.xml
-        flags: unittests
-        name: python-${{ matrix.python-version }}
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage.xml
+        flags: full-tests,python-${{ matrix.python-version }}
+        name: full-tests-py${{ matrix.python-version }}
         fail_ci_if_error: false
+        verbose: true
 
     - name: Upload coverage HTML report
       uses: actions/upload-artifact@v4

@@ -3,6 +3,8 @@
 ![Python](https://img.shields.io/badge/python-v3.11+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Status](https://img.shields.io/badge/status-active-success.svg)
+[![codecov](https://codecov.io/gh/Bustaboy/Nexlify/branch/main/graph/badge.svg)](https://codecov.io/gh/Bustaboy/Nexlify)
+[![Tests](https://github.com/Bustaboy/Nexlify/workflows/Nexlify%20Test%20Suite/badge.svg)](https://github.com/Bustaboy/Nexlify/actions)
 
 > Advanced neural network-based cryptocurrency trading platform with autonomous trading, multi-exchange support, and comprehensive risk management.
 
