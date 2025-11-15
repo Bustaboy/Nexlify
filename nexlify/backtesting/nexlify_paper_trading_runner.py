@@ -28,7 +28,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from nexlify.backtesting.nexlify_paper_trading_orchestrator import (
     AgentConfig, PaperTradingOrchestrator)
-from nexlify.environments.nexlify_rl_training_env import TradingEnvironment
+# Lazy import to avoid circular dependency
+# from nexlify.environments.nexlify_rl_training_env import TradingEnvironment
 from nexlify.ml.nexlify_optimization_manager import OptimizationProfile
 from nexlify.strategies.nexlify_adaptive_rl_agent import create_optimized_agent
 from nexlify.strategies.nexlify_ultra_optimized_rl_agent import \
@@ -127,6 +128,9 @@ class PaperTradingRunner:
             agent_type: Type of agent ('adaptive' or 'ultra')
             episodes: Number of training episodes
         """
+        # Lazy import to avoid circular dependency
+        from nexlify.environments.nexlify_rl_training_env import TradingEnvironment
+
         logger.info(f"🎓 Starting RL agent training: {agent_type}")
         logger.info(f"   Episodes: {episodes}")
 
@@ -296,6 +300,9 @@ class PaperTradingRunner:
             model_paths: List of paths to trained models
             episodes: Number of evaluation episodes per agent
         """
+        # Lazy import to avoid circular dependency
+        from nexlify.environments.nexlify_rl_training_env import TradingEnvironment
+
         logger.info(f"📊 Evaluating {len(model_paths)} agents over {episodes} episodes")
 
         results = {}
