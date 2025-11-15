@@ -24,7 +24,7 @@ from nexlify.validation.walk_forward import (
 )
 # Lazy import to avoid circular dependency
 # from nexlify.strategies.nexlify_rl_agent import NexlifyRLAgent
-from nexlify.environments.nexlify_trading_env import TradingEnvironment
+from nexlify.environments import TradingEnvironment
 from nexlify.utils.error_handler import get_error_handler
 from nexlify.models.model_manifest import (
     ModelManifest,
