@@ -32,6 +32,8 @@ from nexlify.gui.nexlify_gui_integration import (
 from nexlify.security.nexlify_advanced_security import (SecurityManager,
                                                         TwoFactorAuth)
 from nexlify.security.nexlify_audit_trail import AuditManager
+from nexlify.security.api_key_manager import APIKeyManager, get_api_key_manager
+from nexlify.gui.pin_setup_dialog import show_pin_setup_dialog, PINSetupDialog
 from nexlify.strategies.nexlify_multi_strategy import MultiStrategyOptimizer
 from nexlify.strategies.nexlify_predictive_features import PredictiveEngine
 from nexlify.utils.error_handler import ErrorContext, get_error_handler
@@ -330,6 +332,7 @@ class CyberGUI(QMainWindow):
         self.tax_reporter = None
         self.defi_integration = None
         self.profit_manager = None
+        self.api_key_manager = None
 
         # State tracking
         self.is_authenticated = False
@@ -371,6 +374,17 @@ class CyberGUI(QMainWindow):
             self.audit_manager = AuditManager()
             self.sound_manager = SoundManager()
             self.sound_manager.initialize()
+
+            # Initialize API key manager
+            # Use user's PIN hash as password
+            pin_file = Path("config/.pin_hash")
+            if pin_file.exists():
+                with open(pin_file) as f:
+                    password = f.read().strip()
+            else:
+                # Fallback to default (will be forced to change on first boot)
+                password = "nexlify_default_password_change_me"
+            self.api_key_manager = APIKeyManager(password)
 
             # These will be initialized after authentication
             self.neural_net = None
@@ -418,8 +432,8 @@ class CyberGUI(QMainWindow):
         # Status bar
         self._create_status_bar()
 
-        # Initially show login dialog
-        QTimer.singleShot(100, self._show_login_dialog)
+        # Check PIN setup first, then show login dialog
+        QTimer.singleShot(100, self._check_pin_setup)
 
     def _create_header(self, parent_layout):
         """Create cyberpunk header with status indicators"""
@@ -875,42 +889,81 @@ class CyberGUI(QMainWindow):
         settings_layout = QVBoxLayout(settings_widget)
 
         # API Configuration
-        api_group = QGroupBox("Exchange API Configuration")
-        api_layout = QFormLayout(api_group)
+        api_group = QGroupBox("Exchange API Configuration (Encrypted Storage)")
+        api_layout = QVBoxLayout(api_group)
 
+        # Info label
+        info_label = QLabel("API keys are stored in encrypted format. They will persist across sessions.")
+        info_label.setWordWrap(True)
+        info_label.setStyleSheet(f"color: {self.config.text_secondary}; font-size: {self.config.font_size_small}px;")
+        api_layout.addWidget(info_label)
+
+        # Exchange inputs
         self.api_inputs = {}
-        exchanges = ["Binance", "ByBit", "OKX", "Kraken"]
+        exchanges = ["binance", "bybit", "okx", "kraken", "coinbase", "bitfinex"]
 
         for exchange in exchanges:
+            # Container for this exchange
+            exchange_container = QWidget()
+            exchange_layout = QVBoxLayout(exchange_container)
+            exchange_layout.setContentsMargins(0, 5, 0, 5)
+
+            # Row with inputs and buttons
+            input_layout = QHBoxLayout()
+
             # API Key
             api_key_input = QLineEdit()
             api_key_input.setEchoMode(QLineEdit.Password)
-            api_key_input.setPlaceholderText("API Key")
+            api_key_input.setPlaceholderText(f"{exchange.title()} API Key")
+            input_layout.addWidget(QLabel("Key:"))
+            input_layout.addWidget(api_key_input)
 
             # Secret Key
             secret_input = QLineEdit()
             secret_input.setEchoMode(QLineEdit.Password)
-            secret_input.setPlaceholderText("Secret Key")
+            secret_input.setPlaceholderText(f"{exchange.title()} Secret")
+            input_layout.addWidget(QLabel("Secret:"))
+            input_layout.addWidget(secret_input)
+
+            # Testnet checkbox
+            testnet_check = QCheckBox("Testnet")
+            testnet_check.setChecked(False)
+            input_layout.addWidget(testnet_check)
+
+            # Save button
+            save_btn = RateLimitedButton("Save")
+            save_btn.clicked.connect(
+                lambda c, ex=exchange: self._save_exchange_api_keys(ex)
+            )
+            input_layout.addWidget(save_btn)
 
             # Test connection button
             test_btn = RateLimitedButton("Test")
             test_btn.clicked.connect(
                 lambda c, ex=exchange: self._test_exchange_connection(ex)
             )
+            input_layout.addWidget(test_btn)
 
-            # Layout
-            exchange_layout = QHBoxLayout()
-            exchange_layout.addWidget(api_key_input)
-            exchange_layout.addWidget(secret_input)
-            exchange_layout.addWidget(test_btn)
+            exchange_layout.addLayout(input_layout)
 
-            api_layout.addRow(f"{exchange}:", exchange_layout)
+            # Status label
+            status_label = QLabel("No API keys loaded")
+            status_label.setStyleSheet(f"color: {self.config.text_dim}; font-size: {self.config.font_size_small}px;")
+            exchange_layout.addWidget(status_label)
+
+            api_layout.addWidget(exchange_container)
 
             self.api_inputs[exchange] = {
                 "api_key": api_key_input,
                 "secret": secret_input,
+                "testnet": testnet_check,
+                "save_btn": save_btn,
                 "test_btn": test_btn,
+                "status_label": status_label,
             }
+
+            # Load existing keys
+            self._load_exchange_api_keys(exchange)
 
         settings_layout.addWidget(api_group)
 
@@ -1388,6 +1441,45 @@ class CyberGUI(QMainWindow):
         self.update_timer.timeout.connect(self._update_real_time_data)
         self.update_timer.start(5000)  # Update every 5 seconds
 
+    def _check_pin_setup(self):
+        """Check if PIN setup is required and show dialog"""
+        try:
+            if PINSetupDialog.check_if_setup_required():
+                logger.info("PIN setup required - showing dialog")
+
+                # Show PIN setup dialog (blocks until complete)
+                new_pin = show_pin_setup_dialog(self)
+
+                if not new_pin:
+                    # User somehow cancelled - shouldn't happen but handle it
+                    QMessageBox.critical(
+                        self,
+                        "Security Required",
+                        "A secure PIN is required to use Nexlify. The application will now exit."
+                    )
+                    sys.exit(1)
+
+                logger.info("PIN setup completed successfully")
+
+                # Update API key manager to use new PIN hash
+                pin_file = Path("config/.pin_hash")
+                if pin_file.exists():
+                    with open(pin_file) as f:
+                        password = f.read().strip()
+                    self.api_key_manager = APIKeyManager(password)
+
+        except Exception as e:
+            logger.error(f"Error during PIN setup: {e}")
+            QMessageBox.critical(
+                self,
+                "Setup Error",
+                f"Failed to complete PIN setup: {str(e)}\n\nThe application will now exit."
+            )
+            sys.exit(1)
+
+        # After PIN setup (or if not needed), show login dialog
+        self._show_login_dialog()
+
     def _show_login_dialog(self):
         """Show login dialog with optional security features"""
         dialog = QDialog(self)
@@ -1608,6 +1700,76 @@ class CyberGUI(QMainWindow):
                 f"border: 1px solid {self.config.accent_error};"
             )
 
+    def _load_exchange_api_keys(self, exchange: str):
+        """Load API keys from encrypted storage"""
+        try:
+            if not self.api_key_manager:
+                return
+
+            keys = self.api_key_manager.get_api_key(exchange)
+
+            if keys:
+                # Populate fields
+                self.api_inputs[exchange]["api_key"].setText(keys['api_key'])
+                self.api_inputs[exchange]["secret"].setText(keys['secret'])
+                self.api_inputs[exchange]["testnet"].setChecked(keys.get('testnet', False))
+
+                # Update status
+                status_label = self.api_inputs[exchange]["status_label"]
+                status_label.setText(f"✓ API keys loaded for {exchange}")
+                status_label.setStyleSheet(f"color: {self.config.accent_success}; font-size: {self.config.font_size_small}px;")
+
+        except Exception as e:
+            logger.error(f"Failed to load API keys for {exchange}: {e}")
+
+    def _save_exchange_api_keys(self, exchange: str):
+        """Save API keys to encrypted storage"""
+        try:
+            if not self.api_key_manager:
+                QMessageBox.critical(
+                    self,
+                    "Error",
+                    "API key manager not initialized"
+                )
+                return
+
+            # Get values
+            api_key = self.api_inputs[exchange]["api_key"].text()
+            secret = self.api_inputs[exchange]["secret"].text()
+            testnet = self.api_inputs[exchange]["testnet"].isChecked()
+
+            if not api_key or not secret:
+                QMessageBox.warning(
+                    self,
+                    "Missing Credentials",
+                    f"Please enter both API key and secret for {exchange}"
+                )
+                return
+
+            # Save to encrypted storage
+            self.api_key_manager.add_api_key(exchange, api_key, secret, testnet)
+
+            # Update status
+            status_label = self.api_inputs[exchange]["status_label"]
+            status_label.setText(f"✓ API keys saved for {exchange}")
+            status_label.setStyleSheet(f"color: {self.config.accent_success}; font-size: {self.config.font_size_small}px;")
+
+            QMessageBox.information(
+                self,
+                "Success",
+                f"API keys for {exchange} have been saved to encrypted storage."
+            )
+
+            self.log_widget.append_log(f"API keys saved for {exchange}", "INFO")
+
+        except Exception as e:
+            error_handler.log_error(e, {"method": "_save_exchange_api_keys", "exchange": exchange})
+            QMessageBox.critical(
+                self,
+                "Save Error",
+                f"Failed to save API keys:\n\n{str(e)}"
+            )
+
     async def _test_exchange_connection(self, exchange: str):
         """Test exchange API connection with real validation"""
         try:
@@ -1618,9 +1780,21 @@ class CyberGUI(QMainWindow):
             test_btn = self.api_inputs[exchange]["test_btn"]
             test_btn.set_loading(True)
 
-            # Get credentials
-            api_key = self.api_inputs[exchange]["api_key"].text()
-            secret = self.api_inputs[exchange]["secret"].text()
+            # Try using API key manager first
+            if self.api_key_manager:
+                keys = self.api_key_manager.get_api_key(exchange)
+                if keys:
+                    # Use keys from manager
+                    api_key = keys['api_key']
+                    secret = keys['secret']
+                else:
+                    # Fall back to UI input
+                    api_key = self.api_inputs[exchange]["api_key"].text()
+                    secret = self.api_inputs[exchange]["secret"].text()
+            else:
+                # Get credentials from UI
+                api_key = self.api_inputs[exchange]["api_key"].text()
+                secret = self.api_inputs[exchange]["secret"].text()
 
             if not api_key or not secret:
                 QMessageBox.warning(
@@ -1662,6 +1836,10 @@ class CyberGUI(QMainWindow):
                 )
 
                 # Success
+                status_label = self.api_inputs[exchange]["status_label"]
+                status_label.setText(f"✓ Connection successful to {exchange}")
+                status_label.setStyleSheet(f"color: {self.config.accent_success}; font-size: {self.config.font_size_small}px;")
+
                 QMessageBox.information(
                     self,
                     "Connection Successful",
@@ -1677,6 +1855,10 @@ class CyberGUI(QMainWindow):
                 )
 
             except asyncio.TimeoutError:
+                status_label = self.api_inputs[exchange]["status_label"]
+                status_label.setText(f"✗ Connection timeout to {exchange}")
+                status_label.setStyleSheet(f"color: {self.config.accent_warning}; font-size: {self.config.font_size_small}px;")
+
                 QMessageBox.warning(
                     self, "Connection Timeout", f"Connection to {exchange} timed out"
                 )
@@ -1685,6 +1867,10 @@ class CyberGUI(QMainWindow):
                 )
 
             except Exception as e:
+                status_label = self.api_inputs[exchange]["status_label"]
+                status_label.setText(f"✗ Connection failed: {str(e)[:50]}")
+                status_label.setStyleSheet(f"color: {self.config.accent_error}; font-size: {self.config.font_size_small}px;")
+
                 QMessageBox.critical(
                     self,
                     "Connection Failed",

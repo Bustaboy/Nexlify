@@ -20,6 +20,10 @@ from nexlify.strategies.gamma_selector import GammaSelector, get_recommended_gam
 from nexlify.config.crypto_trading_config import CRYPTO_24_7_CONFIG, FEATURE_PERIODS
 from nexlify.config.fee_providers import FeeProvider, FeeEstimate
 
+# Initialize logger first before using it
+logger = logging.getLogger(__name__)
+error_handler = get_error_handler()
+
 # Prioritized Experience Replay
 try:
     from nexlify.memory.prioritized_replay_buffer import PrioritizedReplayBuffer
@@ -43,9 +47,6 @@ try:
 except ImportError:
     TRAINING_OPTIMIZERS_AVAILABLE = False
     logger.warning("Training optimizers not available - gradient clipping and LR scheduling disabled")
-
-logger = logging.getLogger(__name__)
-error_handler = get_error_handler()
 
 
 class TradingEnvironment:
