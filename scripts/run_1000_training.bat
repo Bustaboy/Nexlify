@@ -16,7 +16,7 @@ REM Check Python version
 echo Checking Python version...
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo Error: Python not found. Please install Python 3.9+
+    echo Error: Python not found. Please install Python 3.11+
     pause
     exit /b 1
 )

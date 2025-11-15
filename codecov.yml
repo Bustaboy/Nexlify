@@ -1,0 +1,112 @@
+# Codecov Configuration
+# https://docs.codecov.com/docs/codecov-yaml
+
+codecov:
+  require_ci_to_pass: yes
+  notify:
+    wait_for_ci: yes
+
+coverage:
+  precision: 2
+  round: down
+  range: "70...100"
+
+  status:
+    project:
+      default:
+        target: 75%           # Overall project coverage target
+        threshold: 2%         # Allow 2% drop without failing
+        informational: false  # Fail PR if below threshold
+
+      core:
+        target: 85%           # Core modules should have higher coverage
+        paths:
+          - "nexlify/core/"
+          - "nexlify/risk/"
+          - "nexlify/strategies/"
+        threshold: 3%
+
+      financial:
+        target: 75%           # Financial modules
+        paths:
+          - "nexlify/financial/"
+          - "nexlify/analytics/"
+        threshold: 3%
+
+      utilities:
+        target: 90%           # Utilities should be well-tested
+        paths:
+          - "nexlify/utils/"
+        threshold: 2%
+
+    patch:
+      default:
+        target: 70%           # New code should have 70%+ coverage
+        threshold: 5%
+        informational: false
+
+    changes:
+      default:
+        informational: true   # Show coverage changes in PR comments
+
+  # Ignore patterns (files/folders to exclude from coverage)
+  ignore:
+    - "setup.py"
+    - "tests/"
+    - "nexlify/__init__.py"
+    - "**/__init__.py"
+    - "scripts/"
+    - "examples/"
+    - "docs/"
+    - "*.md"
+
+# Comment configuration for PR comments
+comment:
+  layout: "reach,diff,flags,tree"
+  behavior: default
+  require_changes: false
+  require_base: no
+  require_head: yes
+  branches:
+    - main
+    - develop
+
+# Flags for different test suites
+flags:
+  quick-tests:
+    paths:
+      - nexlify/
+    carryforward: true
+
+  full-tests:
+    paths:
+      - nexlify/
+    carryforward: true
+
+  python-3.11:
+    carryforward: true
+
+  python-3.12:
+    carryforward: true
+
+# Ignore paths that shouldn't affect coverage status
+ignore:
+  - "nexlify_data/"
+  - "nexlify_training/"
+  - "nexlify_environments/"
+  - "data/"
+  - "logs/"
+  - "cache/"
+  - "*.egg-info/"
+  - "dist/"
+  - "build/"
+  - "__pycache__/"
+  - ".pytest_cache/"
+  - "htmlcov/"
+  - ".tox/"
+  - ".venv/"
+  - "venv/"
+
+# GitHub PR comment settings
+github_checks:
+  annotations: true

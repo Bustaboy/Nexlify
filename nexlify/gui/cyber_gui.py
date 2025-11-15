@@ -23,6 +23,7 @@ from PyQt5.QtWidgets import *
 from nexlify.analytics.nexlify_ai_companion import AITradingCompanion
 # Import our enhanced modules
 from nexlify.core.nexlify_neural_net import NexlifyNeuralNet
+from nexlify.gui.components import RateLimitedButton, VirtualTableModel, LogWidget
 from nexlify.gui.nexlify_cyberpunk_effects import (CyberpunkEffects,
                                                    SoundManager)
 # Import Phase 1 & 2 GUI integration
@@ -50,7 +51,6 @@ LOADING_TIMEOUT = 30000  # 30s timeout for async operations
 LOG_MAX_SIZE_MB = 25  # Maximum log size in MB
 SESSION_CHECK_INTERVAL = 60000  # Check session every 60s
 GRACE_PERIOD_MINUTES = 5  # Grace period before forcing re-auth
-
 
 @dataclass
 class GUIConfig:
@@ -82,171 +82,6 @@ class GUIConfig:
     # Animation
     animation_duration = 200
     glow_intensity = 0  # No glow effects for modern design
-
-
-class RateLimitedButton(QPushButton):
-    """Button with built-in rate limiting and loading states"""
-
-    def __init__(self, text: str, debounce_ms: int = DEBOUNCE_INSTANT):
-        super().__init__(text)
-        self.debounce_ms = debounce_ms
-        self.debounce_timer = QTimer()
-        self.debounce_timer.setSingleShot(True)
-        self.debounce_timer.timeout.connect(self._enable_button)
-        self.loading = False
-        self.original_text = text
-        self._setup_loading_animation()
-
-    def _setup_loading_animation(self):
-        """Setup loading spinner animation"""
-        # Use text-based loading animation (no external spinner file needed)
-        self.loading_timer = QTimer()
-        self.loading_timer.timeout.connect(self._update_loading_text)
-        self.loading_dots = 0
-        self.loading_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-        self.loading_frame_index = 0
-
-    def click_with_debounce(self):
-        """Handle click with debounce"""
-        if not self.isEnabled():
-            return
-
-        self.setEnabled(False)
-        self.debounce_timer.start(self.debounce_ms)
-
-        # Emit clicked signal
-        self.clicked.emit()
-
-    def _enable_button(self):
-        """Re-enable button after debounce"""
-        if not self.loading:
-            self.setEnabled(True)
-
-    def set_loading(self, loading: bool):
-        """Set loading state"""
-        self.loading = loading
-        if loading:
-            self.setEnabled(False)
-            self.loading_timer.start(500)  # Update every 500ms
-            self._update_loading_text()
-        else:
-            self.loading_timer.stop()
-            self.setText(self.original_text)
-            self.setEnabled(True)
-
-    def _update_loading_text(self):
-        """Update loading animation text"""
-        if hasattr(self, "loading_frames"):
-            # Use spinner animation
-            frame = self.loading_frames[
-                self.loading_frame_index % len(self.loading_frames)
-            ]
-            self.setText(f"{frame} {self.original_text}")
-            self.loading_frame_index += 1
-        else:
-            # Fallback to dots
-            dots = "." * (self.loading_dots % 4)
-            self.setText(f"{self.original_text}{dots}")
-            self.loading_dots += 1
-
-
-class VirtualTableModel(QAbstractTableModel):
-    """Virtual table model for high-performance data display"""
-
-    def __init__(self, columns: List[str]):
-        super().__init__()
-        self.columns = columns
-        self.data_cache = []
-        self.batch_updates = []
-        self.batch_timer = QTimer()
-        self.batch_timer.timeout.connect(self._apply_batch_updates)
-        self.batch_timer.start(100)  # Batch every 100ms
-
-    def add_batch_update(self, data: List[Dict]):
-        """Add data to batch update queue"""
-        self.batch_updates.extend(data)
-
-    def _apply_batch_updates(self):
-        """Apply batched updates"""
-        if not self.batch_updates:
-            return
-
-        self.beginResetModel()
-        self.data_cache = self.batch_updates[-1000:]  # Keep last 1000 items
-        self.batch_updates.clear()
-        self.endResetModel()
-
-    def rowCount(self, parent=QModelIndex()):
-        return len(self.data_cache)
-
-    def columnCount(self, parent=QModelIndex()):
-        return len(self.columns)
-
-    def data(self, index, role=Qt.DisplayRole):
-        if not index.isValid():
-            return None
-
-        if role == Qt.DisplayRole:
-            row = self.data_cache[index.row()]
-            col = self.columns[index.column()]
-            return str(row.get(col, ""))
-
-        return None
-
-    def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
-            return self.columns[section]
-        return None
-
-
-class LogWidget(QPlainTextEdit):
-    """Memory-efficient log widget with size-based rotation"""
-
-    def __init__(self, max_size_mb: float = LOG_MAX_SIZE_MB):
-        super().__init__()
-        self.max_size_bytes = max_size_mb * 1024 * 1024
-        self.setReadOnly(True)
-        self.setMaximumBlockCount(10000)  # Limit blocks
-        self.document().setMaximumBlockCount(10000)
-
-    def append_log(self, message: str, level: str = "INFO"):
-        """Append log with size checking"""
-        # Check document size
-        doc_size = len(self.toPlainText().encode("utf-8"))
-        if doc_size > self.max_size_bytes:
-            # Remove first 20% of content
-            cursor = self.textCursor()
-            cursor.movePosition(QTextCursor.Start)
-            cursor.movePosition(
-                QTextCursor.Down,
-                QTextCursor.KeepAnchor,
-                self.document().blockCount() // 5,
-            )
-            cursor.removeSelectedText()
-
-        # Add timestamp and format
-        timestamp = datetime.now().strftime("%H:%M:%S")
-
-        # Color based on level - Modern colors for light theme
-        colors = {
-            "INFO": "#10b981",  # Green
-            "WARNING": "#f59e0b",  # Amber
-            "ERROR": "#ef4444",  # Red
-            "DEBUG": "#2563eb",  # Blue
-        }
-        color = colors.get(level, "#1e293b")
-
-        # Append with HTML formatting
-        self.appendHtml(
-            f'<span style="color: #64748b">[{timestamp}]</span> '
-            f'<span style="color: {color}; font-weight: 600">[{level}]</span> '
-            f'<span style="color: #1e293b">{message}</span>'
-        )
-
-        # Auto-scroll to bottom
-        scrollbar = self.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
-
 
 class SessionManager(QObject):
     """Manages user sessions with security integration"""
@@ -311,7 +146,6 @@ class SessionManager(QObject):
         self.session_token = token
         self.last_activity = datetime.now()
 
-
 class CyberGUI(QMainWindow):
     """Main Cyberpunk Trading GUI with V3 improvements"""
 
@@ -345,6 +179,8 @@ class CyberGUI(QMainWindow):
         self._setup_ui()
         self._apply_cyberpunk_theme()
         self._setup_connections()
+        self._setup_keyboard_shortcuts()
+        self._setup_context_menus()
 
     def _init_components(self):
         """Initialize backend components"""
@@ -682,6 +518,7 @@ class CyberGUI(QMainWindow):
         self.amount_input = QLineEdit()
         self.amount_input.setPlaceholderText("0.001")
         self.amount_input.setValidator(QDoubleValidator(0.00000001, 999999, 8))
+        self.amount_input.textChanged.connect(self._validate_amount_input)
         controls_layout.addWidget(self.amount_input, 1, 1)
 
         # Order type
@@ -695,13 +532,16 @@ class CyberGUI(QMainWindow):
         self.price_input = QLineEdit()
         self.price_input.setPlaceholderText("0.00")
         self.price_input.setValidator(QDoubleValidator(0.00000001, 999999999, 8))
+        self.price_input.textChanged.connect(self._validate_price_input)
         self.price_input.setEnabled(False)
         controls_layout.addWidget(self.price_input, 2, 1)
 
-        # Enable price input for limit orders
-        self.order_type_combo.currentTextChanged.connect(
-            lambda t: self.price_input.setEnabled(t != "Market")
-        )
+        # Enable price input for limit orders and trigger validation
+        def _on_order_type_changed(order_type: str):
+            self.price_input.setEnabled(order_type != "Market")
+            self._validate_price_input(self.price_input.text())
+
+        self.order_type_combo.currentTextChanged.connect(_on_order_type_changed)
 
         # Buy/Sell buttons with confirmation for critical actions
         self.buy_btn = RateLimitedButton("BUY")
@@ -1441,6 +1281,317 @@ class CyberGUI(QMainWindow):
         self.update_timer.timeout.connect(self._update_real_time_data)
         self.update_timer.start(5000)  # Update every 5 seconds
 
+    def _setup_keyboard_shortcuts(self):
+        """Setup keyboard shortcuts for common operations"""
+        # Quit application
+        QShortcut(QKeySequence("Ctrl+Q"), self, self.close)
+
+        # Refresh data
+        QShortcut(QKeySequence("Ctrl+R"), self, self._refresh_data)
+        QShortcut(QKeySequence("F5"), self, self._refresh_data)
+
+        # Save settings
+        QShortcut(QKeySequence("Ctrl+S"), self, self._save_settings)
+
+        # Toggle trading
+        QShortcut(QKeySequence("Ctrl+T"), self, self._toggle_trading)
+
+        # Emergency stop (Esc with confirmation)
+        QShortcut(QKeySequence("Esc"), self, self._emergency_stop_shortcut)
+
+        # Tab navigation (Ctrl+1 through Ctrl+0)
+        for i in range(1, 10):
+            QShortcut(QKeySequence(f"Ctrl+{i}"), self, lambda idx=i-1: self._switch_tab(idx))
+        QShortcut(QKeySequence("Ctrl+0"), self, lambda: self._switch_tab(9))  # Tab 10
+
+        # Copy from focused table
+        QShortcut(QKeySequence("Ctrl+C"), self, self._copy_from_table)
+
+        # Find in logs
+        QShortcut(QKeySequence("Ctrl+F"), self, self._focus_log_search)
+
+        # Show help
+        QShortcut(QKeySequence("Ctrl+H"), self, self._show_shortcuts_help)
+
+        logger.info("Keyboard shortcuts initialized")
+
+        # Update status bar with shortcuts hint
+        self.statusBar().showMessage("Press Ctrl+H for keyboard shortcuts help", 3000)
+
+    def _setup_context_menus(self):
+        """Setup right-click context menus for tables"""
+        # Enable context menus for all tables
+        tables = [
+            ('active_pairs_table', 'Active Pairs'),
+            ('positions_table', 'Positions'),
+            ('order_history_table', 'Order History'),
+            ('balances_table', 'Balances'),
+            ('strategy_performance_table', 'Strategy Performance')
+        ]
+
+        for table_attr, table_name in tables:
+            if hasattr(self, table_attr):
+                table = getattr(self, table_attr)
+                table.setContextMenuPolicy(Qt.CustomContextMenu)
+                table.customContextMenuRequested.connect(
+                    lambda pos, t=table, n=table_name: self._show_table_context_menu(pos, t, n)
+                )
+
+        logger.info("Context menus initialized for all tables")
+
+    def _show_table_context_menu(self, pos: QPoint, table: QTableView, table_name: str):
+        """Show context menu for table"""
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background-color: {self.config.bg_card};
+                border: 1px solid {self.config.border_color};
+                border-radius: 6px;
+                padding: 4px;
+            }}
+            QMenu::item {{
+                color: {self.config.text_primary};
+                padding: 6px 12px;
+                border-radius: 4px;
+            }}
+            QMenu::item:selected {{
+                background-color: {self.config.accent_primary};
+                color: white;
+            }}
+        """)
+
+        # Copy actions
+        copy_cell = menu.addAction("📋 Copy Cell")
+        copy_row = menu.addAction("📄 Copy Row")
+        copy_all = menu.addAction("📊 Copy All Data")
+        menu.addSeparator()
+
+        # Export actions
+        export_csv = menu.addAction("💾 Export to CSV")
+        export_json = menu.addAction("📦 Export to JSON")
+        menu.addSeparator()
+
+        # Refresh action
+        refresh = menu.addAction("🔄 Refresh Table")
+
+        # Execute action
+        action = menu.exec_(table.viewport().mapToGlobal(pos))
+
+        if action == copy_cell:
+            self._copy_table_cell(table)
+        elif action == copy_row:
+            self._copy_table_row(table)
+        elif action == copy_all:
+            self._copy_table_all(table)
+        elif action == export_csv:
+            self._export_table_csv(table, table_name)
+        elif action == export_json:
+            self._export_table_json(table, table_name)
+        elif action == refresh:
+            self._refresh_data()
+
+    def _copy_table_cell(self, table: QTableView):
+        """Copy selected cell to clipboard"""
+        selection = table.selectionModel()
+        if selection.hasSelection():
+            index = selection.currentIndex()
+            text = str(index.data() or "")
+            QApplication.clipboard().setText(text)
+            self.statusBar().showMessage(f"Copied: {text[:50]}", 2000)
+
+    def _copy_table_row(self, table: QTableView):
+        """Copy selected row to clipboard"""
+        selection = table.selectionModel()
+        if selection.hasSelection():
+            row = selection.currentIndex().row()
+            model = table.model()
+            if model:
+                row_data = []
+                for col in range(model.columnCount()):
+                    index = model.index(row, col)
+                    row_data.append(str(index.data() or ""))
+                text = "\t".join(row_data)
+                QApplication.clipboard().setText(text)
+                self.statusBar().showMessage(f"Copied row {row + 1}", 2000)
+
+    def _copy_table_all(self, table: QTableView):
+        """Copy all table data to clipboard"""
+        model = table.model()
+        if not model:
+            return
+
+        # Get headers
+        headers = []
+        for col in range(model.columnCount()):
+            headers.append(str(model.headerData(col, Qt.Horizontal) or ""))
+
+        # Get all rows
+        rows = ["\t".join(headers)]
+        for row in range(model.rowCount()):
+            row_data = []
+            for col in range(model.columnCount()):
+                index = model.index(row, col)
+                row_data.append(str(index.data() or ""))
+            rows.append("\t".join(row_data))
+
+        text = "\n".join(rows)
+        QApplication.clipboard().setText(text)
+        self.statusBar().showMessage(f"Copied {model.rowCount()} rows", 2000)
+
+    def _export_table_csv(self, table: QTableView, table_name: str):
+        """Export table to CSV file"""
+        model = table.model()
+        if not model:
+            return
+
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            f"Export {table_name} to CSV",
+            f"{table_name.replace(' ', '_').lower()}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            "CSV Files (*.csv)"
+        )
+
+        if filename:
+            try:
+                import csv
+                with open(filename, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+
+                    # Write headers
+                    headers = []
+                    for col in range(model.columnCount()):
+                        headers.append(str(model.headerData(col, Qt.Horizontal) or ""))
+                    writer.writerow(headers)
+
+                    # Write data
+                    for row in range(model.rowCount()):
+                        row_data = []
+                        for col in range(model.columnCount()):
+                            index = model.index(row, col)
+                            row_data.append(str(index.data() or ""))
+                        writer.writerow(row_data)
+
+                self.statusBar().showMessage(f"Exported to {filename}", 3000)
+                QMessageBox.information(self, "Export Complete", f"Data exported to:\n{filename}")
+            except Exception as e:
+                QMessageBox.critical(self, "Export Failed", f"Failed to export: {str(e)}")
+
+    def _export_table_json(self, table: QTableView, table_name: str):
+        """Export table to JSON file"""
+        model = table.model()
+        if not model:
+            return
+
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            f"Export {table_name} to JSON",
+            f"{table_name.replace(' ', '_').lower()}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+            "JSON Files (*.json)"
+        )
+
+        if filename:
+            try:
+                # Get headers
+                headers = []
+                for col in range(model.columnCount()):
+                    headers.append(str(model.headerData(col, Qt.Horizontal) or ""))
+
+                # Get all rows as dicts
+                data = []
+                for row in range(model.rowCount()):
+                    row_dict = {}
+                    for col in range(model.columnCount()):
+                        index = model.index(row, col)
+                        row_dict[headers[col]] = str(index.data() or "")
+                    data.append(row_dict)
+
+                with open(filename, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, indent=2)
+
+                self.statusBar().showMessage(f"Exported to {filename}", 3000)
+                QMessageBox.information(self, "Export Complete", f"Data exported to:\n{filename}")
+            except Exception as e:
+                QMessageBox.critical(self, "Export Failed", f"Failed to export: {str(e)}")
+
+    def _emergency_stop_shortcut(self):
+        """Handle Esc key for emergency stop with confirmation"""
+        reply = QMessageBox.question(
+            self,
+            "Emergency Stop",
+            "Press ESC to trigger Emergency Stop?\n\nThis will immediately halt all trading!",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            self._emergency_stop()
+
+    def _switch_tab(self, index: int):
+        """Switch to tab by index"""
+        if index < self.tab_widget.count():
+            self.tab_widget.setCurrentIndex(index)
+            self.statusBar().showMessage(f"Switched to tab: {self.tab_widget.tabText(index)}", 2000)
+
+    def _copy_from_table(self):
+        """Copy from currently focused table"""
+        focused = QApplication.focusWidget()
+        if isinstance(focused, QTableView):
+            self._copy_table_row(focused)
+        else:
+            # Try to find selected table in current tab
+            current_widget = self.tab_widget.currentWidget()
+            tables = current_widget.findChildren(QTableView)
+            if tables:
+                self._copy_table_row(tables[0])
+
+    def _focus_log_search(self):
+        """Focus the log search input"""
+        # Switch to logs tab
+        logs_tab_index = 5  # Adjust based on actual tab index
+        if hasattr(self, 'tab_widget'):
+            for i in range(self.tab_widget.count()):
+                if "Log" in self.tab_widget.tabText(i):
+                    logs_tab_index = i
+                    break
+            self.tab_widget.setCurrentIndex(logs_tab_index)
+
+        # Focus search input
+        if hasattr(self, 'log_search_input'):
+            self.log_search_input.setFocus()
+            self.log_search_input.selectAll()
+
+    def _show_shortcuts_help(self):
+        """Show keyboard shortcuts help dialog"""
+        help_text = """
+        <h2>Keyboard Shortcuts</h2>
+        <table style='width:100%; font-family: monospace;'>
+        <tr><td><b>Ctrl+Q</b></td><td>Quit application</td></tr>
+        <tr><td><b>Ctrl+R / F5</b></td><td>Refresh data</td></tr>
+        <tr><td><b>Ctrl+S</b></td><td>Save settings</td></tr>
+        <tr><td><b>Ctrl+T</b></td><td>Toggle trading on/off</td></tr>
+        <tr><td><b>Esc</b></td><td>Emergency stop (with confirmation)</td></tr>
+        <tr><td><b>Ctrl+1-9, 0</b></td><td>Switch to tab 1-10</td></tr>
+        <tr><td><b>Ctrl+C</b></td><td>Copy from focused table</td></tr>
+        <tr><td><b>Ctrl+F</b></td><td>Find in logs</td></tr>
+        <tr><td><b>Ctrl+H</b></td><td>Show this help</td></tr>
+        </table>
+        <br>
+        <h3>Right-Click Menus</h3>
+        <p>Right-click on any table to:</p>
+        <ul>
+        <li>Copy cell, row, or all data</li>
+        <li>Export to CSV or JSON</li>
+        <li>Refresh table</li>
+        </ul>
+        """
+
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Keyboard Shortcuts")
+        msg.setTextFormat(Qt.RichText)
+        msg.setText(help_text)
+        msg.setIcon(QMessageBox.Information)
+        msg.exec_()
+
     def _check_pin_setup(self):
         """Check if PIN setup is required and show dialog"""
         try:
@@ -1670,6 +1821,87 @@ class CyberGUI(QMainWindow):
 
         except:
             self.pair_input.setStyleSheet(
+                f"border: 1px solid {self.config.accent_error};"
+            )
+
+    def _validate_amount_input(self, text: str):
+        """Validate amount input in real-time"""
+        if not text:
+            self.amount_input.setStyleSheet("")
+            return
+
+        try:
+            amount = float(text)
+
+            # Check if amount is positive
+            if amount <= 0:
+                self.amount_input.setStyleSheet(
+                    f"border: 1px solid {self.config.accent_error};"
+                )
+                return
+
+            # Check if amount is too small (minimum 0.00000001)
+            if amount < 0.00000001:
+                self.amount_input.setStyleSheet(
+                    f"border: 1px solid {self.config.accent_error};"
+                )
+                return
+
+            # Check if amount is reasonable (warning for very large amounts)
+            if amount > 10000:
+                self.amount_input.setStyleSheet(
+                    f"border: 1px solid {self.config.accent_warning};"
+                )
+                return
+
+            # Valid amount
+            self.amount_input.setStyleSheet(
+                f"border: 1px solid {self.config.accent_success};"
+            )
+        except ValueError:
+            self.amount_input.setStyleSheet(
+                f"border: 1px solid {self.config.accent_error};"
+            )
+
+    def _validate_price_input(self, text: str):
+        """Validate price input in real-time"""
+        # Price is optional (only required for limit orders)
+        order_type = self.order_type_combo.currentText()
+        if order_type == "Market":
+            self.price_input.setStyleSheet("")
+            return
+
+        if not text:
+            # Empty is OK for market orders, warning for limit orders
+            if order_type != "Market":
+                self.price_input.setStyleSheet(
+                    f"border: 1px solid {self.config.accent_warning};"
+                )
+            return
+
+        try:
+            price = float(text)
+
+            # Check if price is positive
+            if price <= 0:
+                self.price_input.setStyleSheet(
+                    f"border: 1px solid {self.config.accent_error};"
+                )
+                return
+
+            # Check if price is too small (minimum 0.00000001)
+            if price < 0.00000001:
+                self.price_input.setStyleSheet(
+                    f"border: 1px solid {self.config.accent_error};"
+                )
+                return
+
+            # Valid price
+            self.price_input.setStyleSheet(
+                f"border: 1px solid {self.config.accent_success};"
+            )
+        except ValueError:
+            self.price_input.setStyleSheet(
                 f"border: 1px solid {self.config.accent_error};"
             )
 
@@ -2056,15 +2288,44 @@ class CyberGUI(QMainWindow):
                 f"Executing {side} order: {amount} {pair} ({order_type})", "INFO"
             )
 
-            # Would execute through neural net
-            # result = await self.neural_net.execute_manual_trade(...)
+            # Check if neural net is initialized
+            if not self.neural_net:
+                raise ValueError("Neural network not initialized. Please authenticate first.")
 
-            # For now, simulate
-            await asyncio.sleep(1)
+            # Get selected exchange
+            exchange_id = self.exchange_combo.currentText().lower()
+            if not exchange_id:
+                raise ValueError("Please select an exchange")
+
+            # Execute trade through neural net
+            result = await self.neural_net.execute_manual_trade(
+                exchange_id=exchange_id,
+                symbol=pair,
+                side=side.lower(),
+                order_type=order_type.lower(),
+                amount=amount,
+                price=price
+            )
 
             self.log_widget.append_log(
-                f"Order executed successfully: {side} {amount} {pair}", "INFO"
+                f"✅ Order executed successfully: {side} {amount} {pair} (Order ID: {result.get('id', 'N/A')})", "INFO"
             )
+
+            # Log to audit trail
+            if self.audit_manager:
+                await self.audit_manager.log_event(
+                    event_type="MANUAL_TRADE",
+                    details={
+                        "exchange": exchange_id,
+                        "symbol": pair,
+                        "side": side,
+                        "amount": amount,
+                        "order_type": order_type,
+                        "price": price,
+                        "order_id": result.get('id')
+                    },
+                    severity="info"
+                )
 
             # Play sound
             if self.sound_manager:
@@ -2075,7 +2336,12 @@ class CyberGUI(QMainWindow):
 
         except Exception as e:
             error_handler.log_error(e, {"method": "_execute_trade_async"})
-            self.log_widget.append_log(f"Trade execution failed: {str(e)}", "ERROR")
+            self.log_widget.append_log(f"❌ Trade execution failed: {str(e)}", "ERROR")
+            QMessageBox.critical(
+                self,
+                "Trade Execution Failed",
+                f"Failed to execute trade:\n{str(e)}"
+            )
 
     def _withdraw_funds(self):
         """Withdraw funds with validation and confirmation"""
@@ -2144,26 +2410,51 @@ class CyberGUI(QMainWindow):
         try:
             self.withdraw_btn.set_loading(True)
 
-            # Would execute through neural net
-            # await self.neural_net.withdraw_profits_to_btc(amount)
-
-            # Simulate
-            await asyncio.sleep(2)
+            # Check if neural net is initialized
+            if not self.neural_net:
+                raise ValueError("Neural network not initialized. Please authenticate first.")
 
             self.log_widget.append_log(
-                f"Withdrawal initiated: ${amount} USDT to {address[:8]}...", "INFO"
+                f"Initiating withdrawal: ${amount} USDT to {address[:8]}...", "INFO"
             )
 
-            QMessageBox.information(
-                self,
-                "Withdrawal Initiated",
-                "Your withdrawal has been initiated.\n"
-                "You will receive a confirmation once processed.",
-            )
+            # Execute withdrawal through neural net
+            success = await self.neural_net.withdraw_profits_to_btc(amount)
+
+            if success:
+                self.log_widget.append_log(
+                    f"✅ Withdrawal successful: ${amount} USDT to {address[:8]}...", "INFO"
+                )
+
+                # Log to audit trail
+                if self.audit_manager:
+                    await self.audit_manager.log_event(
+                        event_type="WITHDRAWAL",
+                        details={
+                            "amount_usd": amount,
+                            "btc_address": address,
+                            "status": "success"
+                        },
+                        severity="info"
+                    )
+
+                QMessageBox.information(
+                    self,
+                    "Withdrawal Successful",
+                    f"Withdrawal of ${amount} USDT has been processed successfully.\n"
+                    f"Destination: {address[:12]}...",
+                )
+            else:
+                raise Exception("Withdrawal failed - check neural net logs for details")
 
         except Exception as e:
             error_handler.log_error(e, {"method": "_withdraw_funds_async"})
-            self.log_widget.append_log(f"Withdrawal failed: {str(e)}", "ERROR")
+            self.log_widget.append_log(f"❌ Withdrawal failed: {str(e)}", "ERROR")
+            QMessageBox.critical(
+                self,
+                "Withdrawal Failed",
+                f"Failed to process withdrawal:\n{str(e)}"
+            )
 
         finally:
             self.withdraw_btn.set_loading(False)
@@ -2854,7 +3145,6 @@ class CyberGUI(QMainWindow):
 
         event.accept()
 
-
 # Main application
 def main():
     """Main application entry point"""
@@ -2876,7 +3166,6 @@ def main():
     # Run event loop
     with loop:
         loop.run_forever()
-
 
 if __name__ == "__main__":
     main()

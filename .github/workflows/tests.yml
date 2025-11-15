@@ -37,7 +37,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.11']  # Only latest version for quick tests
+        python-version: ['3.12']  # Only latest version for quick tests
 
     steps:
     - name: Checkout code
@@ -47,29 +47,49 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-        cache: 'pip'
-        cache-dependency-path: 'requirements.txt'
+        # Removed pip cache - using uv which has its own caching
 
-    - name: Cache pip packages
+    - name: Cache uv packages
       uses: actions/cache@v4
       with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        path: ~/.cache/uv
+        key: ${{ runner.os }}-uv-${{ hashFiles('requirements.txt') }}
         restore-keys: |
-          ${{ runner.os }}-pip-
+          ${{ runner.os }}-uv-
 
-    - name: Install dependencies
+    - name: Install uv (ultra-fast pip replacement)
       run: |
-        python -m pip install --upgrade pip
-        # Install requirements.txt first to get correct versions
-        if [ -f requirements.txt ]; then
-          pip install -r requirements.txt
-        fi
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-    - name: Run unit tests only (no integration/slow tests)
+    - name: Install dependencies (with uv - 10-100x faster)
       run: |
-        pytest tests/ -v -m "not slow and not integration" --tb=short
-      timeout-minutes: 10
+        # Install PyTorch CPU-only first (much smaller, ~200MB vs 2GB CUDA version)
+        uv pip install --system torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
+        # Install TensorFlow CPU-only (~200MB vs 500MB+ CUDA version)
+        uv pip install --system tensorflow-cpu==2.20.0
+        # Install remaining dependencies, excluding heavy ML packages already installed
+        grep -v "^torch==" requirements.txt | grep -v "^torchvision==" | grep -v "^tensorflow==" > /tmp/requirements-minimal.txt
+        uv pip install --system -r /tmp/requirements-minimal.txt
+
+    - name: Run unit tests only (no integration/slow tests) - PARALLEL
+      run: |
+        # Run tests in parallel with pytest-xdist (2-4x faster)
+        # -n auto: use all available CPU cores
+        # --maxfail=3: stop after 3 failures for faster feedback
+        pytest tests/ -n auto -v -m "not slow and not integration" --tb=short --maxfail=3 \
+          --cov=nexlify --cov-report=xml --cov-report=term-missing
+      timeout-minutes: 5  # Reduced from 10 (tests should be 2-4x faster)
+
+    - name: Upload coverage to Codecov (Quick Tests)
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage.xml
+        flags: quick-tests,python-3.12
+        name: quick-tests-py3.12
+        fail_ci_if_error: false
+        verbose: true
 
   # Full test suite for pull requests
   full-tests:
@@ -79,7 +99,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10', '3.11']
+        python-version: ['3.11', '3.12']
 
     steps:
     - name: Checkout code
@@ -89,37 +109,54 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-        cache: 'pip'
-        cache-dependency-path: 'requirements.txt'
+        # Removed pip cache - using uv which has its own caching
 
-    - name: Cache pip packages
+    - name: Cache uv packages
       uses: actions/cache@v4
       with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}-${{ matrix.python-version }}
+        path: ~/.cache/uv
+        key: ${{ runner.os }}-uv-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
         restore-keys: |
-          ${{ runner.os }}-pip-${{ matrix.python-version }}-
-          ${{ runner.os }}-pip-
+          ${{ runner.os }}-uv-${{ matrix.python-version }}-
+          ${{ runner.os }}-uv-
 
-    - name: Install dependencies
+    - name: Install uv (ultra-fast pip replacement)
       run: |
-        python -m pip install --upgrade pip
-        pip install pytest pytest-cov pytest-asyncio pytest-mock
-        pip install torch --index-url https://download.pytorch.org/whl/cpu
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-    - name: Run all tests with coverage
+    - name: Install dependencies (with uv - 10-100x faster)
       run: |
-        pytest tests/ -v --cov=nexlify --cov-report=xml --cov-report=term-missing --cov-report=html -m "not slow"
-      timeout-minutes: 15
+        # Install PyTorch CPU-only first (much smaller, ~200MB vs 2GB CUDA version)
+        uv pip install --system torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
+        # Install TensorFlow CPU-only (~200MB vs 500MB+ CUDA version)
+        uv pip install --system tensorflow-cpu==2.20.0
+        # Install test dependencies (including parallel testing tools)
+        uv pip install --system pytest pytest-cov pytest-asyncio pytest-mock pytest-xdist pytest-timeout
+        # Install remaining dependencies, excluding heavy ML packages already installed
+        grep -v "^torch==" requirements.txt | grep -v "^torchvision==" | grep -v "^tensorflow==" > /tmp/requirements-minimal.txt
+        uv pip install --system -r /tmp/requirements-minimal.txt
 
-    - name: Upload coverage to Codecov
+    - name: Run all tests with coverage - PARALLEL
+      run: |
+        # Run tests in parallel with coverage
+        # Note: pytest-xdist + coverage requires special handling
+        # Using -n auto for parallel execution with coverage context
+        pytest tests/ -n auto -v \
+          --cov=nexlify --cov-context=test \
+          --cov-report=xml --cov-report=term-missing --cov-report=html \
+          -m "not slow" --timeout=30 --maxfail=5
+      timeout-minutes: 8  # Reduced from 15 (tests should be 2x faster)
+
+    - name: Upload coverage to Codecov (Full Tests)
       uses: codecov/codecov-action@v4
       with:
-        file: ./coverage.xml
-        flags: unittests
-        name: python-${{ matrix.python-version }}
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage.xml
+        flags: full-tests,python-${{ matrix.python-version }}
+        name: full-tests-py${{ matrix.python-version }}
         fail_ci_if_error: false
+        verbose: true
 
     - name: Upload coverage HTML report
       uses: actions/upload-artifact@v4
@@ -131,7 +168,7 @@ jobs:
 
   # Integration and slow tests - only on PR to main
   integration-tests:
-    name: Integration Tests (Python 3.11)
+    name: Integration Tests (Python 3.12)
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
 
@@ -142,35 +179,46 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
-        cache: 'pip'
-        cache-dependency-path: 'requirements.txt'
+        python-version: '3.12'
+        # Removed pip cache - using uv which has its own caching
 
-    - name: Cache pip packages
+    - name: Cache uv packages
       uses: actions/cache@v4
       with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-integration-${{ hashFiles('requirements.txt') }}
+        path: ~/.cache/uv
+        key: ${{ runner.os }}-uv-integration-${{ hashFiles('requirements.txt') }}
         restore-keys: |
-          ${{ runner.os }}-pip-integration-
-          ${{ runner.os }}-pip-
+          ${{ runner.os }}-uv-integration-
+          ${{ runner.os }}-uv-
 
-    - name: Install dependencies
+    - name: Install uv (ultra-fast pip replacement)
       run: |
-        python -m pip install --upgrade pip
-        pip install pytest pytest-asyncio pytest-mock
-        pip install torch --index-url https://download.pytorch.org/whl/cpu
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-    - name: Run integration tests
+    - name: Install dependencies (with uv - 10-100x faster)
       run: |
-        pytest tests/ -v -m "integration" --tb=short
-      timeout-minutes: 20
+        # Install PyTorch CPU-only first (much smaller, ~200MB vs 2GB CUDA version)
+        uv pip install --system torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
+        # Install TensorFlow CPU-only (~200MB vs 500MB+ CUDA version)
+        uv pip install --system tensorflow-cpu==2.20.0
+        # Install test dependencies (including parallel testing tools)
+        uv pip install --system pytest pytest-asyncio pytest-mock pytest-xdist pytest-timeout
+        # Install remaining dependencies, excluding heavy ML packages already installed
+        grep -v "^torch==" requirements.txt | grep -v "^torchvision==" | grep -v "^tensorflow==" > /tmp/requirements-minimal.txt
+        uv pip install --system -r /tmp/requirements-minimal.txt
+
+    - name: Run integration tests - PARALLEL
+      run: |
+        # Run integration tests in parallel (can be slow, so parallel helps)
+        pytest tests/ -n auto -v -m "integration" --tb=short --timeout=60
+      timeout-minutes: 12  # Reduced from 20 (parallel execution)
       continue-on-error: true
 
-    - name: Run slow tests
+    - name: Run slow tests - PARALLEL
       run: |
-        pytest tests/ -v -m "slow" --tb=short
+        # Even slow tests benefit from parallelization
+        pytest tests/ -n auto -v -m "slow" --tb=short --timeout=120
       timeout-minutes: 30
       continue-on-error: true
 
@@ -193,15 +241,33 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
-        cache: 'pip'
+        python-version: '3.12'
+        # Removed pip cache - using uv which has its own caching
+
+    - name: Cache uv packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/uv
+        key: ${{ runner.os }}-uv-quality-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-uv-quality-
+          ${{ runner.os }}-uv-
+
+    - name: Install uv (ultra-fast pip replacement)
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
     - name: Install quality tools and dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install pylint black isort mypy
-        # Install project dependencies for better import resolution
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        # Install quality tools
+        uv pip install --system pylint black isort mypy
+        # Install lightweight ML packages for import resolution (skip heavy CUDA versions)
+        uv pip install --system torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
+        uv pip install --system tensorflow-cpu==2.20.0
+        # Install remaining dependencies, excluding heavy packages already installed
+        grep -v "^torch==" requirements.txt | grep -v "^torchvision==" | grep -v "^tensorflow==" > /tmp/requirements-minimal.txt
+        uv pip install --system -r /tmp/requirements-minimal.txt
 
     - name: Check code formatting with black
       run: |

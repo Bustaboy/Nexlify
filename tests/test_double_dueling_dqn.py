@@ -543,6 +543,7 @@ class TestArchitectureComparator:
         assert "double_dqn" in report
 
 
+@pytest.mark.integration
 class TestIntegrationWithEnvironment:
     """Integration tests with trading environment"""
 
@@ -583,6 +584,8 @@ class TestIntegrationWithEnvironment:
 
         assert steps > 0
 
+    @pytest.mark.slow  # Training 5 episodes can take >30s
+    @pytest.mark.timeout(120)  # Allow up to 2 minutes for neural network training
     def test_multiple_episodes(self, env):
         """Test agent across multiple episodes"""
         agent = DoubleDQNAgent(
