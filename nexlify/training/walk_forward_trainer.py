@@ -25,6 +25,11 @@ from nexlify.validation.walk_forward import (
 from nexlify.strategies.nexlify_rl_agent import NexlifyRLAgent
 from nexlify.environments.nexlify_trading_env import TradingEnvironment
 from nexlify.utils.error_handler import get_error_handler
+from nexlify.models.model_manifest import (
+    ModelManifest,
+    TradingCapabilities,
+    TrainingMetadata
+)
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +72,8 @@ class WalkForwardTrainer:
         self.total_folds = 0
         self.training_history: List[Dict[str, Any]] = []
         self.best_model_path: Optional[Path] = None
+        self.training_start_time: Optional[datetime] = None
+        self.training_end_time: Optional[datetime] = None
 
         # Initialize environment
         self.env = self._create_environment()
@@ -293,7 +300,8 @@ class WalkForwardTrainer:
     async def train(
         self,
         save_models: bool = True,
-        generate_report: bool = True
+        generate_report: bool = True,
+        generate_manifest: bool = True
     ) -> WalkForwardResults:
         """
         Execute walk-forward training
@@ -301,12 +309,16 @@ class WalkForwardTrainer:
         Args:
             save_models: Whether to save models from each fold
             generate_report: Whether to generate validation report
+            generate_manifest: Whether to generate model manifest
 
         Returns:
             WalkForwardResults object with complete validation results
         """
         logger.info("Starting walk-forward training")
         self._update_progress("Initializing walk-forward validation", 0)
+
+        # Record training start time
+        self.training_start_time = datetime.now()
 
         # Initialize validator
         validator = WalkForwardValidator(
@@ -348,7 +360,11 @@ class WalkForwardTrainer:
 
             self._update_progress("Training complete", 100)
 
+            # Record training end time
+            self.training_end_time = datetime.now()
+
             # Select best model
+            best_fold_id = 0
             if self.wf_config.get('integration', {}).get('select_best_model', True):
                 metric = self.wf_config.get('integration', {}).get('validation_metric', 'sharpe_ratio')
                 best_fold_id = self._select_best_fold(results, metric)
@@ -357,6 +373,15 @@ class WalkForwardTrainer:
                 ) / f"fold_{best_fold_id}_model.pt"
 
                 logger.info(f"Best model selected: Fold {best_fold_id} (by {metric})")
+
+            # Generate model manifest
+            if generate_manifest:
+                manifest = self._generate_manifest(results, best_fold_id)
+                manifest_path = Path(
+                    self.wf_config.get('model_dir', 'models/walk_forward')
+                ) / f"fold_{best_fold_id}_manifest.json"
+                manifest.save(manifest_path)
+                logger.info(f"Model manifest generated: {manifest_path}")
 
             # Generate report
             if generate_report:
@@ -427,6 +452,121 @@ class WalkForwardTrainer:
             json.dump(history_data, f, indent=2)
 
         logger.info(f"Training history saved to {history_file}")
+
+    def _generate_manifest(
+        self,
+        results: WalkForwardResults,
+        best_fold_id: int
+    ) -> ModelManifest:
+        """
+        Generate model manifest from training results
+
+        Args:
+            results: Walk-forward validation results
+            best_fold_id: ID of the best performing fold
+
+        Returns:
+            ModelManifest object
+        """
+        # Extract symbols and timeframes from trading config
+        symbols = self.trading_config.get('symbols', ['BTC/USDT'])
+        timeframe = self.trading_config.get('timeframe', '1h')
+
+        # Parse base and quote currencies from symbols
+        base_currencies = set()
+        quote_currencies = set()
+        for symbol in symbols:
+            parts = symbol.split('/')
+            if len(parts) == 2:
+                base_currencies.add(parts[0])
+                quote_currencies.add(parts[1])
+
+        # Create trading capabilities
+        capabilities = TradingCapabilities(
+            symbols=symbols,
+            timeframes=[timeframe],
+            base_currencies=base_currencies,
+            quote_currencies=quote_currencies,
+            exchanges=list(self.config.get('exchanges', {}).keys()),
+            strategies=['DQN', 'walk_forward_validated'],
+            market_conditions=['bull', 'bear', 'sideways'],  # Trained on all
+            max_position_size=self.config.get('risk_management', {}).get('max_position_size', 0.1),
+            min_confidence=self.trading_config.get('min_confidence', 0.7),
+            max_concurrent_trades=self.trading_config.get('max_concurrent_trades', 5)
+        )
+
+        # Calculate training duration
+        duration_seconds = 0.0
+        if self.training_start_time and self.training_end_time:
+            duration_seconds = (self.training_end_time - self.training_start_time).total_seconds()
+
+        # Create training metadata
+        training = TrainingMetadata(
+            method='walk_forward',
+            total_episodes=self.wf_config.get('total_episodes', 0),
+            train_size=self.wf_config.get('train_size', 0),
+            test_size=self.wf_config.get('test_size', 0),
+            step_size=self.wf_config.get('step_size', 0),
+            mode=self.wf_config.get('mode', 'rolling'),
+            num_folds=len(results.fold_configs),
+            training_start=self.training_start_time.isoformat() if self.training_start_time else '',
+            training_end=self.training_end_time.isoformat() if self.training_end_time else '',
+            duration_seconds=duration_seconds,
+            learning_rate=self.rl_config.get('learning_rate', 0.001),
+            discount_factor=self.rl_config.get('discount_factor', 0.99),
+            batch_size=self.rl_config.get('batch_size', 64),
+            architecture=self.rl_config.get('default_architecture', 'medium'),
+            epsilon_start=self.rl_config.get('epsilon_start', 1.0),
+            epsilon_end=self.rl_config.get('epsilon_min', 0.01),
+            training_metrics={},  # Could add training metrics if tracked
+            validation_metrics=results.mean_metrics,
+            best_fold_id=best_fold_id,
+            best_fold_metric=self.wf_config.get('integration', {}).get('validation_metric', 'sharpe_ratio'),
+            best_fold_value=getattr(results.fold_metrics[best_fold_id],
+                                   self.wf_config.get('integration', {}).get('validation_metric', 'sharpe_ratio'))
+        )
+
+        # Generate model ID from timestamp
+        model_id = f"wf_model_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+        # Create manifest
+        manifest = ModelManifest(
+            model_id=model_id,
+            model_name=f"Walk-Forward Model (Fold {best_fold_id})",
+            version="1.0.0",
+            created_at=datetime.now().isoformat(),
+            model_path=str(self.best_model_path) if self.best_model_path else '',
+            checkpoint_path=str(self.best_model_path) if self.best_model_path else '',
+            capabilities=capabilities,
+            training=training,
+            performance_summary={
+                'mean_return': results.mean_metrics.get('total_return', 0),
+                'mean_sharpe': results.mean_metrics.get('sharpe_ratio', 0),
+                'mean_win_rate': results.mean_metrics.get('win_rate', 0),
+                'mean_drawdown': results.mean_metrics.get('max_drawdown', 0),
+                'std_return': results.std_metrics.get('total_return', 0),
+                'std_sharpe': results.std_metrics.get('sharpe_ratio', 0),
+                'best_fold_return': results.fold_metrics[best_fold_id].total_return,
+                'best_fold_sharpe': results.fold_metrics[best_fold_id].sharpe_ratio,
+                'num_folds': len(results.fold_configs),
+            },
+            risk_parameters={
+                'max_position_size': capabilities.max_position_size,
+                'stop_loss_percent': self.config.get('risk_management', {}).get('stop_loss_percent', 0.02),
+                'take_profit_percent': self.config.get('risk_management', {}).get('take_profit_percent', 0.05),
+                'max_daily_loss': self.config.get('risk_management', {}).get('max_daily_loss', 0.05),
+            },
+            tags=['walk_forward', timeframe, *symbols],
+            description=f"Model trained using walk-forward validation ({self.wf_config.get('mode', 'rolling')} mode) "
+                       f"with {len(results.fold_configs)} folds. "
+                       f"Validated on {', '.join(symbols)} with {timeframe} timeframe.",
+            approved_for_live=False,  # Requires manual approval
+            min_sharpe_ratio=1.0,
+            min_win_rate=0.55,
+            max_drawdown=0.15
+        )
+
+        return manifest
 
     def load_best_model(self) -> Optional[NexlifyRLAgent]:
         """
