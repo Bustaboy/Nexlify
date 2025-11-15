@@ -35,7 +35,7 @@ This document provides comprehensive guidance for AI assistants (like Claude) wo
 - Real-time monitoring and Telegram notifications
 
 ### Key Technologies
-- **Python:** 3.9+ (tested on 3.10, 3.11)
+- **Python:** 3.11+ (tested on 3.11, 3.12)
 - **ML/RL:** PyTorch 2.1.0, TensorFlow 2.13.0, scikit-learn
 - **Trading:** CCXT 4.1.22 for exchange connectivity
 - **GUI:** PyQt5 5.15.10 with custom cyberpunk theme
@@ -460,7 +460,7 @@ Use conventional commits:
 ### CI/CD Pipeline (.github/workflows/tests.yml)
 
 **Triggers:** Push to main, develop, claude/**, pull requests
-**Matrix:** Python 3.10, 3.11
+**Matrix:** Python 3.11, 3.12
 **Steps:**
 1. Install dependencies (with pip cache)
 2. Install PyTorch CPU version
@@ -1195,7 +1195,7 @@ git push -u origin claude/feature-name-sessionid
 ## Version Information
 
 - **Current Version:** 2.0.7.7
-- **Python Required:** 3.9+ (tested on 3.10, 3.11)
+- **Python Required:** 3.11+ (tested on 3.11, 3.12)
 - **Last Updated:** 2025-11-14
 - **Maintainer:** Nexlify Development Team
 

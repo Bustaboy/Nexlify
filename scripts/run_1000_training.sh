@@ -22,10 +22,10 @@ echo -e "${NC}"
 # Check Python version
 echo -e "${YELLOW}Checking Python version...${NC}"
 PYTHON_VERSION=$(python3 --version 2>&1 | grep -oP '\d+\.\d+')
-REQUIRED_VERSION="3.9"
+REQUIRED_VERSION="3.11"
 
 if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$PYTHON_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
-    echo -e "${RED}Error: Python 3.9+ required, found Python $PYTHON_VERSION${NC}"
+    echo -e "${RED}Error: Python 3.11+ required, found Python $PYTHON_VERSION${NC}"
     exit 1
 fi
 echo -e "${GREEN}✓ Python $PYTHON_VERSION${NC}"

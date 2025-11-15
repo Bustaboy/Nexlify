@@ -1,6 +1,6 @@
 # 🤖 Nexlify - AI-Powered Cryptocurrency Trading System
 
-![Python](https://img.shields.io/badge/python-v3.9+-blue.svg)
+![Python](https://img.shields.io/badge/python-v3.11+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Status](https://img.shields.io/badge/status-active-success.svg)
 
@@ -38,7 +38,7 @@
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.9 or higher
+- Python 3.11 or higher
 - pip package manager
 - Exchange API keys (for trading)
 
