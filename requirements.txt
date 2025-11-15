@@ -32,6 +32,7 @@ tensorflow==2.20.0  # MAJOR UPDATE from 2.13.0 - Python 3.11-3.13 support, NumPy
 torch==2.6.0  # Updated from 2.1.0 - Python 3.11-3.14 support, NumPy 2.0 support, FP16 on X86
 torchvision==0.21.0  # Compatible with torch 2.6.0
 joblib==1.4.2  # Updated from 1.3.2
+optuna==3.4.0  # Hyperparameter optimization (Bayesian optimization for RL agent tuning)
 
 # Technical analysis
 ta==0.10.2  # Keeping same version - Latest
