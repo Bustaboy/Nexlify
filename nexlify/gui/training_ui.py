@@ -14,6 +14,8 @@ from pathlib import Path
 from datetime import datetime
 import logging
 
+from nexlify.security.api_key_manager import APIKeyManager, get_api_key_manager
+
 try:
     from PyQt5.QtWidgets import (
         QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -152,9 +154,11 @@ class TrainingUI(QMainWindow):
         self.training_worker: Optional[TrainingWorker] = None
         self.training_history: list = []
         self.current_results: Optional[Dict[str, Any]] = None
+        self.api_key_manager: Optional[APIKeyManager] = None
 
         self.init_ui()
         self.apply_theme()
+        self.init_api_manager()
 
         logger.info("TrainingUI initialized")
 
@@ -219,6 +223,10 @@ class TrainingUI(QMainWindow):
         # RL Agent Parameters
         rl_group = self.create_rl_config()
         layout.addWidget(rl_group)
+
+        # API Settings
+        api_group = self.create_api_config()
+        layout.addWidget(api_group)
 
         # Control buttons
         control_layout = QVBoxLayout()
@@ -350,6 +358,209 @@ class TrainingUI(QMainWindow):
 
         group.setLayout(layout)
         return group
+
+    def create_api_config(self) -> QGroupBox:
+        """Create API configuration group"""
+        group = QGroupBox("Exchange API Settings")
+        layout = QGridLayout()
+
+        # Exchange selection
+        layout.addWidget(QLabel("Exchange:"), 0, 0)
+        self.exchange_combo = QComboBox()
+        self.exchange_combo.addItems([
+            'binance', 'kraken', 'coinbase', 'bitfinex', 'bitstamp',
+            'gemini', 'poloniex', 'kucoin', 'huobi', 'okx'
+        ])
+        self.exchange_combo.currentTextChanged.connect(self.on_exchange_changed)
+        layout.addWidget(self.exchange_combo, 0, 1)
+
+        # API Key
+        layout.addWidget(QLabel("API Key:"), 1, 0)
+        self.api_key_input = QLineEdit()
+        self.api_key_input.setEchoMode(QLineEdit.Password)
+        self.api_key_input.setPlaceholderText("Enter API key...")
+        layout.addWidget(self.api_key_input, 1, 1)
+
+        # Secret Key
+        layout.addWidget(QLabel("Secret:"), 2, 0)
+        self.secret_input = QLineEdit()
+        self.secret_input.setEchoMode(QLineEdit.Password)
+        self.secret_input.setPlaceholderText("Enter secret...")
+        layout.addWidget(self.secret_input, 2, 1)
+
+        # Testnet checkbox
+        self.testnet_check = QCheckBox("Use Testnet")
+        self.testnet_check.setChecked(False)
+        layout.addWidget(self.testnet_check, 3, 0, 1, 2)
+
+        # Buttons
+        button_layout = QHBoxLayout()
+
+        self.test_connection_btn = QPushButton("Test Connection")
+        self.test_connection_btn.clicked.connect(self.test_api_connection)
+        button_layout.addWidget(self.test_connection_btn)
+
+        self.save_api_btn = QPushButton("Save API Keys")
+        self.save_api_btn.clicked.connect(self.save_api_keys)
+        button_layout.addWidget(self.save_api_btn)
+
+        layout.addLayout(button_layout, 4, 0, 1, 2)
+
+        # Status label
+        self.api_status_label = QLabel("No API keys loaded")
+        self.api_status_label.setWordWrap(True)
+        layout.addWidget(self.api_status_label, 5, 0, 1, 2)
+
+        group.setLayout(layout)
+        return group
+
+    def init_api_manager(self):
+        """Initialize API key manager"""
+        try:
+            # For now, use a default password
+            # In production, this should be user's PIN or secure password
+            password = "nexlify_default_password_change_me"
+
+            self.api_key_manager = APIKeyManager(password)
+
+            # Load API keys for current exchange
+            self.on_exchange_changed(self.exchange_combo.currentText())
+
+        except Exception as e:
+            logger.error(f"Failed to initialize API key manager: {e}")
+            self.api_status_label.setText(f"Error: {str(e)}")
+
+    def on_exchange_changed(self, exchange: str):
+        """Handle exchange selection change"""
+        if not self.api_key_manager:
+            return
+
+        # Load API keys for selected exchange
+        keys = self.api_key_manager.get_api_key(exchange)
+
+        if keys:
+            self.api_key_input.setText(keys['api_key'])
+            self.secret_input.setText(keys['secret'])
+            self.testnet_check.setChecked(keys.get('testnet', False))
+            self.api_status_label.setText(f"✓ API keys loaded for {exchange}")
+            self.api_status_label.setStyleSheet(f"color: {COLORS['profit']};")
+        else:
+            self.api_key_input.clear()
+            self.secret_input.clear()
+            self.testnet_check.setChecked(False)
+            self.api_status_label.setText(f"No API keys stored for {exchange}")
+            self.api_status_label.setStyleSheet(f"color: {COLORS['neutral']};")
+
+    def test_api_connection(self):
+        """Test API connection to selected exchange"""
+        exchange = self.exchange_combo.currentText()
+        api_key = self.api_key_input.text()
+        secret = self.secret_input.text()
+
+        if not api_key or not secret:
+            QMessageBox.warning(
+                self,
+                "Missing Credentials",
+                "Please enter both API key and secret"
+            )
+            return
+
+        # Save temporarily to test
+        testnet = self.testnet_check.isChecked()
+        if self.api_key_manager:
+            self.api_key_manager.add_api_key(exchange, api_key, secret, testnet)
+
+        # Update status
+        self.api_status_label.setText(f"Testing connection to {exchange}...")
+        self.api_status_label.setStyleSheet(f"color: {COLORS['warning']};")
+        self.test_connection_btn.setEnabled(False)
+
+        # Run test in background
+        QTimer.singleShot(100, lambda: self._run_connection_test(exchange))
+
+    def _run_connection_test(self, exchange: str):
+        """Run connection test asynchronously"""
+        try:
+            # Create event loop for async test
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            if self.api_key_manager:
+                success, message = loop.run_until_complete(
+                    self.api_key_manager.test_connection(exchange)
+                )
+            else:
+                success, message = False, "API key manager not initialized"
+
+            # Update UI
+            if success:
+                self.api_status_label.setText(f"✓ {message}")
+                self.api_status_label.setStyleSheet(f"color: {COLORS['profit']};")
+                QMessageBox.information(
+                    self,
+                    "Connection Successful",
+                    f"Successfully connected to {exchange}!"
+                )
+            else:
+                self.api_status_label.setText(f"✗ {message}")
+                self.api_status_label.setStyleSheet(f"color: {COLORS['loss']};")
+                QMessageBox.warning(
+                    self,
+                    "Connection Failed",
+                    f"Failed to connect to {exchange}:\n\n{message}"
+                )
+
+        except Exception as e:
+            self.api_status_label.setText(f"Error: {str(e)}")
+            self.api_status_label.setStyleSheet(f"color: {COLORS['loss']};")
+            QMessageBox.critical(
+                self,
+                "Test Error",
+                f"Error testing connection:\n\n{str(e)}"
+            )
+
+        finally:
+            self.test_connection_btn.setEnabled(True)
+
+    def save_api_keys(self):
+        """Save API keys to encrypted storage"""
+        exchange = self.exchange_combo.currentText()
+        api_key = self.api_key_input.text()
+        secret = self.secret_input.text()
+
+        if not api_key or not secret:
+            QMessageBox.warning(
+                self,
+                "Missing Credentials",
+                "Please enter both API key and secret"
+            )
+            return
+
+        try:
+            testnet = self.testnet_check.isChecked()
+
+            if self.api_key_manager:
+                self.api_key_manager.add_api_key(exchange, api_key, secret, testnet)
+
+                self.api_status_label.setText(f"✓ API keys saved for {exchange}")
+                self.api_status_label.setStyleSheet(f"color: {COLORS['profit']};")
+
+                QMessageBox.information(
+                    self,
+                    "Keys Saved",
+                    f"API keys for {exchange} have been saved to encrypted storage."
+                )
+            else:
+                raise Exception("API key manager not initialized")
+
+        except Exception as e:
+            self.api_status_label.setText(f"Error: {str(e)}")
+            self.api_status_label.setStyleSheet(f"color: {COLORS['loss']};")
+            QMessageBox.critical(
+                self,
+                "Save Error",
+                f"Failed to save API keys:\n\n{str(e)}"
+            )
 
     def create_monitoring_panel(self) -> QWidget:
         """Create monitoring and results panel"""
