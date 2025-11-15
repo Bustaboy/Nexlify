@@ -47,16 +47,15 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-        cache: 'pip'
-        cache-dependency-path: 'requirements.txt'
+        # Removed pip cache - using uv which has its own caching
 
-    - name: Cache pip packages
+    - name: Cache uv packages
       uses: actions/cache@v4
       with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        path: ~/.cache/uv
+        key: ${{ runner.os }}-uv-${{ hashFiles('requirements.txt') }}
         restore-keys: |
-          ${{ runner.os }}-pip-
+          ${{ runner.os }}-uv-
 
     - name: Install uv (ultra-fast pip replacement)
       run: |
@@ -110,17 +109,16 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-        cache: 'pip'
-        cache-dependency-path: 'requirements.txt'
+        # Removed pip cache - using uv which has its own caching
 
-    - name: Cache pip packages
+    - name: Cache uv packages
       uses: actions/cache@v4
       with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}-${{ matrix.python-version }}
+        path: ~/.cache/uv
+        key: ${{ runner.os }}-uv-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
         restore-keys: |
-          ${{ runner.os }}-pip-${{ matrix.python-version }}-
-          ${{ runner.os }}-pip-
+          ${{ runner.os }}-uv-${{ matrix.python-version }}-
+          ${{ runner.os }}-uv-
 
     - name: Install uv (ultra-fast pip replacement)
       run: |
@@ -182,17 +180,16 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.12'
-        cache: 'pip'
-        cache-dependency-path: 'requirements.txt'
+        # Removed pip cache - using uv which has its own caching
 
-    - name: Cache pip packages
+    - name: Cache uv packages
       uses: actions/cache@v4
       with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-integration-${{ hashFiles('requirements.txt') }}
+        path: ~/.cache/uv
+        key: ${{ runner.os }}-uv-integration-${{ hashFiles('requirements.txt') }}
         restore-keys: |
-          ${{ runner.os }}-pip-integration-
-          ${{ runner.os }}-pip-
+          ${{ runner.os }}-uv-integration-
+          ${{ runner.os }}-uv-
 
     - name: Install uv (ultra-fast pip replacement)
       run: |
@@ -245,7 +242,16 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.12'
-        cache: 'pip'
+        # Removed pip cache - using uv which has its own caching
+
+    - name: Cache uv packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/uv
+        key: ${{ runner.os }}-uv-quality-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-uv-quality-
+          ${{ runner.os }}-uv-
 
     - name: Install uv (ultra-fast pip replacement)
       run: |
