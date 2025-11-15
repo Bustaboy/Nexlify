@@ -98,7 +98,7 @@ questionary==2.1.0  # Updated from 2.0.1
 psutil==6.1.1  # Updated from 5.9.5
 py-cpuinfo==9.0.0  # Keeping same version - Latest
 gputil==1.4.0  # Keeping same version - Latest
-pynvml==13.0.1  # Updated from 11.5.0 - For NVIDIA GPU monitoring and thermal management
+nvidia-ml-py==12.560.30  # Replaced pynvml (deprecated) - For NVIDIA GPU monitoring and thermal management
 
 # Backup and compression
 py7zr==1.0.0  # Updated from 0.20.6 - Latest stable release for Python 3.11+
