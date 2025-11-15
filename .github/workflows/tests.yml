@@ -73,10 +73,13 @@ jobs:
         grep -v "^torch==" requirements.txt | grep -v "^torchvision==" | grep -v "^tensorflow==" > /tmp/requirements-minimal.txt
         uv pip install --system -r /tmp/requirements-minimal.txt
 
-    - name: Run unit tests only (no integration/slow tests)
+    - name: Run unit tests only (no integration/slow tests) - PARALLEL
       run: |
-        pytest tests/ -v -m "not slow and not integration" --tb=short
-      timeout-minutes: 10
+        # Run tests in parallel with pytest-xdist (2-4x faster)
+        # -n auto: use all available CPU cores
+        # --maxfail=3: stop after 3 failures for faster feedback
+        pytest tests/ -n auto -v -m "not slow and not integration" --tb=short --maxfail=3
+      timeout-minutes: 5  # Reduced from 10 (tests should be 2-4x faster)
 
   # Full test suite for pull requests
   full-tests:
@@ -119,16 +122,22 @@ jobs:
         uv pip install --system torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
         # Install TensorFlow CPU-only (~200MB vs 500MB+ CUDA version)
         uv pip install --system tensorflow-cpu==2.20.0
-        # Install test dependencies
-        uv pip install --system pytest pytest-cov pytest-asyncio pytest-mock
+        # Install test dependencies (including parallel testing tools)
+        uv pip install --system pytest pytest-cov pytest-asyncio pytest-mock pytest-xdist pytest-timeout
         # Install remaining dependencies, excluding heavy ML packages already installed
         grep -v "^torch==" requirements.txt | grep -v "^torchvision==" | grep -v "^tensorflow==" > /tmp/requirements-minimal.txt
         uv pip install --system -r /tmp/requirements-minimal.txt
 
-    - name: Run all tests with coverage
+    - name: Run all tests with coverage - PARALLEL
       run: |
-        pytest tests/ -v --cov=nexlify --cov-report=xml --cov-report=term-missing --cov-report=html -m "not slow"
-      timeout-minutes: 15
+        # Run tests in parallel with coverage
+        # Note: pytest-xdist + coverage requires special handling
+        # Using -n auto for parallel execution with coverage context
+        pytest tests/ -n auto -v \
+          --cov=nexlify --cov-context=test \
+          --cov-report=xml --cov-report=term-missing --cov-report=html \
+          -m "not slow" --timeout=30 --maxfail=5
+      timeout-minutes: 8  # Reduced from 15 (tests should be 2x faster)
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
@@ -183,21 +192,23 @@ jobs:
         uv pip install --system torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
         # Install TensorFlow CPU-only (~200MB vs 500MB+ CUDA version)
         uv pip install --system tensorflow-cpu==2.20.0
-        # Install test dependencies
-        uv pip install --system pytest pytest-asyncio pytest-mock
+        # Install test dependencies (including parallel testing tools)
+        uv pip install --system pytest pytest-asyncio pytest-mock pytest-xdist pytest-timeout
         # Install remaining dependencies, excluding heavy ML packages already installed
         grep -v "^torch==" requirements.txt | grep -v "^torchvision==" | grep -v "^tensorflow==" > /tmp/requirements-minimal.txt
         uv pip install --system -r /tmp/requirements-minimal.txt
 
-    - name: Run integration tests
+    - name: Run integration tests - PARALLEL
       run: |
-        pytest tests/ -v -m "integration" --tb=short
-      timeout-minutes: 20
+        # Run integration tests in parallel (can be slow, so parallel helps)
+        pytest tests/ -n auto -v -m "integration" --tb=short --timeout=60
+      timeout-minutes: 12  # Reduced from 20 (parallel execution)
       continue-on-error: true
 
-    - name: Run slow tests
+    - name: Run slow tests - PARALLEL
       run: |
-        pytest tests/ -v -m "slow" --tb=short
+        # Even slow tests benefit from parallelization
+        pytest tests/ -n auto -v -m "slow" --tb=short --timeout=120
       timeout-minutes: 30
       continue-on-error: true
 

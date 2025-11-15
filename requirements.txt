@@ -71,6 +71,8 @@ pytest==8.3.4  # Updated from 7.4.2 - Keeping 8.x for compatibility (9.x require
 pytest-asyncio==0.24.0  # Updated from 0.21.1
 pytest-cov==6.0.0  # Updated from 4.1.0
 pytest-mock==3.14.0  # Updated from 3.11.1
+pytest-xdist==3.6.1  # NEW: Parallel test execution (2-4x faster with -n auto)
+pytest-timeout==2.3.1  # NEW: Prevent hanging tests with --timeout=30
 
 # Data validation
 pydantic==2.10.4  # BREAKING: Upgraded from 1.10.19 to v2.x for web3 7.4.0 compatibility

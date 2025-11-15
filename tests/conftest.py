@@ -16,13 +16,17 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 @pytest.fixture(scope="session")
 def event_loop():
-    """Create an instance of the default event loop for the test session."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
+    """
+    Create an instance of the default event loop for the test session.
+    Session-scoped to reuse across all tests for better performance.
+    """
+    policy = asyncio.get_event_loop_policy()
+    loop = policy.new_event_loop()
     yield loop
     loop.close()
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def sample_config():
     """Standard test configuration"""
     return {
@@ -53,9 +57,9 @@ def sample_config():
     }
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def mock_exchange_config():
-    """Mock exchange configuration for testing"""
+    """Mock exchange configuration for testing (session-scoped for performance)"""
     return {
         "binance": {"api_key": "test_api_key", "secret": "test_secret", "enabled": True}
     }
@@ -69,9 +73,62 @@ def test_data_dir(tmp_path):
     return data_dir
 
 
+@pytest.fixture(scope="session")
+def in_memory_db_url():
+    """
+    In-memory SQLite database URL for testing (much faster than disk-based).
+    Session-scoped for reuse across tests.
+    """
+    return "sqlite:///:memory:"
+
+
+@pytest.fixture
+def test_db_config(in_memory_db_url):
+    """
+    Test configuration with in-memory database for faster tests.
+    Function-scoped so each test gets a fresh database.
+    """
+    return {
+        "performance_tracking": {
+            "enabled": True,
+            "database_path": ":memory:",  # In-memory database
+            "calculate_sharpe_ratio": True,
+            "risk_free_rate": 0.02,
+            "track_drawdown": True,
+        }
+    }
+
+
 # Pytest hooks for custom behavior
 def pytest_configure(config):
     """Custom pytest configuration"""
     config.addinivalue_line("markers", "slow: mark test as slow running")
     config.addinivalue_line("markers", "integration: mark test as integration test")
     config.addinivalue_line("markers", "unit: mark test as unit test")
+    config.addinivalue_line("markers", "requires_network: requires network connectivity")
+    config.addinivalue_line("markers", "requires_gpu: requires GPU hardware")
+
+
+def pytest_collection_modifyitems(config, items):
+    """
+    Modify test collection to optimize test execution order.
+    Run fast unit tests first for quicker feedback.
+    """
+    # Separate tests into categories
+    unit_tests = []
+    integration_tests = []
+    slow_tests = []
+    other_tests = []
+
+    for item in items:
+        if "slow" in item.keywords:
+            slow_tests.append(item)
+        elif "integration" in item.keywords:
+            integration_tests.append(item)
+        elif "unit" in item.keywords:
+            unit_tests.append(item)
+        else:
+            other_tests.append(item)
+
+    # Reorder: unit tests first (fast feedback), then others, then slow tests last
+    items[:] = unit_tests + other_tests + integration_tests + slow_tests
