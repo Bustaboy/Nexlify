@@ -94,7 +94,7 @@ gputil==1.4.0  # Keeping same version - Latest
 pynvml==13.0.1  # Updated from 11.5.0 - For NVIDIA GPU monitoring and thermal management
 
 # Backup and compression
-py7zr==0.23.0  # Updated from 0.20.6
+py7zr==1.0.0  # Updated from 0.20.6 - Latest stable release for Python 3.11+
 zipfile38==0.0.3  # Keeping same version (Python 3.11 has better zipfile built-in)
 lz4==4.3.3  # Updated from 4.3.2 - For fast compression in smart cache
 
