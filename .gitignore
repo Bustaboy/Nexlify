@@ -143,9 +143,22 @@ test_*.json
 test_output/
 
 # API Keys and Wallets (extra safety)
-*api_key*
-*secret*
-*wallet*
-*private*
+# Encrypted API key storage
+config/api_keys.encrypted
+config/api_keys.encrypted.backup
+config/.api_keys.*
+backups/api_keys*.encrypted
+
+# PIN hash file
+config/.pin_hash
+config/.pin_hash.backup
+
+# Other sensitive files
+*secret.json
+*secret.txt
+*wallet.json
+*wallet.dat
+*private.key
+*private.pem
 !*example*
 demo_trades.json

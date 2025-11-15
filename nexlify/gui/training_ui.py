@@ -15,6 +15,7 @@ from datetime import datetime
 import logging
 
 from nexlify.security.api_key_manager import APIKeyManager, get_api_key_manager
+from nexlify.gui.pin_setup_dialog import show_pin_setup_dialog, PINSetupDialog
 
 try:
     from PyQt5.QtWidgets import (
@@ -158,6 +159,10 @@ class TrainingUI(QMainWindow):
 
         self.init_ui()
         self.apply_theme()
+
+        # Show PIN setup dialog on first boot (after UI is shown)
+        QTimer.singleShot(100, self.check_pin_setup)
+
         self.init_api_manager()
 
         logger.info("TrainingUI initialized")
@@ -414,12 +419,46 @@ class TrainingUI(QMainWindow):
         group.setLayout(layout)
         return group
 
+    def check_pin_setup(self):
+        """Check if PIN setup is required and show dialog"""
+        try:
+            if PINSetupDialog.check_if_setup_required():
+                logger.info("PIN setup required - showing dialog")
+
+                # Show PIN setup dialog (blocks until complete)
+                new_pin = show_pin_setup_dialog(self)
+
+                if not new_pin:
+                    # User somehow cancelled - shouldn't happen but handle it
+                    QMessageBox.critical(
+                        self,
+                        "Security Required",
+                        "A secure PIN is required to use Nexlify. The application will now exit."
+                    )
+                    sys.exit(1)
+
+                logger.info("PIN setup completed successfully")
+
+        except Exception as e:
+            logger.error(f"Error during PIN setup: {e}")
+            QMessageBox.critical(
+                self,
+                "Setup Error",
+                f"Failed to complete PIN setup: {str(e)}\n\nThe application will now exit."
+            )
+            sys.exit(1)
+
     def init_api_manager(self):
         """Initialize API key manager"""
         try:
-            # For now, use a default password
-            # In production, this should be user's PIN or secure password
-            password = "nexlify_default_password_change_me"
+            # Load user's PIN hash to use as password
+            pin_file = Path("config/.pin_hash")
+            if pin_file.exists():
+                with open(pin_file) as f:
+                    password = f.read().strip()
+            else:
+                # Fallback to default (should never happen after PIN setup)
+                password = "nexlify_default_password_change_me"
 
             self.api_key_manager = APIKeyManager(password)
 

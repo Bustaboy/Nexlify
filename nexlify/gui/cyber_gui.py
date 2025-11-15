@@ -33,6 +33,7 @@ from nexlify.security.nexlify_advanced_security import (SecurityManager,
                                                         TwoFactorAuth)
 from nexlify.security.nexlify_audit_trail import AuditManager
 from nexlify.security.api_key_manager import APIKeyManager, get_api_key_manager
+from nexlify.gui.pin_setup_dialog import show_pin_setup_dialog, PINSetupDialog
 from nexlify.strategies.nexlify_multi_strategy import MultiStrategyOptimizer
 from nexlify.strategies.nexlify_predictive_features import PredictiveEngine
 from nexlify.utils.error_handler import ErrorContext, get_error_handler
@@ -375,8 +376,14 @@ class CyberGUI(QMainWindow):
             self.sound_manager.initialize()
 
             # Initialize API key manager
-            # Use default password for now, should be user's PIN in production
-            password = "nexlify_default_password_change_me"
+            # Use user's PIN hash as password
+            pin_file = Path("config/.pin_hash")
+            if pin_file.exists():
+                with open(pin_file) as f:
+                    password = f.read().strip()
+            else:
+                # Fallback to default (will be forced to change on first boot)
+                password = "nexlify_default_password_change_me"
             self.api_key_manager = APIKeyManager(password)
 
             # These will be initialized after authentication
@@ -425,8 +432,8 @@ class CyberGUI(QMainWindow):
         # Status bar
         self._create_status_bar()
 
-        # Initially show login dialog
-        QTimer.singleShot(100, self._show_login_dialog)
+        # Check PIN setup first, then show login dialog
+        QTimer.singleShot(100, self._check_pin_setup)
 
     def _create_header(self, parent_layout):
         """Create cyberpunk header with status indicators"""
@@ -1433,6 +1440,45 @@ class CyberGUI(QMainWindow):
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self._update_real_time_data)
         self.update_timer.start(5000)  # Update every 5 seconds
+
+    def _check_pin_setup(self):
+        """Check if PIN setup is required and show dialog"""
+        try:
+            if PINSetupDialog.check_if_setup_required():
+                logger.info("PIN setup required - showing dialog")
+
+                # Show PIN setup dialog (blocks until complete)
+                new_pin = show_pin_setup_dialog(self)
+
+                if not new_pin:
+                    # User somehow cancelled - shouldn't happen but handle it
+                    QMessageBox.critical(
+                        self,
+                        "Security Required",
+                        "A secure PIN is required to use Nexlify. The application will now exit."
+                    )
+                    sys.exit(1)
+
+                logger.info("PIN setup completed successfully")
+
+                # Update API key manager to use new PIN hash
+                pin_file = Path("config/.pin_hash")
+                if pin_file.exists():
+                    with open(pin_file) as f:
+                        password = f.read().strip()
+                    self.api_key_manager = APIKeyManager(password)
+
+        except Exception as e:
+            logger.error(f"Error during PIN setup: {e}")
+            QMessageBox.critical(
+                self,
+                "Setup Error",
+                f"Failed to complete PIN setup: {str(e)}\n\nThe application will now exit."
+            )
+            sys.exit(1)
+
+        # After PIN setup (or if not needed), show login dialog
+        self._show_login_dialog()
 
     def _show_login_dialog(self):
         """Show login dialog with optional security features"""

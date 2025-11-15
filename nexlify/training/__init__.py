@@ -32,6 +32,13 @@ from nexlify.training.walk_forward_trainer import (
     train_with_walk_forward,
 )
 
+from nexlify.training.paper_trading_integration import (
+    ModelPaperTester,
+    create_paper_test_from_manifest,
+    test_all_models,
+    run_quick_paper_test,
+)
+
 __all__ = [
     # Training optimizers
     "GradientClipper",
@@ -52,4 +59,9 @@ __all__ = [
     # Walk-forward training
     "WalkForwardTrainer",
     "train_with_walk_forward",
+    # Paper trading integration
+    "ModelPaperTester",
+    "create_paper_test_from_manifest",
+    "test_all_models",
+    "run_quick_paper_test",
 ]
