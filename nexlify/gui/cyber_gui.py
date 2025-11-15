@@ -345,6 +345,8 @@ class CyberGUI(QMainWindow):
         self._setup_ui()
         self._apply_cyberpunk_theme()
         self._setup_connections()
+        self._setup_keyboard_shortcuts()
+        self._setup_context_menus()
 
     def _init_components(self):
         """Initialize backend components"""
@@ -1440,6 +1442,317 @@ class CyberGUI(QMainWindow):
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self._update_real_time_data)
         self.update_timer.start(5000)  # Update every 5 seconds
+
+    def _setup_keyboard_shortcuts(self):
+        """Setup keyboard shortcuts for common operations"""
+        # Quit application
+        QShortcut(QKeySequence("Ctrl+Q"), self, self.close)
+
+        # Refresh data
+        QShortcut(QKeySequence("Ctrl+R"), self, self._refresh_data)
+        QShortcut(QKeySequence("F5"), self, self._refresh_data)
+
+        # Save settings
+        QShortcut(QKeySequence("Ctrl+S"), self, self._save_settings)
+
+        # Toggle trading
+        QShortcut(QKeySequence("Ctrl+T"), self, self._toggle_trading)
+
+        # Emergency stop (Esc with confirmation)
+        QShortcut(QKeySequence("Esc"), self, self._emergency_stop_shortcut)
+
+        # Tab navigation (Ctrl+1 through Ctrl+0)
+        for i in range(1, 10):
+            QShortcut(QKeySequence(f"Ctrl+{i}"), self, lambda idx=i-1: self._switch_tab(idx))
+        QShortcut(QKeySequence("Ctrl+0"), self, lambda: self._switch_tab(9))  # Tab 10
+
+        # Copy from focused table
+        QShortcut(QKeySequence("Ctrl+C"), self, self._copy_from_table)
+
+        # Find in logs
+        QShortcut(QKeySequence("Ctrl+F"), self, self._focus_log_search)
+
+        # Show help
+        QShortcut(QKeySequence("Ctrl+H"), self, self._show_shortcuts_help)
+
+        logger.info("Keyboard shortcuts initialized")
+
+        # Update status bar with shortcuts hint
+        self.statusBar().showMessage("Press Ctrl+H for keyboard shortcuts help", 3000)
+
+    def _setup_context_menus(self):
+        """Setup right-click context menus for tables"""
+        # Enable context menus for all tables
+        tables = [
+            ('active_pairs_table', 'Active Pairs'),
+            ('positions_table', 'Positions'),
+            ('order_history_table', 'Order History'),
+            ('balances_table', 'Balances'),
+            ('strategy_performance_table', 'Strategy Performance')
+        ]
+
+        for table_attr, table_name in tables:
+            if hasattr(self, table_attr):
+                table = getattr(self, table_attr)
+                table.setContextMenuPolicy(Qt.CustomContextMenu)
+                table.customContextMenuRequested.connect(
+                    lambda pos, t=table, n=table_name: self._show_table_context_menu(pos, t, n)
+                )
+
+        logger.info("Context menus initialized for all tables")
+
+    def _show_table_context_menu(self, pos: QPoint, table: QTableView, table_name: str):
+        """Show context menu for table"""
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background-color: {self.config.bg_card};
+                border: 1px solid {self.config.border_color};
+                border-radius: 6px;
+                padding: 4px;
+            }}
+            QMenu::item {{
+                color: {self.config.text_primary};
+                padding: 6px 12px;
+                border-radius: 4px;
+            }}
+            QMenu::item:selected {{
+                background-color: {self.config.accent_primary};
+                color: white;
+            }}
+        """)
+
+        # Copy actions
+        copy_cell = menu.addAction("📋 Copy Cell")
+        copy_row = menu.addAction("📄 Copy Row")
+        copy_all = menu.addAction("📊 Copy All Data")
+        menu.addSeparator()
+
+        # Export actions
+        export_csv = menu.addAction("💾 Export to CSV")
+        export_json = menu.addAction("📦 Export to JSON")
+        menu.addSeparator()
+
+        # Refresh action
+        refresh = menu.addAction("🔄 Refresh Table")
+
+        # Execute action
+        action = menu.exec_(table.viewport().mapToGlobal(pos))
+
+        if action == copy_cell:
+            self._copy_table_cell(table)
+        elif action == copy_row:
+            self._copy_table_row(table)
+        elif action == copy_all:
+            self._copy_table_all(table)
+        elif action == export_csv:
+            self._export_table_csv(table, table_name)
+        elif action == export_json:
+            self._export_table_json(table, table_name)
+        elif action == refresh:
+            self._refresh_data()
+
+    def _copy_table_cell(self, table: QTableView):
+        """Copy selected cell to clipboard"""
+        selection = table.selectionModel()
+        if selection.hasSelection():
+            index = selection.currentIndex()
+            text = str(index.data() or "")
+            QApplication.clipboard().setText(text)
+            self.statusBar().showMessage(f"Copied: {text[:50]}", 2000)
+
+    def _copy_table_row(self, table: QTableView):
+        """Copy selected row to clipboard"""
+        selection = table.selectionModel()
+        if selection.hasSelection():
+            row = selection.currentIndex().row()
+            model = table.model()
+            if model:
+                row_data = []
+                for col in range(model.columnCount()):
+                    index = model.index(row, col)
+                    row_data.append(str(index.data() or ""))
+                text = "\t".join(row_data)
+                QApplication.clipboard().setText(text)
+                self.statusBar().showMessage(f"Copied row {row + 1}", 2000)
+
+    def _copy_table_all(self, table: QTableView):
+        """Copy all table data to clipboard"""
+        model = table.model()
+        if not model:
+            return
+
+        # Get headers
+        headers = []
+        for col in range(model.columnCount()):
+            headers.append(str(model.headerData(col, Qt.Horizontal) or ""))
+
+        # Get all rows
+        rows = ["\t".join(headers)]
+        for row in range(model.rowCount()):
+            row_data = []
+            for col in range(model.columnCount()):
+                index = model.index(row, col)
+                row_data.append(str(index.data() or ""))
+            rows.append("\t".join(row_data))
+
+        text = "\n".join(rows)
+        QApplication.clipboard().setText(text)
+        self.statusBar().showMessage(f"Copied {model.rowCount()} rows", 2000)
+
+    def _export_table_csv(self, table: QTableView, table_name: str):
+        """Export table to CSV file"""
+        model = table.model()
+        if not model:
+            return
+
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            f"Export {table_name} to CSV",
+            f"{table_name.replace(' ', '_').lower()}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            "CSV Files (*.csv)"
+        )
+
+        if filename:
+            try:
+                import csv
+                with open(filename, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+
+                    # Write headers
+                    headers = []
+                    for col in range(model.columnCount()):
+                        headers.append(str(model.headerData(col, Qt.Horizontal) or ""))
+                    writer.writerow(headers)
+
+                    # Write data
+                    for row in range(model.rowCount()):
+                        row_data = []
+                        for col in range(model.columnCount()):
+                            index = model.index(row, col)
+                            row_data.append(str(index.data() or ""))
+                        writer.writerow(row_data)
+
+                self.statusBar().showMessage(f"Exported to {filename}", 3000)
+                QMessageBox.information(self, "Export Complete", f"Data exported to:\n{filename}")
+            except Exception as e:
+                QMessageBox.critical(self, "Export Failed", f"Failed to export: {str(e)}")
+
+    def _export_table_json(self, table: QTableView, table_name: str):
+        """Export table to JSON file"""
+        model = table.model()
+        if not model:
+            return
+
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            f"Export {table_name} to JSON",
+            f"{table_name.replace(' ', '_').lower()}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+            "JSON Files (*.json)"
+        )
+
+        if filename:
+            try:
+                # Get headers
+                headers = []
+                for col in range(model.columnCount()):
+                    headers.append(str(model.headerData(col, Qt.Horizontal) or ""))
+
+                # Get all rows as dicts
+                data = []
+                for row in range(model.rowCount()):
+                    row_dict = {}
+                    for col in range(model.columnCount()):
+                        index = model.index(row, col)
+                        row_dict[headers[col]] = str(index.data() or "")
+                    data.append(row_dict)
+
+                with open(filename, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, indent=2)
+
+                self.statusBar().showMessage(f"Exported to {filename}", 3000)
+                QMessageBox.information(self, "Export Complete", f"Data exported to:\n{filename}")
+            except Exception as e:
+                QMessageBox.critical(self, "Export Failed", f"Failed to export: {str(e)}")
+
+    def _emergency_stop_shortcut(self):
+        """Handle Esc key for emergency stop with confirmation"""
+        reply = QMessageBox.question(
+            self,
+            "Emergency Stop",
+            "Press ESC to trigger Emergency Stop?\n\nThis will immediately halt all trading!",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            self._emergency_stop()
+
+    def _switch_tab(self, index: int):
+        """Switch to tab by index"""
+        if index < self.tab_widget.count():
+            self.tab_widget.setCurrentIndex(index)
+            self.statusBar().showMessage(f"Switched to tab: {self.tab_widget.tabText(index)}", 2000)
+
+    def _copy_from_table(self):
+        """Copy from currently focused table"""
+        focused = QApplication.focusWidget()
+        if isinstance(focused, QTableView):
+            self._copy_table_row(focused)
+        else:
+            # Try to find selected table in current tab
+            current_widget = self.tab_widget.currentWidget()
+            tables = current_widget.findChildren(QTableView)
+            if tables:
+                self._copy_table_row(tables[0])
+
+    def _focus_log_search(self):
+        """Focus the log search input"""
+        # Switch to logs tab
+        logs_tab_index = 5  # Adjust based on actual tab index
+        if hasattr(self, 'tab_widget'):
+            for i in range(self.tab_widget.count()):
+                if "Log" in self.tab_widget.tabText(i):
+                    logs_tab_index = i
+                    break
+            self.tab_widget.setCurrentIndex(logs_tab_index)
+
+        # Focus search input
+        if hasattr(self, 'log_search_input'):
+            self.log_search_input.setFocus()
+            self.log_search_input.selectAll()
+
+    def _show_shortcuts_help(self):
+        """Show keyboard shortcuts help dialog"""
+        help_text = """
+        <h2>Keyboard Shortcuts</h2>
+        <table style='width:100%; font-family: monospace;'>
+        <tr><td><b>Ctrl+Q</b></td><td>Quit application</td></tr>
+        <tr><td><b>Ctrl+R / F5</b></td><td>Refresh data</td></tr>
+        <tr><td><b>Ctrl+S</b></td><td>Save settings</td></tr>
+        <tr><td><b>Ctrl+T</b></td><td>Toggle trading on/off</td></tr>
+        <tr><td><b>Esc</b></td><td>Emergency stop (with confirmation)</td></tr>
+        <tr><td><b>Ctrl+1-9, 0</b></td><td>Switch to tab 1-10</td></tr>
+        <tr><td><b>Ctrl+C</b></td><td>Copy from focused table</td></tr>
+        <tr><td><b>Ctrl+F</b></td><td>Find in logs</td></tr>
+        <tr><td><b>Ctrl+H</b></td><td>Show this help</td></tr>
+        </table>
+        <br>
+        <h3>Right-Click Menus</h3>
+        <p>Right-click on any table to:</p>
+        <ul>
+        <li>Copy cell, row, or all data</li>
+        <li>Export to CSV or JSON</li>
+        <li>Refresh table</li>
+        </ul>
+        """
+
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Keyboard Shortcuts")
+        msg.setTextFormat(Qt.RichText)
+        msg.setText(help_text)
+        msg.setIcon(QMessageBox.Information)
+        msg.exec_()
 
     def _check_pin_setup(self):
         """Check if PIN setup is required and show dialog"""
