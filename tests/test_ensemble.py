@@ -388,7 +388,9 @@ def test_ensemble_trainer_initialization(
     assert len(trainer.training_results) == 0
 
 
+@pytest.mark.slow  # Training tests are slow - mark as slow to skip in fast CI runs
 @pytest.mark.integration
+@pytest.mark.timeout(120)  # Allow up to 2 minutes for single model training
 def test_train_single_model(
     state_size,
     action_size,
@@ -399,9 +401,9 @@ def test_train_single_model(
     """Test training a single model"""
     config = EnsembleTrainingConfig(
         num_models=1,
-        episodes_per_model=10,  # Short training for testing
+        episodes_per_model=5,  # Reduced from 10 for faster testing
         parallel_training=False,
-        validation_episodes=10,  # Fewer validation episodes for testing
+        validation_episodes=5,  # Reduced from 10 for faster testing
         output_dir=str(tmp_path)
     )
 
@@ -422,7 +424,9 @@ def test_train_single_model(
     assert isinstance(results[0].validation_score, (int, float))
 
 
+@pytest.mark.slow  # Training tests are slow - mark as slow to skip in fast CI runs
 @pytest.mark.integration
+@pytest.mark.timeout(150)  # Allow up to 2.5 minutes for 2-model ensemble training
 def test_train_ensemble_sequential(
     state_size,
     action_size,
@@ -433,9 +437,9 @@ def test_train_ensemble_sequential(
     """Test training ensemble sequentially"""
     config = EnsembleTrainingConfig(
         num_models=2,
-        episodes_per_model=10,  # Short training for testing
+        episodes_per_model=5,  # Reduced from 10 for faster testing
         parallel_training=False,
-        validation_episodes=10,  # Fewer validation episodes for testing
+        validation_episodes=5,  # Reduced from 10 for faster testing
         output_dir=str(tmp_path)
     )
 
@@ -456,7 +460,9 @@ def test_train_ensemble_sequential(
     assert results[0].seed != results[1].seed
 
 
+@pytest.mark.slow  # Training tests are slow - mark as slow to skip in fast CI runs
 @pytest.mark.integration
+@pytest.mark.timeout(180)  # Allow up to 3 minutes for ensemble training (3 models * 5 episodes)
 def test_get_best_models(
     state_size,
     action_size,
@@ -467,9 +473,9 @@ def test_get_best_models(
     """Test getting best models from ensemble"""
     config = EnsembleTrainingConfig(
         num_models=3,
-        episodes_per_model=10,
+        episodes_per_model=5,  # Reduced from 10 for faster testing
         parallel_training=False,
-        validation_episodes=10,  # Fewer validation episodes for testing
+        validation_episodes=5,  # Reduced from 10 for faster testing
         output_dir=str(tmp_path)
     )
 
@@ -491,6 +497,7 @@ def test_get_best_models(
     assert best_models[0].validation_score >= best_models[1].validation_score
 
 
+@pytest.mark.slow  # Training tests are slow - mark as slow to skip in fast CI runs
 @pytest.mark.integration
 def test_compare_models(
     state_size,
@@ -502,9 +509,9 @@ def test_compare_models(
     """Test model comparison report"""
     config = EnsembleTrainingConfig(
         num_models=2,
-        episodes_per_model=10,
+        episodes_per_model=5,  # Reduced from 10 for faster testing
         parallel_training=False,
-        validation_episodes=10,  # Fewer validation episodes for testing
+        validation_episodes=5,  # Reduced from 10 for faster testing
         output_dir=str(tmp_path)
     )
 
@@ -525,6 +532,7 @@ def test_compare_models(
     assert "Val Score" in report
 
 
+@pytest.mark.slow  # Training tests are slow - mark as slow to skip in fast CI runs
 @pytest.mark.integration
 def test_ensemble_summary_saved(
     state_size,
@@ -536,9 +544,9 @@ def test_ensemble_summary_saved(
     """Test that ensemble summary is saved"""
     config = EnsembleTrainingConfig(
         num_models=2,
-        episodes_per_model=10,
+        episodes_per_model=5,  # Reduced from 10 for faster testing
         parallel_training=False,
-        validation_episodes=10,  # Fewer validation episodes for testing
+        validation_episodes=5,  # Reduced from 10 for faster testing
         output_dir=str(tmp_path)
     )
 

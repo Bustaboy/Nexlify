@@ -286,6 +286,27 @@
     "commission": 0.001
   },
 
+  "walk_forward": {
+    "enabled": true,
+    "total_episodes": 2000,
+    "train_size": 1000,
+    "test_size": 200,
+    "step_size": 200,
+    "mode": "rolling",
+    "min_train_size": 500,
+    "save_models": true,
+    "save_fold_reports": true,
+    "risk_free_rate": 0.02,
+    "output_dir": "reports/walk_forward",
+    "model_dir": "models/walk_forward",
+    "integration": {
+      "run_after_training": false,
+      "use_as_training_method": false,
+      "select_best_model": true,
+      "validation_metric": "sharpe_ratio"
+    }
+  },
+
   "websocket_feeds": {
     "enabled": true,
     "exchanges": ["binance", "kraken"],

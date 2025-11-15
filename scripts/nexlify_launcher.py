@@ -53,12 +53,12 @@ class NexlifyLauncher:
     def check_requirements(self) -> bool:
         """Check if all requirements are met"""
         print(f"{self.colors['yellow']}🔍 Checking system requirements...{self.colors['reset']}")
-        
+
         # Check Python version
-        if sys.version_info < (3, 9):
-            print(f"{self.colors['red']}❌ Python 3.9+ required! You have {sys.version_info.major}.{sys.version_info.minor}{self.colors['reset']}")
+        if sys.version_info < (3, 11):
+            print(f"{self.colors['red']}❌ Python 3.11+ required! You have {sys.version_info.major}.{sys.version_info.minor}{self.colors['reset']}")
             return False
-        
+
         print(f"{self.colors['green']}✅ Python {sys.version_info.major}.{sys.version_info.minor} detected{self.colors['reset']}")
         
         # Check critical modules
