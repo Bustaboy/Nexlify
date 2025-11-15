@@ -266,12 +266,18 @@ class TestSharpeRatio:
         assert metrics.sharpe_ratio != 0.0
 
     def test_sharpe_with_consistent_returns(self, tracker):
-        """Test Sharpe ratio with consistent positive returns"""
-        # All positive returns should give good Sharpe
-        for i in range(10):
-            tracker.record_trade("binance", "BTC/USDT", "buy", 1.0, 50000, 51000, 0)
+        """Test Sharpe ratio with consistently positive (but varying) returns"""
+        # All positive but varying returns should give positive Sharpe ratio
+        # Using varying returns to avoid zero std dev (which gives Sharpe = 0)
+        returns = [1.5, 2.0, 1.8, 2.2, 1.6, 2.1, 1.9, 2.3, 1.7, 2.0]
+
+        for ret in returns:
+            entry = 50000
+            exit = entry * (1 + ret / 100)
+            tracker.record_trade("binance", "BTC/USDT", "buy", 1.0, entry, exit, 0)
 
         metrics = tracker.get_performance_metrics()
+        # With varying positive returns and low risk-free rate, should have positive Sharpe
         assert metrics.sharpe_ratio > 0
 
     def test_sharpe_with_single_trade(self, tracker):

@@ -390,6 +390,7 @@ def test_ensemble_trainer_initialization(
 
 @pytest.mark.slow  # Training tests are slow - mark as slow to skip in fast CI runs
 @pytest.mark.integration
+@pytest.mark.timeout(120)  # Allow up to 2 minutes for single model training
 def test_train_single_model(
     state_size,
     action_size,
@@ -425,6 +426,7 @@ def test_train_single_model(
 
 @pytest.mark.slow  # Training tests are slow - mark as slow to skip in fast CI runs
 @pytest.mark.integration
+@pytest.mark.timeout(150)  # Allow up to 2.5 minutes for 2-model ensemble training
 def test_train_ensemble_sequential(
     state_size,
     action_size,
@@ -460,6 +462,7 @@ def test_train_ensemble_sequential(
 
 @pytest.mark.slow  # Training tests are slow - mark as slow to skip in fast CI runs
 @pytest.mark.integration
+@pytest.mark.timeout(180)  # Allow up to 3 minutes for ensemble training (3 models * 5 episodes)
 def test_get_best_models(
     state_size,
     action_size,
