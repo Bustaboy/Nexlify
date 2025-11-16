@@ -55,6 +55,7 @@ sys.path.append(str(Path(__file__).parent))
 
 # Import our components
 from nexlify_advanced_dqn_agent import AdvancedDQNAgent, AgentConfig
+from nexlify_rl_auto_tuner import AutoHyperparameterTuner, TuningMetrics
 from nexlify_validation_and_optimization import (
     WalkForwardValidator,
     HyperparameterOptimizer,
@@ -97,6 +98,22 @@ class UltimateTrainingPipeline:
         self.best_model_path = None
         self.best_score = float('-inf')
         self.ensemble_models = []
+
+        # Initialize auto-tuner (enabled by default, can be disabled via args)
+        enable_auto_tuning = getattr(args, 'no_auto_tuning', False) == False
+        if enable_auto_tuning:
+            self.auto_tuner = AutoHyperparameterTuner(
+                window_size=50,
+                min_episodes_before_tuning=100,
+                tuning_frequency=50,
+                enable_lr_tuning=True,
+                enable_epsilon_tuning=True,
+                verbose=True
+            )
+            logger.info("🎯 Automatic hyperparameter tuning ENABLED")
+        else:
+            self.auto_tuner = None
+            logger.info("⚠️  Automatic hyperparameter tuning DISABLED")
 
         logger.info("\n" + "="*100)
         logger.info("ULTIMATE FULLY-AUTOMATED TRAINING PIPELINE")
@@ -381,6 +398,9 @@ class UltimateTrainingPipeline:
         """
         best_return = float('-inf')
 
+        # Track metrics for auto-tuning
+        episode_metrics_history = []
+
         for episode in range(1, episodes + 1):
             state = env.reset()
             episode_reward = 0
@@ -397,6 +417,60 @@ class UltimateTrainingPipeline:
                 steps += 1
 
             stats = env.get_episode_stats()
+
+            # Store episode metrics for auto-tuning
+            episode_metrics_history.append({
+                'return_pct': stats['total_return_pct'],
+                'sharpe_ratio': stats['sharpe_ratio'],
+                'win_rate': stats.get('win_rate', 0.0),
+                'total_trades': stats['total_trades']
+            })
+
+            # Auto-tune hyperparameters
+            if self.auto_tuner is not None:
+                # Calculate rolling averages
+                recent_window = min(50, len(episode_metrics_history))
+                recent_metrics = episode_metrics_history[-recent_window:]
+
+                avg_return = np.mean([m['return_pct'] for m in recent_metrics])
+                avg_sharpe = np.mean([m['sharpe_ratio'] for m in recent_metrics])
+                avg_win_rate = np.mean([m['win_rate'] for m in recent_metrics])
+
+                # Get agent metrics
+                agent_metrics = agent.get_metrics_summary()
+                avg_loss = agent_metrics.get('avg_loss', 0.0)
+
+                # Get Q-value statistics
+                q_values = agent.metrics.get('q_value_history', [])
+                q_mean = np.mean(q_values[-100:]) if q_values else 0.0
+                q_std = np.std(q_values[-100:]) if q_values else 0.0
+
+                # Create tuning metrics
+                tuning_metrics = TuningMetrics(
+                    episode=episode,
+                    avg_return=avg_return,
+                    avg_sharpe=avg_sharpe,
+                    win_rate=avg_win_rate,
+                    epsilon=agent.epsilon,
+                    learning_rate=agent.optimizer.param_groups[0]['lr'],
+                    avg_loss=avg_loss,
+                    q_value_mean=q_mean,
+                    q_value_std=q_std
+                )
+
+                # Get auto-tuning adjustments
+                adjustments = self.auto_tuner.update(tuning_metrics)
+
+                # Apply adjustments
+                if adjustments:
+                    if 'epsilon' in adjustments:
+                        agent.epsilon = adjustments['epsilon']
+                        logger.info(f"   🎯 Auto-tuned epsilon → {agent.epsilon:.4f}")
+
+                    if 'learning_rate' in adjustments:
+                        for param_group in agent.optimizer.param_groups:
+                            param_group['lr'] = adjustments['learning_rate']
+                        logger.info(f"   🎯 Auto-tuned LR → {adjustments['learning_rate']:.6f}")
 
             # Log progress
             if episode % 10 == 0:
@@ -428,6 +502,20 @@ class UltimateTrainingPipeline:
 
         final_stats = env.get_episode_stats()
         final_metrics = agent.get_metrics_summary()
+
+        # Log auto-tuner summary
+        if self.auto_tuner is not None:
+            summary = self.auto_tuner.get_summary()
+            logger.info("\n" + "="*80)
+            logger.info("🎯 AUTO-TUNING SUMMARY")
+            logger.info("="*80)
+            logger.info(f"Total adjustments made: {summary['total_adjustments']}")
+            logger.info(f"Final performance trend: {summary['performance_trend']}")
+            logger.info(f"Episodes since improvement: {summary['episodes_since_improvement']}")
+            logger.info(f"Best performance: {summary['best_performance']:.2f}%")
+            logger.info(f"Recent avg return: {summary['recent_avg_return']:.2f}%")
+            logger.info(f"Recent avg Sharpe: {summary['recent_avg_sharpe']:.2f}")
+            logger.info("="*80 + "\n")
 
         return agent, {
             'total_return_pct': final_stats['total_return_pct'],
@@ -753,6 +841,8 @@ Examples:
     parser.add_argument('--automated', action='store_true')
     parser.add_argument('--skip-preflight', action='store_true')
     parser.add_argument('--quick-test', action='store_true')
+    parser.add_argument('--no-auto-tuning', action='store_true',
+                        help='Disable automatic hyperparameter tuning (enabled by default)')
 
     args = parser.parse_args()
 
