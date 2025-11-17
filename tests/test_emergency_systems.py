@@ -8,6 +8,7 @@ import asyncio
 import os
 import sys
 from datetime import datetime, timedelta
+from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -25,6 +26,14 @@ class TestEmergencyKillSwitch:
     @pytest.fixture
     def kill_switch(self):
         """Create emergency kill switch"""
+        # Ensure any persisted emergency state from previous runs doesn't
+        # influence test expectations.
+        state_file = Path("data/emergency_state.json")
+        event_log = Path("data/emergency_events.jsonl")
+        for path in (state_file, event_log):
+            if path.exists():
+                path.unlink()
+
         config = {
             "emergency_kill_switch": {
                 "enabled": True,

@@ -13,9 +13,21 @@ Tests:
 8. Fee tracking
 """
 
+import os
 import sys
 from pathlib import Path
+
 import numpy as np
+import pytest
+
+# This script is a comprehensive integration harness and is skipped by default
+# in automated test runs to avoid long-running RL training loops. Enable by
+# setting NEXLIFY_ENABLE_FULL_RL_TESTS=1.
+if os.environ.get("NEXLIFY_ENABLE_FULL_RL_TESTS") != "1":
+    pytest.skip(
+        "Full RL integration tests are disabled by default.",
+        allow_module_level=True,
+    )
 
 # Add project root to path
 project_root = Path(__file__).parent.parent

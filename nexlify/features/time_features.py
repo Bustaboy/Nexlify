@@ -66,6 +66,13 @@ class TimeFeatureEngineer:
         Returns:
             DataFrame with time features
         """
+        # Normalize input to a Series so downstream indexing works for both
+        # pandas Series and DatetimeIndex inputs.
+        if isinstance(timestamp_series, pd.DatetimeIndex):
+            timestamp_series = pd.Series(timestamp_series)
+        elif not isinstance(timestamp_series, pd.Series):
+            timestamp_series = pd.Series(timestamp_series)
+
         features = pd.DataFrame(index=timestamp_series.index)
 
         # Ensure datetime type

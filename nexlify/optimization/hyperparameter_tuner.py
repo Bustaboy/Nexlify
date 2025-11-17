@@ -316,7 +316,7 @@ class HyperparameterTuner:
         )
 
         # Extract results
-        self.best_params = self.study.best_params
+        self.best_params = self._expand_derived_params(self.study.best_params)
         self.best_value = self.study.best_value
 
         elapsed_time = time.time() - start_time
@@ -346,6 +346,30 @@ class HyperparameterTuner:
             'optimization_history': self.optimization_history,
             'elapsed_time': elapsed_time
         }
+
+    def _expand_derived_params(self, raw_params: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert internal Optuna parameters to user-facing values.
+
+        For categorical parameters that use an index helper (e.g.,
+        ``hidden_layers_idx``), replace the index with the actual value and
+        drop the helper key so downstream validation receives the expected
+        fields.
+        """
+
+        expanded = dict(raw_params)
+
+        for name, definition in self.search_space.search_space.items():
+            if definition[0] != "categorical":
+                continue
+
+            choices = definition[1]
+            if all(isinstance(choice, list) for choice in choices):
+                idx_key = f"{name}_idx"
+                if idx_key in expanded:
+                    idx = expanded.pop(idx_key)
+                    expanded[name] = choices[idx]
+
+        return expanded
 
     def _save_results(self) -> None:
         """Save optimization results to disk"""

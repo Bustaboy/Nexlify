@@ -27,12 +27,24 @@ Performance Optimizations:
     Estimated speedup: 60-70% faster execution (from ~45s to ~15-20s)
 """
 
+import os
 import sys
 from pathlib import Path
 import argparse
 import time
 from typing import Dict, Any
+
 import numpy as np
+import pytest
+
+# This file is designed for standalone pre-flight checks and is skipped during
+# normal pytest runs unless explicitly enabled to avoid slow, network-bound
+# operations.
+if os.environ.get("NEXLIFY_ENABLE_FULL_TRAINING_TESTS") != "1":
+    pytest.skip(
+        "Training pipeline integration tests are disabled by default.",
+        allow_module_level=True,
+    )
 
 # Add project root
 sys.path.append(str(Path(__file__).parent))
