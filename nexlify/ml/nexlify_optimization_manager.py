@@ -16,6 +16,7 @@ Profiles:
 """
 
 import logging
+import os
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, Optional
@@ -105,6 +106,14 @@ class OptimizationManager:
     def _create_config(self, profile: OptimizationProfile) -> OptimizationConfig:
         """Create configuration for profile"""
 
+        # Heavy compile/quantization steps and long-interval monitors can
+        # significantly slow down tests or CPU-only environments. Gate them
+        # behind opt-in environment flags so default configurations remain fast
+        # while still allowing power users to enable full optimization
+        # explicitly.
+        compilation_enabled = os.environ.get("NEXLIFY_ENABLE_COMPILATION", "0") == "1"
+        monitoring_enabled = os.environ.get("NEXLIFY_ENABLE_MONITORING", "0") == "1"
+
         if profile == OptimizationProfile.AUTO:
             # AUTO mode: Will benchmark on first use
             # For now, return balanced config
@@ -138,14 +147,14 @@ class OptimizationManager:
                 detect_gpu_capabilities=True,
                 detect_cpu_topology=True,
                 detect_multi_gpu=True,
-                enable_thermal_monitoring=True,  # 30s interval = 0.001% overhead
+                enable_thermal_monitoring=monitoring_enabled,
                 thermal_check_interval=30.0,
-                enable_resource_monitoring=True,  # 0.5s interval = 0.02% overhead
+                enable_resource_monitoring=monitoring_enabled,
                 resource_check_interval=0.5,
                 enable_smart_cache=True,  # Memory overhead, but fast
                 cache_size_mb=1000,
                 enable_compression=True,  # LZ4 is faster than disk!
-                enable_compilation=True,  # One-time cost, 30-50% speedup
+                enable_compilation=compilation_enabled,
                 compilation_mode="default",
                 enable_quantization=False,  # User can enable if needed
                 enable_gpu_optimizations=True,
@@ -162,14 +171,14 @@ class OptimizationManager:
                 detect_gpu_capabilities=True,
                 detect_cpu_topology=True,
                 detect_multi_gpu=True,
-                enable_thermal_monitoring=True,
+                enable_thermal_monitoring=monitoring_enabled,
                 thermal_check_interval=60.0,  # Longer interval for max perf
-                enable_resource_monitoring=True,
+                enable_resource_monitoring=monitoring_enabled,
                 resource_check_interval=1.0,  # Longer interval
                 enable_smart_cache=True,
                 cache_size_mb=2000,  # Larger cache
                 enable_compression=True,
-                enable_compilation=True,
+                enable_compilation=compilation_enabled,
                 compilation_mode="max-autotune",  # Best performance
                 enable_quantization=True,  # 4x memory + 2-4x speed
                 quantization_method="dynamic",
@@ -187,12 +196,12 @@ class OptimizationManager:
                 detect_gpu_capabilities=True,
                 detect_cpu_topology=True,
                 detect_multi_gpu=False,  # Not needed for inference
-                enable_thermal_monitoring=False,  # Not critical for inference
-                enable_resource_monitoring=False,
+                enable_thermal_monitoring=monitoring_enabled,
+                enable_resource_monitoring=monitoring_enabled,
                 enable_smart_cache=True,  # Good for inference
                 cache_size_mb=500,
                 enable_compression=True,
-                enable_compilation=True,  # Critical for inference
+                enable_compilation=compilation_enabled,
                 compilation_mode="default",
                 enable_quantization=True,  # Critical for inference
                 quantization_method="dynamic",

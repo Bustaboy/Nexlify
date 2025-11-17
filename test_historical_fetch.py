@@ -3,40 +3,57 @@
 Quick test script for historical data fetcher improvements
 """
 
+import os
 from datetime import datetime, timedelta
-from nexlify_data.nexlify_historical_data_fetcher import HistoricalDataFetcher, FetchConfig
 
-# Test with Kraken BTC/USD (as per the user's logs)
-fetcher = HistoricalDataFetcher(automated_mode=True)
+import pytest
 
-# Try fetching with a realistic date range (last 30 days)
-end_date = datetime.now()
-start_date = end_date - timedelta(days=30)
-
-config = FetchConfig(
-    exchange='kraken',
-    symbol='BTC/USD',
-    timeframe='1h',
-    start_date=start_date,
-    end_date=end_date,
-    cache_enabled=False  # Disable cache for testing
+from nexlify_data.nexlify_historical_data_fetcher import (
+    FetchConfig,
+    HistoricalDataFetcher,
 )
 
-print(f"Testing fetch from {start_date} to {end_date}")
-print("="*80)
 
-df, quality = fetcher.fetch_historical_data(config)
+# This module was originally a manual script. It now serves as an integration test that
+# is skipped by default to avoid slow, network-heavy collection. Enable by running
+# pytest with `-m requires_network` and setting NEXLIFY_ENABLE_NETWORK_TESTS=1.
+pytestmark = [pytest.mark.requires_network]
 
-print("\n" + "="*80)
-print("RESULTS:")
-print(f"Candles fetched: {len(df)}")
-if len(df) > 0:
-    print(f"Date range: {df['timestamp'].min()} to {df['timestamp'].max()}")
-    print(f"Quality score: {quality.quality_score:.1f}/100")
-    print(f"Missing candles: {quality.missing_candles}")
-    print(f"\nFirst 5 candles:")
-    print(df.head())
-else:
-    print("No data fetched!")
+if not os.environ.get("NEXLIFY_ENABLE_NETWORK_TESTS"):
+    pytest.skip(
+        "Network-dependent smoke test disabled by default. Set "
+        "NEXLIFY_ENABLE_NETWORK_TESTS=1 to enable.",
+        allow_module_level=True,
+    )
 
-print("="*80)
+
+def test_fetch_historical_data_smoke():
+    """Smoke test for historical data retrieval (requires network).
+
+    This ensures the fetcher can retrieve at least some candles when a network
+    connection is available. The assertions are minimal to avoid flakiness from
+    remote API variability.
+    """
+
+    fetcher = HistoricalDataFetcher(automated_mode=True)
+
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=30)
+
+    config = FetchConfig(
+        exchange="kraken",
+        symbol="BTC/USD",
+        timeframe="1h",
+        start_date=start_date,
+        end_date=end_date,
+        cache_enabled=False,
+    )
+
+    df, quality = fetcher.fetch_historical_data(config)
+
+    # Basic smoke assertions: data frame should not be empty and quality metadata
+    # should reflect the returned data.
+    assert not df.empty
+    assert "timestamp" in df.columns
+    assert quality is not None
+    assert quality.total_candles == len(df)
