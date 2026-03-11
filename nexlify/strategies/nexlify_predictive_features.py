@@ -237,15 +237,25 @@ class PredictiveEngine:
         train_prices = prices[:split_idx]
         val_prices = prices[split_idx:]
 
-        grid = [
-            (0.5, 0.3, 0.2),
-            (0.45, 0.35, 0.2),
-            (0.4, 0.4, 0.2),
-            (0.4, 0.3, 0.3),
-            (0.35, 0.45, 0.2),
-        ]
-        deadzones = [0.0003, 0.0005, 0.0008]
-        signal_scales = [0.75, 1.0, 1.25]
+        # Keep tuning compact to avoid long optimization cycles in runtime/CI.
+        if len(prices) < 400:
+            grid = [
+                (0.5, 0.3, 0.2),
+                (0.45, 0.35, 0.2),
+                (0.4, 0.3, 0.3),
+            ]
+            deadzones = [0.0003, 0.0005]
+            signal_scales = [0.9, 1.0]
+        else:
+            grid = [
+                (0.5, 0.3, 0.2),
+                (0.45, 0.35, 0.2),
+                (0.4, 0.4, 0.2),
+                (0.4, 0.3, 0.3),
+                (0.35, 0.45, 0.2),
+            ]
+            deadzones = [0.0003, 0.0005, 0.0008]
+            signal_scales = [0.75, 1.0, 1.25]
 
         best = {"accuracy": 0.0, "params": self.default_params.copy()}
 
@@ -321,25 +331,41 @@ class PredictiveEngine:
 
     def _predict_with_params(self, current_price: float, historical_data: List[float], params: Dict) -> float:
         """Predict expected return using provided parameters."""
-        df = pd.DataFrame({"price": historical_data})
-        df["sma_short"] = df["price"].rolling(window=8).mean()
-        df["sma_long"] = df["price"].rolling(window=34).mean()
-        df["ema"] = df["price"].ewm(span=21).mean()
-        df["returns"] = df["price"].pct_change()
-        df["momentum"] = df["returns"].rolling(window=5).mean()
+        if not historical_data:
+            return 0.0
 
-        trend_window = min(20, len(df))
-        recent = np.array(df["price"].iloc[-trend_window:])
+        # Fast rolling features (avoids DataFrame creation inside tight tuning loop)
+        short_slice = historical_data[-8:] if len(historical_data) >= 8 else historical_data
+        long_slice = historical_data[-34:] if len(historical_data) >= 34 else historical_data
+        last_short = float(sum(short_slice) / len(short_slice))
+        last_long = float(sum(long_slice) / len(long_slice)) if long_slice else 0.0
+
+        # EMA(21)
+        alpha = 2.0 / (21.0 + 1.0)
+        ema = float(historical_data[0])
+        for price in historical_data[1:]:
+            ema = (float(price) * alpha) + (ema * (1.0 - alpha))
+
+        # Momentum from last 5 returns
+        if len(historical_data) >= 2:
+            returns = [
+                (historical_data[i] - historical_data[i - 1]) / historical_data[i - 1]
+                for i in range(1, len(historical_data))
+                if historical_data[i - 1] != 0
+            ]
+            recent_returns = returns[-5:] if len(returns) >= 5 else returns
+            momentum = float(sum(recent_returns) / len(recent_returns)) if recent_returns else 0.0
+        else:
+            momentum = 0.0
+
+        trend_window = min(20, len(historical_data))
+        recent = np.array(historical_data[-trend_window:], dtype=float)
         x_axis = np.arange(trend_window)
         slope = np.polyfit(x_axis, recent, 1)[0] if trend_window >= 3 else 0.0
         trend_signal = slope / current_price if current_price > 0 else 0.0
 
-        last_short = df["sma_short"].iloc[-1]
-        last_long = df["sma_long"].iloc[-1]
-        last_ema = df["ema"].iloc[-1]
-        momentum = float(df["momentum"].iloc[-1]) if not pd.isna(df["momentum"].iloc[-1]) else 0.0
-        ma_signal = (last_short - last_long) / last_long if last_long and not pd.isna(last_long) else 0.0
-        mean_reversion_signal = (last_ema - current_price) / current_price if current_price > 0 else 0.0
+        ma_signal = (last_short - last_long) / last_long if last_long else 0.0
+        mean_reversion_signal = (ema - current_price) / current_price if current_price > 0 else 0.0
 
         return (
             params["trend_weight"] * (trend_signal + ma_signal)
