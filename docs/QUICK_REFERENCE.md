@@ -25,8 +25,8 @@ start_nexlify.bat
 
 | File | Purpose | Edit? |
 |------|---------|-------|
-| `arasaka_neural_net.py` | Main trading engine | No |
-| `cyber_gui.py` | GUI interface | No |
+| `nexlify/core/arasaka_neural_net.py` | Main trading engine | No |
+| `nexlify/gui/cyber_gui.py` | GUI interface | No |
 | `config/neural_config.json` | Auto-generated settings | Via GUI |
 | `.env` | Environment variables | Via GUI |
 | `logs/neural_net.log` | System logs | View only |
@@ -40,7 +40,7 @@ start_nexlify.bat
 4. **Testnet Mode**: Toggle per exchange
 
 ### Accessing API Config Later
-- Go to "🔐 API CONFIG" tab in main GUI
+- Go to `Settings` tab in the main GUI, then open the Exchange API Configuration section
 - Update credentials for any exchange
 - Click "SAVE [EXCHANGE]" to update
 
@@ -57,13 +57,13 @@ start_nexlify.bat
 | BTC Wallet | Control Panel | Enter address → SAVE |
 | Auto-Trade | Control Panel | Toggle checkbox |
 | Kill Switch | Control Panel | Red button (emergency) |
-| Active Pairs | First tab | Auto-updates every 5 min |
-| Profit Chart | Second tab | Shows 24h history |
-| Settings | Third tab | Risk level, withdrawal |
-| Environment | Fourth tab | Debug, logs, notifications |
-| API Config | Fifth tab | Exchange credentials |
-| Logs | Sixth tab | Real-time system logs |
-| Error Report | Last tab | Error history & stats |
+| Dashboard | Main tab | Stats, charts, active pairs overview |
+| Trading | Main tab | Positions and order history |
+| Portfolio | Main tab | Balances and allocation view |
+| Strategies | Main tab | Strategy controls and performance |
+| Settings | Main tab | Risk, environment, security, API config |
+| Logs | Main tab | Real-time system logs |
+| Emergency/Tax/DeFi/Withdrawals | Additional tabs | Available when Phase 1/2 integration is enabled |
 
 ## 📊 Understanding the Display
 

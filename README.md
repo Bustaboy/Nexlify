@@ -101,13 +101,20 @@ start_nexlify.bat
 python nexlify_launcher.py
 ```
 
+### Source of Truth (Entry Points and UI)
+- **Primary launcher**: `nexlify_launcher.py`
+- **Main GUI module**: `nexlify/gui/cyber_gui.py`
+- **Training UI launcher**: `launch_training_ui.py`
+- **Top-level GUI tabs**: `Dashboard`, `Trading`, `Portfolio`, `Strategies`, `Settings`, `Logs`
+
 ### Key GUI Tabs
-- **Active Pairs**: Real-time trading pairs and performance
-- **Profit Chart**: 24-hour profit visualization
-- **Settings**: Risk management and system configuration
-- **Environment**: Debug mode, logging, notifications
-- **API Config**: Exchange credentials management
+- **Dashboard**: Live high-level stats, charts, and active pairs overview
+- **Trading**: Positions and order history
+- **Portfolio**: Balance and allocation views
+- **Strategies**: Strategy controls and performance
+- **Settings**: Risk, security, environment, and API configuration
 - **Logs**: Real-time system logs
+- **Advanced Tabs**: Emergency, Tax Reports, DeFi, and Withdrawals (when Phase 1/2 integration is enabled)
 
 ### Emergency Stop
 1. Click the red **KILL SWITCH** button in the GUI
@@ -131,21 +138,21 @@ See [neural_config.example.json](config/neural_config.example.json) for all avai
 ## 🔧 Architecture
 
 ### Core Components
-- **arasaka_neural_net.py** - Main trading engine with AI decision-making
-- **cyber_gui.py** - Full-featured graphical interface
+- **nexlify/core/arasaka_neural_net.py** - Main trading engine with AI decision-making
+- **nexlify/gui/cyber_gui.py** - Full-featured graphical interface
 - **nexlify_launcher.py** - System launcher with health checks
-- **error_handler.py** - Centralized error management
+- **nexlify/utils/error_handler.py** - Centralized error management
 
 ### Feature Modules
-- **nexlify_risk_manager.py** - Position sizing and risk controls
-- **nexlify_advanced_security.py** - Security and authentication
-- **nexlify_emergency_kill_switch.py** - Emergency shutdown system
-- **nexlify_flash_crash_protection.py** - Market crash detection
-- **nexlify_pin_manager.py** - PIN authentication
-- **nexlify_integrity_monitor.py** - File and process monitoring
-- **nexlify_defi_integration.py** - DeFi yield protocols
-- **nexlify_profit_manager.py** - Automated profit handling
-- **nexlify_tax_reporting.py** - Trade logging for taxes
+- **nexlify/risk/nexlify_risk_manager.py** - Position sizing and risk controls
+- **nexlify/security/nexlify_advanced_security.py** - Security and authentication
+- **nexlify/risk/nexlify_emergency_kill_switch.py** - Emergency shutdown system
+- **nexlify/risk/nexlify_flash_crash_protection.py** - Market crash detection
+- **nexlify/security/nexlify_pin_manager.py** - PIN authentication
+- **nexlify/security/nexlify_integrity_monitor.py** - File and process monitoring
+- **nexlify/financial/nexlify_defi_integration.py** - DeFi yield protocols
+- **nexlify/financial/nexlify_profit_manager.py** - Automated profit handling
+- **nexlify/financial/nexlify_tax_reporter.py** - Trade logging for taxes
 
 ## 🛡️ Security Best Practices
 

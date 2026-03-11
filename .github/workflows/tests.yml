@@ -6,6 +6,9 @@ on:
     paths:
       - 'nexlify/**/*.py'
       - 'tests/**/*.py'
+      - 'scripts/**/*.py'
+      - 'docs/**/*.md'
+      - 'README.md'
       - 'requirements.txt'
       - 'setup.py'
       - 'pytest.ini'
@@ -15,6 +18,9 @@ on:
     paths:
       - 'nexlify/**/*.py'
       - 'tests/**/*.py'
+      - 'scripts/**/*.py'
+      - 'docs/**/*.md'
+      - 'README.md'
       - 'requirements.txt'
       - 'setup.py'
       - 'pytest.ini'
@@ -283,6 +289,10 @@ jobs:
       run: |
         pylint nexlify/ --exit-zero --max-line-length=120
       continue-on-error: true
+
+    - name: Verify docs vs code drift guard
+      run: |
+        python scripts/verify_docs_vs_code.py
 
   # Summary job
   test-summary:
