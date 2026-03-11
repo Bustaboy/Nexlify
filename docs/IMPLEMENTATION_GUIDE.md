@@ -46,10 +46,10 @@ This will:
 
 ### 3. Copy Core Files
 **IMPORTANT**: Copy these files from Night-City-Trader:
-- `arasaka_neural_net.py` → Main trading engine
-- `cyber_gui.py` → GUI interface
-- `error_handler.py` → Error management
-- `utils.py` → Utility functions
+- `nexlify/core/arasaka_neural_net.py` → Main trading engine
+- `nexlify/gui/cyber_gui.py` → GUI interface
+- `nexlify/utils/error_handler.py` → Error management
+- `nexlify/utils/utils_module.py` → Utility functions
 
 ### 4. Launch the System
 ```bash
@@ -148,7 +148,7 @@ Located in Settings tab:
 ```
 
 ### Environment Variables
-Configure in Environment tab:
+Configure in Settings tab (Environment section):
 - **Debug Mode**: Verbose logging
 - **Log Level**: INFO/DEBUG/ERROR
 - **API Port**: Default 8000
@@ -157,7 +157,7 @@ Configure in Environment tab:
 
 ### Custom Strategies
 To add custom strategies:
-1. Edit `arasaka_neural_net.py`
+1. Edit `nexlify/core/arasaka_neural_net.py`
 2. Add strategy to `STRATEGIES` dict
 3. Implement in `calculate_signals()`
 4. Restart system
@@ -212,13 +212,13 @@ python nexlify_launcher.py
 
 ```
 Nexlify Trading System
-├── API Layer (arasaka_neural_net.py)
+├── API Layer (nexlify/core/arasaka_neural_net.py)
 │   ├── FastAPI Server
 │   ├── Exchange Connectors
 │   ├── Trading Engine
 │   └── ML Models
-├── GUI Layer (cyber_gui.py)
-│   ├── Tkinter Interface
+├── GUI Layer (nexlify/gui/cyber_gui.py)
+│   ├── PyQt5 Interface
 │   ├── Real-time Updates
 │   ├── Configuration Management
 │   └── Monitoring Dashboard
