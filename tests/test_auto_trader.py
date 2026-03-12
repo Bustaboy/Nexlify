@@ -8,6 +8,7 @@ import asyncio
 import os
 import sys
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -313,6 +314,105 @@ class TestAutoTrader:
         assert "active_trades" in status
         assert "daily_profit" in status
         assert "daily_trades" in status
+
+    @pytest.mark.asyncio
+    async def test_get_exchange_execution_costs_uses_active_exchange_data(self, auto_trader):
+        """Execution costs should be pulled from the actively traded exchange when available."""
+        exchange = AsyncMock()
+        exchange.fetch_trading_fee = AsyncMock(return_value={"taker": 0.0012})
+        exchange.fetch_order_book = AsyncMock(
+            return_value={"asks": [[100.0, 0.5], [100.2, 0.5]], "bids": [[99.8, 1.0]]}
+        )
+        exchange.load_markets = AsyncMock(return_value={"BTC/USDT": {"taker": 0.0015}})
+
+        auto_trader.neural_net = Mock()
+        auto_trader.neural_net.exchanges = {"binance": exchange}
+
+        fee_rate, slippage = await auto_trader._get_exchange_execution_costs(
+            exchange_id="binance",
+            symbol="BTC/USDT",
+            side="buy",
+            amount=1.0,
+            reference_price=100.0,
+        )
+
+        assert fee_rate == 0.0012
+        assert slippage >= 0
+
+    @pytest.mark.asyncio
+    async def test_get_exchange_execution_costs_blocks_when_strict_and_live_data_missing(self):
+        """Strict mode should block trading if live fee/slippage cannot be fetched."""
+        trader = AutoTrader({"require_actual_execution_costs": True})
+        exchange = AsyncMock()
+        exchange.fetch_trading_fee = AsyncMock(side_effect=Exception("not supported"))
+        exchange.load_markets = AsyncMock(side_effect=Exception("not supported"))
+        exchange.fetch_order_book = AsyncMock(side_effect=Exception("not supported"))
+
+        trader.neural_net = Mock()
+        trader.neural_net.exchanges = {"binance": exchange}
+
+        with pytest.raises(RuntimeError, match="TRADING BLOCKED"):
+            await trader._get_exchange_execution_costs(
+                exchange_id="binance",
+                symbol="BTC/USDT",
+                side="buy",
+                amount=1.0,
+                reference_price=100.0,
+            )
+
+    @pytest.mark.asyncio
+    async def test_execute_trade_skips_when_expected_edge_below_live_costs(self, auto_trader):
+        """Buy should be skipped when expected edge does not clear live fee+slippage costs."""
+        exchange = AsyncMock()
+        exchange.fetch_ticker = AsyncMock(return_value={"last": 100.0})
+        exchange.create_market_buy_order = AsyncMock(return_value={"status": "closed", "id": "o1"})
+        exchange.fetch_trading_fee = AsyncMock(return_value={"taker": 0.002})
+        exchange.fetch_order_book = AsyncMock(return_value={"asks": [[100.5, 100]], "bids": [[99.5, 100]]})
+        exchange.load_markets = AsyncMock(return_value={"BTC/USDT": {"taker": 0.002}})
+
+        auto_trader.neural_net = Mock()
+        auto_trader.neural_net.exchanges = {"binance": exchange}
+        auto_trader.get_available_balance = AsyncMock(return_value=1000.0)
+
+        pair = SimpleNamespace(symbol="BTC/USDT", exchanges=["binance"], profit_score=0.10)
+        result = await auto_trader.execute_trade(pair)
+
+        assert result is False
+        exchange.create_market_buy_order.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_close_position_uses_live_exit_costs_in_pnl(self, auto_trader):
+        """Close path should apply active-exchange fee/slippage when computing pnl."""
+        exchange = AsyncMock()
+        exchange.create_market_sell_order = AsyncMock(return_value={"status": "closed", "id": "s1"})
+        exchange.fetch_trading_fee = AsyncMock(return_value={"taker": 0.001})
+        exchange.fetch_order_book = AsyncMock(return_value={"bids": [[99.0, 10]], "asks": [[101.0, 10]]})
+        exchange.load_markets = AsyncMock(return_value={"BTC/USDT": {"taker": 0.001}})
+
+        auto_trader.neural_net = Mock()
+        auto_trader.neural_net.exchanges = {"binance": exchange}
+        auto_trader.get_current_price = AsyncMock(return_value=100.0)
+
+        trade = TradeExecution(
+            trade_id="t1",
+            symbol="BTC/USDT",
+            exchange="binance",
+            side="buy",
+            amount=1.0,
+            price=100.0,
+            timestamp=datetime.now(),
+            profit_target=110.0,
+            stop_loss=90.0,
+            strategy="test",
+            status="open",
+        )
+        trade.execution_fee_rate = 0.001
+        auto_trader.active_trades = {"t1": trade}
+
+        result = await auto_trader.close_position("t1", "test-close")
+
+        assert result is True
+        assert "t1" not in auto_trader.active_trades
 
 
 class TestEdgeCases:

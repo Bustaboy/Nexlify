@@ -8,9 +8,20 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
-import numpy as np
+try:
+    import numpy as np
+except Exception:  # Optional in lightweight environments
+    class _NumpyFallback:
+        float32 = float
+        ndarray = list
+
+        @staticmethod
+        def array(values, dtype=None):
+            return values
+
+    np = _NumpyFallback()
 
 from nexlify.utils.error_handler import get_error_handler, handle_errors
 
@@ -236,6 +247,78 @@ class AutoExecutionEngine:
 
         logger.info("🤖 Auto-Execution Engine initialized")
 
+    async def _get_exchange_execution_costs(
+        self,
+        exchange_id: str,
+        symbol: str,
+        side: str,
+        amount: float,
+        reference_price: float,
+    ) -> Tuple[float, float]:
+        """
+        Fetch execution costs from the actively traded exchange when possible.
+
+        Returns:
+            (fee_rate, slippage_rate)
+        """
+        exchange = self.neural_net.exchanges[exchange_id]
+        strict_costs = bool(self.config.get("require_actual_execution_costs", False))
+
+        # 1) Fee rate from active exchange
+        fee_rate = None
+        try:
+            if hasattr(exchange, "fetch_trading_fee"):
+                fee_info = await exchange.fetch_trading_fee(symbol)
+                fee_rate = fee_info.get("taker") or fee_info.get("maker")
+            if fee_rate is None and hasattr(exchange, "load_markets"):
+                markets = await exchange.load_markets()
+                market = markets.get(symbol, {})
+                fee_rate = market.get("taker") or market.get("maker")
+        except Exception as e:
+            logger.warning(f"Could not fetch live fee from {exchange_id} for {symbol}: {e}")
+
+        if fee_rate is None:
+            if strict_costs:
+                raise RuntimeError(
+                    f"TRADING BLOCKED: live fee rate unavailable on active exchange {exchange_id}"
+                )
+            fee_rate = self.config.get("fee_rate", 0.001)
+
+        # 2) Slippage from active exchange order book depth
+        slippage_rate = None
+        try:
+            if hasattr(exchange, "fetch_order_book") and amount > 0 and reference_price > 0:
+                order_book = await exchange.fetch_order_book(symbol, limit=20)
+                levels = order_book.get("asks", []) if side == "buy" else order_book.get("bids", [])
+
+                remaining = amount
+                notional = 0.0
+                for level in levels:
+                    if len(level) < 2:
+                        continue
+                    level_price, level_size = float(level[0]), float(level[1])
+                    take = min(remaining, max(level_size, 0.0))
+                    notional += take * level_price
+                    remaining -= take
+                    if remaining <= 0:
+                        break
+
+                filled = amount - max(remaining, 0.0)
+                if filled > 0:
+                    vwap = notional / filled
+                    slippage_rate = abs((vwap / reference_price) - 1.0)
+        except Exception as e:
+            logger.warning(f"Could not fetch orderbook slippage from {exchange_id} for {symbol}: {e}")
+
+        if slippage_rate is None:
+            if strict_costs:
+                raise RuntimeError(
+                    f"TRADING BLOCKED: live slippage unavailable on active exchange {exchange_id}"
+                )
+            slippage_rate = self.config.get("slippage", 0.0005)
+
+        return float(fee_rate), float(slippage_rate)
+
     def _load_rl_agent(self):
         """Load trained RL agent"""
         try:
@@ -453,6 +536,26 @@ class AutoExecutionEngine:
             # Calculate amount in base currency
             amount = position_size / current_price
 
+            # Fetch expected execution costs from the active exchange
+            fee_rate, slippage_rate = await self._get_exchange_execution_costs(
+                exchange_id=exchange_id,
+                symbol=symbol,
+                side="buy",
+                amount=amount,
+                reference_price=current_price,
+            )
+
+            # Require trade edge to exceed expected practical costs
+            expected_edge = max(float(getattr(pair, "profit_score", 0.0)), 0.0) / 100.0
+            expected_round_trip_cost = (fee_rate * 2) + (slippage_rate * 2)
+            if expected_edge <= expected_round_trip_cost:
+                logger.info(
+                    f"⏭️ Skipping {symbol} on {exchange_id}: edge {expected_edge*100:.3f}% <= "
+                    f"expected cost {expected_round_trip_cost*100:.3f}% (fee {fee_rate*100:.3f}%, "
+                    f"slippage {slippage_rate*100:.3f}%)"
+                )
+                return False
+
             # Execute buy order
             logger.info(
                 f"📈 Executing BUY: {amount:.6f} {symbol} @ ${current_price:.2f}"
@@ -480,6 +583,9 @@ class AutoExecutionEngine:
                     strategy="auto_execution",
                     status="open",
                 )
+
+                trade.execution_fee_rate = fee_rate
+                trade.execution_slippage_rate = slippage_rate
 
                 self.active_trades[trade.trade_id] = trade
                 self.total_trades += 1
@@ -542,13 +648,27 @@ class AutoExecutionEngine:
             # Get current price
             current_price = await self.get_current_price(trade.exchange, trade.symbol)
 
+            # Fetch expected sell-side execution costs from active exchange
+            fee_rate, slippage_rate = await self._get_exchange_execution_costs(
+                exchange_id=trade.exchange,
+                symbol=trade.symbol,
+                side="sell",
+                amount=trade.amount,
+                reference_price=current_price,
+            )
+            effective_exit_price = current_price * (1 - slippage_rate)
+
             # Calculate PnL
-            pnl = (current_price - trade.price) * trade.amount
-            pnl_percent = ((current_price - trade.price) / trade.price) * 100
+            entry_fee_rate = float(getattr(trade, "execution_fee_rate", fee_rate))
+            gross_pnl = (effective_exit_price - trade.price) * trade.amount
+            estimated_fees = (trade.price * trade.amount * entry_fee_rate) + (effective_exit_price * trade.amount * fee_rate)
+            pnl = gross_pnl - estimated_fees
+            pnl_percent = ((effective_exit_price - trade.price) / trade.price) * 100
 
             # Execute sell order
             logger.info(
-                f"📉 Executing SELL: {trade.amount:.6f} {trade.symbol} @ ${current_price:.2f}"
+                f"📉 Executing SELL: {trade.amount:.6f} {trade.symbol} @ ${effective_exit_price:.2f} "
+                f"(raw ${current_price:.2f}, fee {fee_rate*100:.3f}%, slip {slippage_rate*100:.3f}%)"
             )
 
             order = await self.neural_net.exchanges[
