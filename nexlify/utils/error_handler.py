@@ -17,8 +17,14 @@ from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import aiohttp
-import psutil
+try:
+    import aiohttp
+except Exception:  # Optional dependency in minimal environments
+    aiohttp = None
+try:
+    import psutil
+except Exception:  # Optional dependency in minimal environments
+    psutil = None
 
 
 class NightCityErrorHandler:
@@ -192,10 +198,10 @@ class NightCityErrorHandler:
             "system": {
                 "platform": platform.platform(),
                 "python_version": platform.python_version(),
-                "cpu_count": psutil.cpu_count(),
-                "memory_total": psutil.virtual_memory().total,
-                "memory_available": psutil.virtual_memory().available,
-                "memory_percent": psutil.virtual_memory().percent,
+                "cpu_count": psutil.cpu_count() if psutil else None,
+                "memory_total": psutil.virtual_memory().total if psutil else None,
+                "memory_available": psutil.virtual_memory().available if psutil else None,
+                "memory_percent": psutil.virtual_memory().percent if psutil else None,
             },
             "error": {
                 "type": exc_type.__name__,
@@ -302,6 +308,10 @@ class NightCityErrorHandler:
         chat_id = env_config.get("telegram_chat_id")
 
         if not token or not chat_id:
+            return
+
+        if aiohttp is None:
+            self.error_logger.warning("aiohttp unavailable; skipping Telegram notification")
             return
 
         try:

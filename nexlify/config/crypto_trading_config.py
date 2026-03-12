@@ -183,6 +183,18 @@ class CryptoTradingConfig:
     # Action space size (buy, sell, hold)
     action_size: int = 3
 
+    # Capital-scaling controls (can auto-refresh as portfolio grows)
+    enable_auto_capital_scaling: bool = True
+    current_capital: Optional[float] = None
+    capital_preset_name: str = ""
+    max_position_pct: float = 0.08
+    max_concurrent_trades: int = 3
+    reserve_cash_pct: float = 0.20
+    weekly_target_pct: float = 0.10
+    stop_loss_pct: float = 0.015
+    take_profit_pct: float = 0.040
+    trailing_stop_pct: float = 0.020
+
     # ========================================================================
     # TECHNICAL INDICATOR PERIODS
     # ========================================================================
@@ -257,6 +269,12 @@ class CryptoTradingConfig:
                     "Set trading_network to your actual exchange/network and ensure "
                     "use_dynamic_fees=True"
                 )
+
+        # Apply capital-aware risk preset at init
+        if self.enable_auto_capital_scaling:
+            self.refresh_capital_scaling(
+                self.current_capital if self.current_capital is not None else self.initial_balance
+            )
 
     # ========================================================================
     # RISK MANAGEMENT
@@ -362,9 +380,201 @@ class CryptoTradingConfig:
             "state_size": self.state_size,
             "action_size": self.action_size,
 
+            # Capital scaling
+            "current_capital": self.current_capital,
+            "capital_preset_name": self.capital_preset_name,
+            "max_position_pct": self.max_position_pct,
+            "max_concurrent_trades": self.max_concurrent_trades,
+            "reserve_cash_pct": self.reserve_cash_pct,
+            "weekly_target_pct": self.weekly_target_pct,
+            "stop_loss_pct": self.stop_loss_pct,
+            "take_profit_pct": self.take_profit_pct,
+            "trailing_stop_pct": self.trailing_stop_pct,
+
             # Risk management
             "use_improved_rewards": self.use_improved_rewards,
         }
+
+    def estimate_total_round_trip_cost(self, trade_size_usd: float) -> float:
+        """
+        Estimate all-in round-trip trading costs for a position.
+
+        Includes:
+        - Entry and exit fees (percentage + fixed)
+        - Slippage on both entry and exit
+        """
+        fee_estimate = self.get_fee_estimate(trade_size_usd=trade_size_usd)
+        fee_cost = fee_estimate.calculate_round_trip_cost(trade_size_usd)
+
+        # Slippage is paid twice in a round-trip trade (entry + exit)
+        slippage_cost = trade_size_usd * (self.slippage * 2)
+        return fee_cost + slippage_cost
+
+    def calculate_expected_actual_cost(
+        self,
+        trade_size_usd: float,
+        actual_entry_fee_rate: Optional[float] = None,
+        actual_exit_fee_rate: Optional[float] = None,
+        actual_entry_fixed_cost: float = 0.0,
+        actual_exit_fixed_cost: float = 0.0,
+        actual_entry_slippage: Optional[float] = None,
+        actual_exit_slippage: Optional[float] = None,
+        require_actual_inputs: bool = False,
+    ) -> float:
+        """
+        Calculate expected trade cost using explicit live execution inputs.
+
+        This is intended for pre-trade checks when venue/orderbook-based values are
+        available. If actual inputs are missing, this method can enforce strict mode
+        or safely fall back to configured estimates.
+        """
+        has_actual_fee_inputs = (
+            actual_entry_fee_rate is not None and actual_exit_fee_rate is not None
+        )
+        has_actual_slippage_inputs = (
+            actual_entry_slippage is not None and actual_exit_slippage is not None
+        )
+
+        if require_actual_inputs and (not has_actual_fee_inputs or not has_actual_slippage_inputs):
+            raise RuntimeError(
+                "Actual execution costs required but missing. Provide entry/exit fee rates "
+                "and entry/exit slippage from live venue data before trading."
+            )
+
+        fee_estimate = self.get_fee_estimate(trade_size_usd=trade_size_usd)
+        entry_fee_rate = actual_entry_fee_rate if actual_entry_fee_rate is not None else fee_estimate.entry_fee_rate
+        exit_fee_rate = actual_exit_fee_rate if actual_exit_fee_rate is not None else fee_estimate.exit_fee_rate
+
+        entry_fixed = actual_entry_fixed_cost if actual_entry_fixed_cost else fee_estimate.entry_fixed_cost
+        exit_fixed = actual_exit_fixed_cost if actual_exit_fixed_cost else fee_estimate.exit_fixed_cost
+
+        entry_slippage = actual_entry_slippage if actual_entry_slippage is not None else self.slippage
+        exit_slippage = actual_exit_slippage if actual_exit_slippage is not None else self.slippage
+
+        # Entry costs
+        entry_fee = trade_size_usd * entry_fee_rate
+        entry_slippage_cost = trade_size_usd * entry_slippage
+        value_after_entry = trade_size_usd - entry_fee - entry_fixed - entry_slippage_cost
+
+        # Exit costs on remaining value
+        exit_fee = value_after_entry * exit_fee_rate
+        exit_slippage_cost = value_after_entry * exit_slippage
+
+        return entry_fee + entry_fixed + entry_slippage_cost + exit_fee + exit_fixed + exit_slippage_cost
+
+    def min_required_edge_pct(
+        self,
+        trade_size_usd: float,
+        safety_buffer_pct: float = 0.001,
+    ) -> float:
+        """
+        Minimum expected move needed to break even after costs.
+
+        Args:
+            trade_size_usd: Notional size of planned trade.
+            safety_buffer_pct: Extra edge requirement to reduce false positives
+                (default 0.1%).
+        """
+        round_trip_cost = self.estimate_total_round_trip_cost(trade_size_usd)
+        cost_pct = round_trip_cost / max(trade_size_usd, 1e-9)
+        return cost_pct + safety_buffer_pct
+
+    def is_trade_net_profitable(
+        self,
+        expected_move_pct: float,
+        trade_size_usd: float,
+        safety_buffer_pct: float = 0.001,
+    ) -> bool:
+        """
+        Check whether expected move can cover fees + slippage + safety buffer.
+
+        Returns:
+            True only when the expected move is likely net-profitable in practice.
+        """
+        required_edge = self.min_required_edge_pct(
+            trade_size_usd=trade_size_usd,
+            safety_buffer_pct=safety_buffer_pct,
+        )
+        return expected_move_pct >= required_edge
+
+    def refresh_capital_scaling(self, current_capital: float) -> "CapitalScalingPreset":
+        """
+        Refresh risk/sizing controls from nearest capital preset.
+
+        Call this periodically (or on equity updates) so config tracks portfolio growth.
+        """
+        preset = get_capital_scaling_preset(current_capital)
+        self.current_capital = current_capital
+        self.capital_preset_name = preset.name
+        self.max_position_pct = preset.max_position_pct
+        self.max_concurrent_trades = preset.max_concurrent_trades
+        self.reserve_cash_pct = preset.reserve_cash_pct
+        self.weekly_target_pct = preset.weekly_target_pct
+        self.stop_loss_pct = preset.stop_loss_pct
+        self.take_profit_pct = preset.take_profit_pct
+        self.trailing_stop_pct = preset.trailing_stop_pct
+        return preset
+
+
+@dataclass(frozen=True)
+class CapitalScalingPreset:
+    """Capital-aware trading preset for practical deployment scaling."""
+
+    name: str
+    starting_capital: float
+    max_position_pct: float
+    max_concurrent_trades: int
+    reserve_cash_pct: float
+    weekly_target_pct: float
+    stop_loss_pct: float
+    take_profit_pct: float
+    trailing_stop_pct: float
+
+
+CAPITAL_SCALING_PRESETS: Dict[int, CapitalScalingPreset] = {
+    100: CapitalScalingPreset(
+        name="micro_capital",
+        starting_capital=100.0,
+        max_position_pct=0.12,
+        max_concurrent_trades=1,
+        reserve_cash_pct=0.35,
+        weekly_target_pct=0.10,
+        stop_loss_pct=0.010,
+        take_profit_pct=0.030,
+        trailing_stop_pct=0.015,
+    ),
+    250: CapitalScalingPreset(
+        name="small_capital",
+        starting_capital=250.0,
+        max_position_pct=0.10,
+        max_concurrent_trades=2,
+        reserve_cash_pct=0.25,
+        weekly_target_pct=0.10,
+        stop_loss_pct=0.012,
+        take_profit_pct=0.035,
+        trailing_stop_pct=0.018,
+    ),
+    1000: CapitalScalingPreset(
+        name="scaled_capital",
+        starting_capital=1000.0,
+        max_position_pct=0.08,
+        max_concurrent_trades=3,
+        reserve_cash_pct=0.20,
+        weekly_target_pct=0.10,
+        stop_loss_pct=0.015,
+        take_profit_pct=0.040,
+        trailing_stop_pct=0.020,
+    ),
+}
+
+
+def get_capital_scaling_preset(starting_capital: float) -> CapitalScalingPreset:
+    """Get nearest supported capital scaling preset (100, 250, 1000)."""
+    if starting_capital <= 175:
+        return CAPITAL_SCALING_PRESETS[100]
+    if starting_capital <= 625:
+        return CAPITAL_SCALING_PRESETS[250]
+    return CAPITAL_SCALING_PRESETS[1000]
 
 
 # ============================================================================
@@ -500,6 +710,9 @@ AGGRESSIVE_CONFIG = AggressiveCryptoConfig()
 
 __all__ = [
     "CryptoTradingConfig",
+    "CapitalScalingPreset",
+    "CAPITAL_SCALING_PRESETS",
+    "get_capital_scaling_preset",
     "CRYPTO_24_7_CONFIG",
     "DEFAULT_CONFIG",
     "FEATURE_PERIODS",

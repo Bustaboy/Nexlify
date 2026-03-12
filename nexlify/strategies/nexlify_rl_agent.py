@@ -75,6 +75,20 @@ class TradingEnvironment:
         self.initial_balance = initial_balance
         self.config = config or {}
 
+        # Capital-aware position sizing (backward compatible defaults)
+        # Legacy behavior bought ~95% of available balance.
+        self.max_position_pct = float(self.config.get("max_position_pct", 0.95))
+        self.reserve_cash_pct = float(self.config.get("reserve_cash_pct", 0.05))
+        self.slippage = float(self.config.get("slippage", getattr(CRYPTO_24_7_CONFIG, "slippage", 0.0005)))
+        self.fee_rate = float(self.config.get("fee_rate", getattr(CRYPTO_24_7_CONFIG, "fee_rate", 0.001)))
+        self.execution_cost_provider = self.config.get("execution_cost_provider")
+        self.require_actual_costs = bool(self.config.get("require_actual_costs", False))
+
+        # Clamp critical percentage controls to valid ranges
+        self.max_position_pct = min(max(self.max_position_pct, 0.0), 1.0)
+        self.reserve_cash_pct = min(max(self.reserve_cash_pct, 0.0), 0.99)
+        self.slippage = max(self.slippage, 0.0)
+
         # Fee provider setup
         if fee_provider is not None:
             self.fee_provider = fee_provider
@@ -112,6 +126,21 @@ class TradingEnvironment:
         if self.fee_provider:
             logger.info(f"   Fee provider: {self.fee_provider.get_network_name()}")
 
+    def _calculate_buy_notional(self) -> float:
+        """Calculate buy notional that scales with available funds and config limits."""
+        if self.balance <= 0:
+            return 0.0
+
+        # Keep reserve cash for risk management and fees
+        max_by_reserve = self.balance * max(0.0, 1.0 - self.reserve_cash_pct)
+
+        # Cap position size to configured portfolio fraction
+        max_by_position = self.balance * max(0.0, self.max_position_pct)
+
+        # Use the tighter cap, and never exceed available cash
+        amount_to_invest = min(max_by_reserve, max_by_position, self.balance)
+        return max(0.0, amount_to_invest)
+
     def _get_fee_estimate(self, trade_size_usd: float) -> FeeEstimate:
         """
         Get fee estimate for a trade
@@ -141,13 +170,40 @@ class TradingEnvironment:
 
             # Fallback to static 0.1% fee (ONLY for backtesting)
             from nexlify.config.fee_providers import FeeEstimate
-            logger.warning("Using static fallback fees (0.1%) - only safe for backtesting!")
+            logger.warning(f"Using static fallback fees ({self.fee_rate * 100:.2f}%) - only safe for backtesting!")
             return FeeEstimate(
-                entry_fee_rate=0.001,
-                exit_fee_rate=0.001,
+                entry_fee_rate=self.fee_rate,
+                exit_fee_rate=self.fee_rate,
                 network="static_fallback",
                 fee_type="percentage"
             )
+
+    def _get_execution_costs(self, trade_size_usd: float, side: str) -> Tuple[FeeEstimate, float]:
+        """
+        Resolve fees + slippage for this execution.
+
+        If `execution_cost_provider` is configured, it should return a dict with
+        `entry_fee_rate`, `exit_fee_rate`, optional fixed costs, and `slippage`.
+        """
+        if callable(self.execution_cost_provider):
+            payload = self.execution_cost_provider(trade_size_usd=trade_size_usd, side=side)
+            fee_estimate = FeeEstimate(
+                entry_fee_rate=float(payload.get("entry_fee_rate", self.fee_rate)),
+                exit_fee_rate=float(payload.get("exit_fee_rate", self.fee_rate)),
+                entry_fixed_cost=float(payload.get("entry_fixed_cost", 0.0)),
+                exit_fixed_cost=float(payload.get("exit_fixed_cost", 0.0)),
+                network=str(payload.get("network", "execution_cost_provider")),
+                fee_type=str(payload.get("fee_type", "percentage")),
+            )
+            slippage = max(float(payload.get("slippage", self.slippage)), 0.0)
+            return fee_estimate, slippage
+
+        if self.require_actual_costs:
+            raise RuntimeError(
+                "TRADING BLOCKED: require_actual_costs=True but no execution_cost_provider configured."
+            )
+
+        return self._get_fee_estimate(trade_size_usd), self.slippage
 
     def reset(self) -> np.ndarray:
         """Reset environment to initial state"""
@@ -380,24 +436,38 @@ class TradingEnvironment:
         # Execute action with proper fee accounting
         if action == 1:  # Buy
             if self.balance > 0 and self.position == 0:
-                # Buy with 95% of balance, accounting for fees
-                amount_to_invest = self.balance * 0.95  # Leave room for fees/slippage
+                # Buy with capital-aware sizing that scales with current balance
+                amount_to_invest = self._calculate_buy_notional()
+                if amount_to_invest <= 0:
+                    info["action"] = "buy_skipped"
+                    info["reason"] = "insufficient_buying_power"
+                    amount_to_invest = 0.0
+                    # continue through step accounting without opening position
+                    self.current_step += 1
+                    done = self.current_step >= self.max_steps
+                    next_state = self._get_state() if not done else np.zeros(self.state_space_n)
+                    return next_state, reward, done, info
 
                 # Get dynamic fee estimate for this trade size
-                fee_estimate = self._get_fee_estimate(amount_to_invest)
+                fee_estimate, entry_slippage = self._get_execution_costs(amount_to_invest, side="buy")
 
                 # Calculate entry costs (percentage fee + fixed cost like gas)
                 percentage_fee, fixed_fee = fee_estimate.calculate_entry_cost(amount_to_invest)
                 total_fees = percentage_fee + fixed_fee
 
+                # Apply slippage (worse fill on entry)
+                effective_buy_price = current_price * (1 + entry_slippage)
+
                 # Calculate actual position size after fees
                 amount_after_fees = amount_to_invest - total_fees
-                self.position = amount_after_fees / current_price
-                self.position_price = current_price
+                self.position = amount_after_fees / effective_buy_price
+                self.position_price = effective_buy_price
                 self.balance -= amount_to_invest  # Deduct total investment
 
                 info["action"] = "buy"
                 info["price"] = current_price
+                info["effective_buy_price"] = effective_buy_price
+                info["slippage"] = entry_slippage
                 info["entry_fees_pct"] = percentage_fee
                 info["entry_fees_fixed"] = fixed_fee
                 info["total_entry_fees"] = total_fees
@@ -406,10 +476,9 @@ class TradingEnvironment:
         elif action == 2:  # Sell
             if self.position > 0:
                 # Sell entire position with dynamic fee accounting
-                sell_value = self.position * current_price
-
-                # Get dynamic fee estimate for exit
-                fee_estimate = self._get_fee_estimate(sell_value)
+                fee_estimate, exit_slippage = self._get_execution_costs(self.position * current_price, side="sell")
+                effective_sell_price = current_price * (1 - exit_slippage)
+                sell_value = self.position * effective_sell_price
 
                 # Calculate exit costs (percentage fee + fixed cost like gas)
                 percentage_fee, fixed_fee = fee_estimate.calculate_exit_cost(sell_value)
@@ -430,9 +499,10 @@ class TradingEnvironment:
                 self.trade_history.append(
                     {
                         "entry_price": self.position_price,
-                        "exit_price": current_price,
+                        "exit_price": effective_sell_price,
                         "profit": profit,
-                        "return": (current_price / self.position_price - 1) * 100,
+                        "return": (effective_sell_price / self.position_price - 1) * 100,
+                        "slippage": exit_slippage,
                         "exit_fees_pct": percentage_fee,
                         "exit_fees_fixed": fixed_fee,
                         "total_exit_fees": total_exit_fees,
@@ -444,6 +514,8 @@ class TradingEnvironment:
                 self.position_price = 0
                 info["action"] = "sell"
                 info["profit"] = profit
+                info["effective_sell_price"] = effective_sell_price
+                info["slippage"] = exit_slippage
                 info["exit_fees_pct"] = percentage_fee
                 info["exit_fees_fixed"] = fixed_fee
                 info["total_exit_fees"] = total_exit_fees
