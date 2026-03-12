@@ -39,6 +39,13 @@ from nexlify.training.paper_trading_integration import (
     run_quick_paper_test,
 )
 
+from nexlify.training.self_improvement_loop import (
+    StrategyCandidate,
+    CandidateEvaluation,
+    RecursiveSelfImprover,
+    AutomatedSelfImprovementRunner,
+)
+
 __all__ = [
     # Training optimizers
     "GradientClipper",
@@ -64,4 +71,9 @@ __all__ = [
     "create_paper_test_from_manifest",
     "test_all_models",
     "run_quick_paper_test",
+    # Recursive self-improvement
+    "StrategyCandidate",
+    "CandidateEvaluation",
+    "RecursiveSelfImprover",
+    "AutomatedSelfImprovementRunner",
 ]

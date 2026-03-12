@@ -93,6 +93,7 @@ start_nexlify.bat
 - **[Environment Settings](docs/ENVIRONMENT_SETTINGS.md)** - Configuration options
 - **[Advanced Features](docs/ADVANCED_FEATURES_GUIDE.md)** - DeFi, profit management, and more
 - **[Enhancements Guide](docs/ENHANCEMENTS_GUIDE.md)** - Feature enhancements and updates
+- **[Self-Improvement Loop Guide](docs/SELF_IMPROVEMENT_LOOP_GUIDE.md)** - Recursive strategy/model/exchange automation
 
 ## 🎮 Basic Usage
 
