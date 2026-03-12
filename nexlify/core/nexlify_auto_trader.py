@@ -405,8 +405,7 @@ class AutoExecutionEngine:
     async def start(self):
         """Start the auto-execution engine"""
         if not self.neural_net:
-            logger.error("Neural net not available")
-            return
+            logger.warning("Neural net not available - running in limited mode")
 
         self.is_active = True
         self.is_running = True  # Backward compatibility
