@@ -85,3 +85,28 @@ def test_close_position_applies_live_exit_costs_sync():
 
     assert result is True
     assert "t1" not in trader.active_trades
+
+
+def test_get_exchange_execution_costs_strict_raises_when_live_data_missing_sync():
+    trader = AutoTrader({"require_actual_execution_costs": True})
+    exchange = AsyncMock()
+    exchange.fetch_trading_fee = AsyncMock(side_effect=Exception("not supported"))
+    exchange.load_markets = AsyncMock(side_effect=Exception("not supported"))
+    exchange.fetch_order_book = AsyncMock(side_effect=Exception("not supported"))
+
+    trader.neural_net = Mock()
+    trader.neural_net.exchanges = {"binance": exchange}
+
+    try:
+        asyncio.run(
+            trader._get_exchange_execution_costs(
+                exchange_id="binance",
+                symbol="BTC/USDT",
+                side="buy",
+                amount=1.0,
+                reference_price=100.0,
+            )
+        )
+        assert False, "Expected RuntimeError in strict mode when live costs are unavailable"
+    except RuntimeError as exc:
+        assert "TRADING BLOCKED" in str(exc)

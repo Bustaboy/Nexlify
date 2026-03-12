@@ -6,6 +6,7 @@ Fully autonomous trading system with risk management
 
 import asyncio
 import logging
+import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
@@ -204,6 +205,11 @@ class AutoExecutionEngine:
     """
 
     def __init__(self, neural_net=None, audit_manager=None, config: Dict = None):
+        # Backward compatibility: allow AutoTrader(config_dict) positional usage
+        if config is None and isinstance(neural_net, dict) and audit_manager is None:
+            config = neural_net
+            neural_net = None
+
         self.neural_net = neural_net
         self.audit_manager = audit_manager
         self.config = config or {}
@@ -262,7 +268,10 @@ class AutoExecutionEngine:
             (fee_rate, slippage_rate)
         """
         exchange = self.neural_net.exchanges[exchange_id]
-        strict_costs = bool(self.config.get("require_actual_execution_costs", False))
+        strict_costs = bool(
+            self.config.get("require_actual_execution_costs", False)
+            or self.config.get("auto_trader", {}).get("require_actual_execution_costs", False)
+        )
 
         # 1) Fee rate from active exchange
         fee_rate = None
@@ -276,6 +285,14 @@ class AutoExecutionEngine:
                 fee_rate = market.get("taker") or market.get("maker")
         except Exception as e:
             logger.warning(f"Could not fetch live fee from {exchange_id} for {symbol}: {e}")
+
+        # Normalize to a valid numeric fee rate
+        try:
+            fee_rate = float(fee_rate) if fee_rate is not None else None
+        except (TypeError, ValueError):
+            fee_rate = None
+        if fee_rate is not None and (not math.isfinite(fee_rate) or fee_rate < 0):
+            fee_rate = None
 
         if fee_rate is None:
             if strict_costs:
@@ -309,6 +326,14 @@ class AutoExecutionEngine:
                     slippage_rate = abs((vwap / reference_price) - 1.0)
         except Exception as e:
             logger.warning(f"Could not fetch orderbook slippage from {exchange_id} for {symbol}: {e}")
+
+        # Normalize slippage to a valid numeric rate
+        try:
+            slippage_rate = float(slippage_rate) if slippage_rate is not None else None
+        except (TypeError, ValueError):
+            slippage_rate = None
+        if slippage_rate is not None and (not math.isfinite(slippage_rate) or slippage_rate < 0):
+            slippage_rate = None
 
         if slippage_rate is None:
             if strict_costs:
