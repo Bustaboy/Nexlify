@@ -275,16 +275,20 @@ class AutoExecutionEngine:
 
         # 1) Fee rate from active exchange
         fee_rate = None
-        try:
-            if hasattr(exchange, "fetch_trading_fee"):
+        if hasattr(exchange, "fetch_trading_fee"):
+            try:
                 fee_info = await exchange.fetch_trading_fee(symbol)
                 fee_rate = fee_info.get("taker") or fee_info.get("maker")
-            if fee_rate is None and hasattr(exchange, "load_markets"):
+            except Exception as e:
+                logger.warning(f"Could not fetch live fee from {exchange_id} for {symbol}: {e}")
+
+        if fee_rate is None and hasattr(exchange, "load_markets"):
+            try:
                 markets = await exchange.load_markets()
                 market = markets.get(symbol, {})
                 fee_rate = market.get("taker") or market.get("maker")
-        except Exception as e:
-            logger.warning(f"Could not fetch live fee from {exchange_id} for {symbol}: {e}")
+            except Exception as e:
+                logger.warning(f"Could not fetch market fee metadata from {exchange_id} for {symbol}: {e}")
 
         # Normalize to a valid numeric fee rate
         try:

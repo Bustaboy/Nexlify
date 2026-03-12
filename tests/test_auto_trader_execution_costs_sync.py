@@ -110,3 +110,95 @@ def test_get_exchange_execution_costs_strict_raises_when_live_data_missing_sync(
         assert False, "Expected RuntimeError in strict mode when live costs are unavailable"
     except RuntimeError as exc:
         assert "TRADING BLOCKED" in str(exc)
+
+
+def test_positional_config_dict_is_supported_for_backward_compatibility():
+    trader = AutoTrader({"enabled": True, "check_interval": 42})
+    assert trader.config.get("enabled") is True
+    assert trader.check_interval == 42
+
+
+def test_get_exchange_execution_costs_uses_load_markets_fallback_when_fee_endpoint_missing():
+    trader = AutoTrader({"require_actual_execution_costs": False})
+    exchange = AsyncMock()
+    exchange.fetch_trading_fee = AsyncMock(side_effect=Exception("not available"))
+    exchange.load_markets = AsyncMock(return_value={"BTC/USDT": {"taker": 0.0017}})
+    exchange.fetch_order_book = AsyncMock(return_value={"asks": [[100.0, 1.0]], "bids": [[99.9, 1.0]]})
+
+    trader.neural_net = Mock()
+    trader.neural_net.exchanges = {"binance": exchange}
+
+    fee_rate, _ = asyncio.run(
+        trader._get_exchange_execution_costs(
+            exchange_id="binance",
+            symbol="BTC/USDT",
+            side="buy",
+            amount=0.5,
+            reference_price=100.0,
+        )
+    )
+    assert fee_rate == 0.0017
+
+
+def test_get_exchange_execution_costs_falls_back_to_config_in_non_strict_mode():
+    trader = AutoTrader({"fee_rate": 0.003, "slippage": 0.002, "require_actual_execution_costs": False})
+    exchange = AsyncMock()
+    exchange.fetch_trading_fee = AsyncMock(side_effect=Exception("no fee"))
+    exchange.load_markets = AsyncMock(return_value={})
+    exchange.fetch_order_book = AsyncMock(side_effect=Exception("no orderbook"))
+
+    trader.neural_net = Mock()
+    trader.neural_net.exchanges = {"binance": exchange}
+
+    fee_rate, slippage = asyncio.run(
+        trader._get_exchange_execution_costs(
+            exchange_id="binance",
+            symbol="BTC/USDT",
+            side="buy",
+            amount=1.0,
+            reference_price=100.0,
+        )
+    )
+    assert fee_rate == 0.003
+    assert slippage == 0.002
+
+
+def test_get_exchange_execution_costs_respects_nested_strict_flag():
+    trader = AutoTrader({"auto_trader": {"require_actual_execution_costs": True}})
+    exchange = AsyncMock()
+    exchange.fetch_trading_fee = AsyncMock(side_effect=Exception("not supported"))
+    exchange.load_markets = AsyncMock(side_effect=Exception("not supported"))
+    exchange.fetch_order_book = AsyncMock(side_effect=Exception("not supported"))
+    trader.neural_net = Mock()
+    trader.neural_net.exchanges = {"binance": exchange}
+
+    try:
+        asyncio.run(
+            trader._get_exchange_execution_costs(
+                exchange_id="binance",
+                symbol="BTC/USDT",
+                side="buy",
+                amount=1.0,
+                reference_price=100.0,
+            )
+        )
+        assert False, "Expected RuntimeError when nested strict flag is enabled"
+    except RuntimeError as exc:
+        assert "TRADING BLOCKED" in str(exc)
+
+
+def test_start_sets_running_true_without_neural_net_in_limited_mode():
+    trader = AutoTrader({"enabled": True})
+
+    async def _run():
+        task = asyncio.create_task(trader.start())
+        await asyncio.sleep(0.05)
+        assert trader.is_running is True
+        await trader.stop()
+        task.cancel()
+        try:
+            await task
+        except BaseException:
+            pass
+
+    asyncio.run(_run())
