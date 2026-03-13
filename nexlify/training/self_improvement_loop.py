@@ -76,8 +76,12 @@ class RecursiveSelfImprover:
         """Generate candidate pool for a generation."""
         candidates: List[StrategyCandidate] = []
 
-        for idx, (exchange, family, model, risk) in enumerate(
-            product(self.exchanges, self.strategy_families, self.model_types, self.risk_profiles),
+        # IMPORTANT: keep exchanges as the innermost loop so that when
+        # max_candidates_per_generation truncates the cartesian product,
+        # candidate selection still spans all exchanges instead of being
+        # biased toward the first configured exchange.
+        for idx, (family, model, risk, exchange) in enumerate(
+            product(self.strategy_families, self.model_types, self.risk_profiles, self.exchanges),
             start=1,
         ):
             params = dict(self.base_params)

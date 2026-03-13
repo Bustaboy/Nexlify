@@ -32,6 +32,25 @@ def test_generate_candidates_respects_cap():
     assert all(c.generation == 1 for c in candidates)
 
 
+def test_generate_candidates_not_biased_to_first_exchange_when_capped():
+    improver = RecursiveSelfImprover(
+        {
+            "max_candidates_per_generation": 12,
+            "exchanges": ["binance", "coinbase"],
+            "strategy_families": ["trend_following", "mean_reversion", "breakout", "market_making"],
+            "model_types": ["dqn", "double_dqn", "ensemble"],
+            "risk_profiles": ["conservative", "balanced", "aggressive"],
+        }
+    )
+
+    candidates = improver.generate_candidates(generation=1)
+    exchanges = {c.exchange for c in candidates}
+
+    assert len(candidates) == 12
+    assert "binance" in exchanges
+    assert "coinbase" in exchanges
+
+
 def test_recursive_cycles_promote_best_champion():
     improver = RecursiveSelfImprover(
         {
