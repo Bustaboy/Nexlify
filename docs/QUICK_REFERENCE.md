@@ -81,6 +81,13 @@ start_nexlify.bat
 - 🔴 **Red**: Loss/Danger
 - 🔵 **Blue**: Neutral/Info
 
+## 🧠 Recursive Self-Improvement (Training)
+
+- Core module: `nexlify/training/self_improvement_loop.py`
+- Use `RecursiveSelfImprover` for candidate generation + champion promotion
+- Use `AutomatedSelfImprovementRunner` for automated evaluator-based scoring and repeated rounds
+- Full guide: [SELF_IMPROVEMENT_LOOP_GUIDE.md](SELF_IMPROVEMENT_LOOP_GUIDE.md)
+
 ## 🛠️ Common Tasks
 
 ### Change BTC Wallet
