@@ -108,3 +108,122 @@ def test_automated_runner_rejects_empty_evaluators():
         assert False, "Expected ValueError for empty evaluator set"
     except ValueError:
         assert True
+
+
+
+def test_champion_snapshot_empty_before_training():
+    improver = RecursiveSelfImprover()
+    assert improver.champion_snapshot() == {}
+
+
+def test_seeded_generation_mutates_params_with_bounds():
+    improver = RecursiveSelfImprover(
+        {
+            "max_candidates_per_generation": 1,
+            "base_params": {"learning_rate": 0.001, "gamma": 0.99},
+        }
+    )
+
+    seed = self_improvement_loop.StrategyCandidate(
+        generation=1,
+        name="seed",
+        exchange="binance",
+        strategy_family="trend_following",
+        model_type="dqn",
+        risk_profile="balanced",
+        params={"learning_rate": 0.000001, "gamma": 0.9999},
+    )
+
+    candidates = improver.generate_candidates(generation=2, seed_candidate=seed)
+
+    assert len(candidates) == 1
+    params = candidates[0].params
+    assert params["learning_rate"] == 1e-5
+    assert params["gamma"] == 0.9999
+
+
+def test_evaluate_generation_defaults_missing_score_and_preserves_champion():
+    improver = RecursiveSelfImprover(
+        {
+            "max_candidates_per_generation": 2,
+            "exchanges": ["binance", "coinbase"],
+            "strategy_families": ["trend_following"],
+            "model_types": ["dqn"],
+            "risk_profiles": ["balanced"],
+        }
+    )
+
+    winner_1 = improver.evaluate_generation(
+        generation=1,
+        evaluate_fn=lambda _c: {"score": 5, "sharpe": 1},
+    )
+    assert winner_1.score == 5.0
+
+    winner_2 = improver.evaluate_generation(
+        generation=2,
+        evaluate_fn=lambda _c: {"sharpe": 0.5},
+    )
+
+    assert winner_2.score == 0.0
+    assert improver.champion is not None
+    assert improver.champion.score == 5.0
+
+
+def test_runner_uses_default_weights_and_continuous_rounds():
+    improver = RecursiveSelfImprover(
+        {
+            "max_candidates_per_generation": 1,
+            "exchanges": ["binance"],
+            "strategy_families": ["trend_following"],
+            "model_types": ["dqn"],
+            "risk_profiles": ["balanced"],
+        }
+    )
+
+    runner = AutomatedSelfImprovementRunner(
+        improver=improver,
+        evaluators={"m1": lambda _c: 2.0, "m2": lambda _c: 4.0},
+    )
+
+    sample = self_improvement_loop.StrategyCandidate(
+        generation=1,
+        name="x",
+        exchange="binance",
+        strategy_family="trend_following",
+        model_type="dqn",
+        risk_profile="balanced",
+    )
+    metrics = runner.evaluate_candidate(sample)
+    assert metrics["score"] == 3.0
+
+    champion = runner.run_continuous(rounds=2, cycles_per_round=1)
+    assert champion.score > 0
+    assert len(runner.automation_log) == 2
+
+
+def test_runner_continuous_runtime_error_when_no_champion_and_invalid_rounds():
+    class BrokenImprover:
+        champion = None
+
+        def run_recursive_cycles(self, cycles, evaluate_fn):
+            return None
+
+        def champion_snapshot(self):
+            return {}
+
+    runner = AutomatedSelfImprovementRunner(
+        improver=BrokenImprover(),
+        evaluators={"m1": lambda _c: 1.0},
+    )
+
+    try:
+        runner.run_continuous(rounds=0)
+        assert False, "Expected ValueError for rounds <= 0"
+    except ValueError:
+        assert True
+
+    try:
+        runner.run_continuous(rounds=1)
+        assert False, "Expected RuntimeError when no champion is produced"
+    except RuntimeError:
+        assert True
