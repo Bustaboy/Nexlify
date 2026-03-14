@@ -84,12 +84,12 @@ Our adaptive agent:
 
 ```bash
 # Core dependencies (already in Nexlify)
-torch>=2.1.0
-numpy>=1.24.3
+torch>=2.6.0
+numpy>=2.3.0
 psutil>=5.9.0
 
 # Optional (for GPU)
-nvidia-ml-py3  # GPU monitoring
+nvidia-ml-py  # GPU monitoring
 ```
 
 ### Quick Start

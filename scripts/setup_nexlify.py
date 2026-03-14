@@ -50,9 +50,9 @@ class NexlifySetup:
     def check_python(self):
         """Check Python version"""
         print("🔍 Checking Python version...")
-        if self.python_version < (3, 11):
+        if self.python_version < (3, 12):
             print(f"❌ Python {self.python_version.major}.{self.python_version.minor} detected")
-            print("❌ Python 3.11+ required!")
+            print("❌ Python 3.12+ required!")
             return False
         print(f"✅ Python {self.python_version.major}.{self.python_version.minor} detected")
         return True
@@ -166,7 +166,7 @@ class NexlifySetup:
         # README.md
         readme_content = """# 🌃 Nexlify - Arasaka Neural-Net Trading Matrix
 
-![Python](https://img.shields.io/badge/python-v3.11+-blue.svg)
+![Python](https://img.shields.io/badge/python-v3.12+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Status](https://img.shields.io/badge/status-active-success.svg)
 

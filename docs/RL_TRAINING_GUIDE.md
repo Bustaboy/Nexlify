@@ -8,7 +8,7 @@ This guide will help you train the Nexlify RL trading agent on your local machin
 ## Prerequisites
 
 ### Required Software
-- Python 3.11+
+- Python 3.12+
 - pip (Python package manager)
 - 2GB+ free RAM
 - 1GB free disk space

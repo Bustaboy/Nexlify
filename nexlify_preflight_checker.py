@@ -284,7 +284,7 @@ class PreFlightChecker:
                 status="fail",
                 message=f"Unexpected error: {e}",
                 impact="critical",
-                troubleshooting="1. Update CCXT: pip install --upgrade ccxt\n    2. Check Python version (3.8+ required)\n    3. Report issue if persists"
+                troubleshooting="1. Update CCXT: pip install --upgrade ccxt\n    2. Check Python version (3.12+ required)\n    3. Report issue if persists"
             ))
 
     def _check_multiple_exchanges(self):

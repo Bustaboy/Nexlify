@@ -91,18 +91,15 @@ python -c "import torch; print(f'CUDA Version: {torch.version.cuda}')"
 If CUDA is not available, install PyTorch with CUDA:
 
 ```bash
-# For CUDA 11.8
-pip install torch==2.1.0 --index-url https://download.pytorch.org/whl/cu118
-
 # For CUDA 12.1
-pip install torch==2.1.0 --index-url https://download.pytorch.org/whl/cu121
+pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu121
 ```
 
 #### AMD GPUs (ROCm)
 
 ```bash
 # Install PyTorch with ROCm support
-pip install torch==2.1.0 --index-url https://download.pytorch.org/whl/rocm5.6
+pip install torch --index-url https://download.pytorch.org/whl/rocm6.2
 ```
 
 #### Intel GPUs (Arc/Xe)
@@ -541,7 +538,7 @@ if torch.cuda.is_available():
 ```
 
 **Solutions**:
-1. Reinstall PyTorch with CUDA: `pip install torch==2.1.0 --index-url https://download.pytorch.org/whl/cu118`
+1. Reinstall PyTorch with CUDA: `pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu121`
 2. Check NVIDIA drivers: `nvidia-smi`
 3. Verify CUDA installation: `nvcc --version`
 
@@ -784,5 +781,5 @@ For issues or questions:
 
 **Last Updated**: 2025-11-12
 **Nexlify Version**: 1.0+
-**PyTorch Version**: 2.1.0+
-**CUDA Version**: 11.8+ (NVIDIA), ROCm 5.6+ (AMD)
+**PyTorch Version**: 2.6.0+
+**CUDA Version**: 12.1+ (NVIDIA), ROCm 6.2+ (AMD)

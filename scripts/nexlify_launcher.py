@@ -55,8 +55,8 @@ class NexlifyLauncher:
         print(f"{self.colors['yellow']}🔍 Checking system requirements...{self.colors['reset']}")
 
         # Check Python version
-        if sys.version_info < (3, 11):
-            print(f"{self.colors['red']}❌ Python 3.11+ required! You have {sys.version_info.major}.{sys.version_info.minor}{self.colors['reset']}")
+        if sys.version_info < (3, 12):
+            print(f"{self.colors['red']}❌ Python 3.12+ required! You have {sys.version_info.major}.{sys.version_info.minor}{self.colors['reset']}")
             return False
 
         print(f"{self.colors['green']}✅ Python {sys.version_info.major}.{sys.version_info.minor} detected{self.colors['reset']}")

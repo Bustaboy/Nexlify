@@ -475,4 +475,4 @@ For issues or questions about multi-mode RL training:
 
 **Last Updated**: 2025-11-12
 **Nexlify Version**: 1.0+
-**Requires**: PyTorch 2.1.0+, CUDA 11.8+ (for GPU)
+**Requires**: PyTorch 2.6.0+, CUDA 12.1+ (for GPU)

@@ -1,4 +1,7 @@
 # Nexlify Codebase Audit Report
+
+> ⚠️ **Historical report note:** This report captures a past snapshot and may reference older package versions. Use `requirements.txt` and the Python 3.12 migration playbook as the source of truth for current baselines.
+
 **Date:** 2025-11-12
 **Auditor:** Claude Code
 **Repository:** Nexlify v2.0.7.7
