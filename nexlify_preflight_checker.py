@@ -17,6 +17,7 @@ Provides:
 """
 
 import logging
+import importlib
 import sys
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
@@ -27,16 +28,33 @@ import time
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-try:
-    import ccxt
-    import requests
-    import torch
-    import pandas as pd
-    import numpy as np
-except ImportError as e:
-    print(f"❌ Missing dependency: {e}")
-    print("Please run: pip install -r requirements.txt")
-    sys.exit(1)
+MIN_PYTHON = (3, 12)
+
+
+def _validate_runtime_requirements() -> None:
+    """Fail fast with actionable guidance when runtime prerequisites are missing."""
+    if sys.version_info < MIN_PYTHON:
+        required = ".".join(map(str, MIN_PYTHON))
+        current = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+        print(f"❌ Unsupported Python version: {current}")
+        print(f"Nexlify requires Python {required}+ for testing and model training.")
+        print("Please create a Python 3.12+ environment, then run: pip install -r requirements.txt")
+        sys.exit(1)
+
+    missing = []
+    for package_name in ("ccxt", "requests", "torch", "pandas", "numpy"):
+        try:
+            globals()[package_name] = importlib.import_module(package_name)
+        except ImportError:
+            missing.append(package_name)
+
+    if missing:
+        print(f"❌ Missing dependency: {', '.join(missing)}")
+        print("Please run: pip install -r requirements.txt")
+        sys.exit(1)
+
+
+_validate_runtime_requirements()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
