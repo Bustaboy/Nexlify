@@ -35,12 +35,12 @@ This document provides comprehensive guidance for AI assistants (like Claude) wo
 - Real-time monitoring and Telegram notifications
 
 ### Key Technologies
-- **Python:** 3.11+ (tested on 3.11, 3.12)
-- **ML/RL:** PyTorch 2.1.0, TensorFlow 2.13.0, scikit-learn
-- **Trading:** CCXT 4.1.22 for exchange connectivity
-- **GUI:** PyQt5 5.15.10 with custom cyberpunk theme
-- **Database:** SQLAlchemy 2.0.21 with SQLite
-- **Testing:** pytest 7.4.2 with asyncio support
+- **Python:** 3.12+ (project baseline)
+- **ML/RL:** PyTorch 2.6.0, TensorFlow 2.20.0, scikit-learn
+- **Trading:** CCXT 4.5.18 for exchange connectivity
+- **GUI:** PyQt5 5.15.11 with custom cyberpunk theme
+- **Database:** SQLAlchemy 2.0.44 with SQLite
+- **Testing:** pytest 8.3.4 with asyncio support
 - **Async:** aiohttp, asyncio, qasync for GUI integration
 
 ### Project Maturity

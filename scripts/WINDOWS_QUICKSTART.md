@@ -110,7 +110,7 @@ type logs\ml_rl_1000_training.log
 ## Troubleshooting
 
 ### "Python not found"
-Install Python 3.9+ from [python.org](https://www.python.org/downloads/)
+Install Python 3.12+ from [python.org](https://www.python.org/downloads/)
 Make sure to check "Add Python to PATH" during installation.
 
 ### "Module not found" errors

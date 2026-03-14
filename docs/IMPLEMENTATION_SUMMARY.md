@@ -360,15 +360,15 @@ print(f"Agent action: {env._get_action_name(action)}")
 ## Requirements
 
 **Core Dependencies:**
-- Python 3.9+
-- PyTorch 2.1.0+
-- NumPy 1.24.3 (compatible with 2.x with warnings)
+- Python 3.12+
+- PyTorch 2.6.0+
+- NumPy 2.3.x (project baseline)
 - pandas 2.0.3+
-- ccxt 4.1.22+
-- scikit-learn 1.3.0+
+- ccxt 4.5.18+
+- scikit-learn 1.7.2+
 
 **Optional (for GPU training):**
-- CUDA 11.8+ or CUDA 12.1+
+- CUDA 12.1+ (recommended baseline)
 - NVIDIA GPU with CUDA support
 
 **No dependency conflicts detected** (`pip check` passes)
@@ -397,10 +397,10 @@ print(f"Agent action: {env._get_action_name(action)}")
 ## Known Issues & Limitations
 
 ### NumPy Version Warning:
-- PyTorch 2.1.0 compiled with NumPy 1.x
-- NumPy 2.3.3 installed causes compatibility warning
-- **Impact**: Warning only, does not affect functionality
-- **Solution**: Can downgrade to `numpy<2` if desired
+- Keep PyTorch and NumPy versions aligned with `requirements.txt` pins
+- If you see ABI/import issues after manual upgrades, reinstall both from pinned requirements
+- **Impact**: Typically environment-specific, not code-level
+- **Solution**: Recreate a clean environment and reinstall requirements
 
 ### Windows Limitations:
 - `torch.compile()` not supported on Windows

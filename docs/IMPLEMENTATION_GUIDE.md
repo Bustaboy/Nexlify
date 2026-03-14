@@ -14,7 +14,7 @@
 
 ### System Requirements
 - **OS**: Windows 10/11, macOS, or Linux
-- **Python**: 3.9 or higher
+- **Python**: 3.12 or higher
 - **RAM**: 8GB minimum (16GB recommended)
 - **Storage**: 2GB free space
 - **Internet**: Stable connection required
@@ -196,7 +196,7 @@ python nexlify_launcher.py
 
 #### GUI Won't Start
 1. Ensure API is running first
-2. Check Python version (3.9+)
+2. Check Python version (3.12+)
 3. Verify all dependencies installed
 4. Check error logs
 

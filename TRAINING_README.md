@@ -50,7 +50,7 @@ Progressive training from easy to hard:
 
 ### Prerequisites
 ```bash
-# Ensure you have Python 3.8+
+# Ensure you have Python 3.12+
 python --version
 
 # Install required packages (if not already installed)

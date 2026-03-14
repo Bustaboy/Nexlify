@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Python 3.9 or higher
+- Python 3.12 or higher
 - NVIDIA GPU with CUDA support (or AMD/Intel/Apple GPU)
 - NVIDIA drivers installed (for NVIDIA GPUs)
 
@@ -40,23 +40,20 @@ python examples/gpu_training_example.py
 ### NVIDIA (CUDA)
 
 Requirements already included in `requirements.txt`:
-- torch==2.1.0 (CUDA support)
-- pynvml==11.5.0 (GPU monitoring)
+- torch==2.6.0 (CUDA support)
+- nvidia-ml-py (GPU monitoring)
 
 If CUDA is not available:
 
 ```bash
-# For CUDA 11.8
-pip install torch==2.1.0 --index-url https://download.pytorch.org/whl/cu118
-
 # For CUDA 12.1
-pip install torch==2.1.0 --index-url https://download.pytorch.org/whl/cu121
+pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu121
 ```
 
 ### AMD (ROCm)
 
 ```bash
-pip install torch==2.1.0 --index-url https://download.pytorch.org/whl/rocm5.6
+pip install torch --index-url https://download.pytorch.org/whl/rocm6.2
 ```
 
 ### Intel (Arc/Xe)

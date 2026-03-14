@@ -102,17 +102,17 @@ pip install -r requirements.txt
 ### 2. Install New Required Dependencies
 ```bash
 # Required for optimizations
-pip install lz4==4.3.2           # Smart cache compression
-pip install pynvml==11.5.0       # NVIDIA GPU monitoring
+pip install lz4==4.3.3           # Smart cache compression
+pip install nvidia-ml-py==12.560.30       # NVIDIA GPU monitoring
 ```
 
 ### 3. Install Optional Dependencies (for advanced features)
 ```bash
 # Optional: For model compilation
-pip install onnx==1.15.0
-pip install onnxruntime==1.16.3         # CPU version
+pip install onnx==1.18.0
+pip install onnxruntime==1.20.1         # CPU version
 # OR
-pip install onnxruntime-gpu==1.16.3    # GPU version (if you have CUDA)
+pip install onnxruntime-gpu==1.20.1    # GPU version (if you have CUDA)
 
 # Optional: For TensorRT (NVIDIA only, requires TensorRT SDK)
 pip install torch-tensorrt==1.4.0
@@ -367,7 +367,7 @@ stats['thermal']['recommended_scale']  # Recommended batch size scale
 ```bash
 # Install missing dependencies
 pip install -r requirements.txt
-pip install lz4 pynvml
+pip install lz4 nvidia-ml-py
 ```
 
 ### GPU Not Detected
@@ -409,7 +409,7 @@ The sentiment analyzer has built-in rate limiting and caching:
 10. `examples/validate_optimizations.py` (validation script)
 
 ### Modified Files
-1. `requirements.txt` - Added lz4, pynvml, and optional ML dependencies
+1. `requirements.txt` - Added lz4, nvidia-ml-py, and optional ML dependencies
 2. `nexlify/ml/nexlify_feature_engineering.py` - Integrated sentiment analysis
 
 ## 🎉 Summary

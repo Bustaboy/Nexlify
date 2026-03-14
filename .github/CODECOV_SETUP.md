@@ -81,9 +81,9 @@ Coverage is collected in two jobs:
    - Fast unit tests
    - Flag: `quick-tests,python-3.12`
 
-2. **full-tests** (Python 3.11 & 3.12)
+2. **full-tests** (Python 3.12 only)
    - Complete test suite
-   - Flags: `full-tests,python-3.11` and `full-tests,python-3.12`
+   - Flag: `full-tests,python-3.12`
 
 Both jobs upload to Codecov, providing comprehensive coverage tracking.
 

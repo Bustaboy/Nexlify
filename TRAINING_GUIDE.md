@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-1. **Python 3.9+** with all dependencies installed
+1. **Python 3.12+** with all dependencies installed
 2. **Historical data access** (fetched automatically from exchanges)
 3. **GPU recommended** (but CPU works too)
 
