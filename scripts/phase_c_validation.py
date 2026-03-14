@@ -19,6 +19,7 @@ import argparse
 import importlib.util
 import json
 import platform
+from pathlib import Path
 import subprocess
 import sys
 import time
@@ -27,6 +28,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 
 MODULES = ["tensorflow", "torch", "torchvision", "ccxt", "pandas", "numpy", "PyQt5", "web3"]
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 @dataclass
@@ -286,7 +288,7 @@ def main() -> int:
         results.append(
             run_command(
                 "Preflight",
-                [sys.executable, "nexlify_preflight_checker.py", "--symbol", "BTC/USDT", "--automated"],
+                [sys.executable, str(REPO_ROOT / "nexlify_preflight_checker.py"), "--symbol", "BTC/USDT", "--automated"],
                 args.max_detail_lines,
                 args.command_timeout,
             )
@@ -294,7 +296,7 @@ def main() -> int:
         results.append(
             run_command(
                 "GPU verify (quick)",
-                [sys.executable, "scripts/verify_gpu_training.py", "--quick"],
+                [sys.executable, str(REPO_ROOT / "scripts" / "verify_gpu_training.py"), "--quick"],
                 args.max_detail_lines,
                 args.command_timeout,
             )
